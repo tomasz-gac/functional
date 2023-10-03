@@ -1,15 +1,13 @@
 package functional.com.tgac.functional;
-import com.tgac.functional.Consumers;
 import com.tgac.functional.Numbers;
-import com.tgac.monads.Reference;
+import com.tgac.functional.Reference;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static com.tgac.functional.Consumers.consumer;
-import static com.tgac.functional.Functions.function;
 public class ConsumersTest {
 	@Test
-	public void shouldBuildFunctions(){
+	public void shouldBuildFunctions() {
 		Reference<String> result = Reference.empty();
 		consumer(() -> result.set(null))
 				.accept();
@@ -18,18 +16,18 @@ public class ConsumersTest {
 		consumer(result::set).accept("1");
 		Assertions.assertThat(result.get())
 				.isEqualTo("1");
-		consumer((a, b) -> result.set(a.toString()+b)).accept(1, 2);
+		consumer((a, b) -> result.set(a.toString() + b)).accept(1, 2);
 		Assertions.assertThat(result.get())
 				.isEqualTo("12");
-		consumer((a, b, c) -> result.set(a.toString()+b+c)).accept(1, 2, 3);
+		consumer((a, b, c) -> result.set(a.toString() + b + c)).accept(1, 2, 3);
 		Assertions.assertThat(result.get())
 				.isEqualTo("123");
 	}
 
 	@Test
-	public void shouldApplyPartial(){
+	public void shouldApplyPartial() {
 		Reference<String> result = Reference.empty();
-		consumer((a, b, c) -> result.set(a.toString()+b+c))
+		consumer((a, b, c) -> result.set(a.toString() + b + c))
 				.partial(1)
 				.accept(2, 3);
 		Assertions.assertThat(result.get())
@@ -37,9 +35,9 @@ public class ConsumersTest {
 	}
 
 	@Test
-	public void shouldApplyPartialRight(){
+	public void shouldApplyPartialRight() {
 		Reference<String> result = Reference.empty();
-		consumer((a, b, c) -> result.set(a.toString()+b+c))
+		consumer((a, b, c) -> result.set(a.toString() + b + c))
 				.partialRight(3)
 				.accept(1, 2);
 		Assertions.assertThat(result.get())
@@ -47,9 +45,9 @@ public class ConsumersTest {
 	}
 
 	@Test
-	public void shouldApplyPartialByNumber(){
+	public void shouldApplyPartialByNumber() {
 		Reference<String> result = Reference.empty();
-		consumer((a, b, c) -> result.set(a.toString()+b+c))
+		consumer((a, b, c) -> result.set(a.toString() + b + c))
 				.partial(Numbers._1(), 2)
 				.accept(1, 3);
 		Assertions.assertThat(result.get())

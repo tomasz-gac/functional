@@ -1,5 +1,5 @@
 package functional.com.tgac.functional;
-import com.tgac.monads.Streams;
+import com.tgac.functional.Streams;
 import com.tgac.monads.continuation.Cont;
 import io.vavr.Value;
 import io.vavr.collection.List;
@@ -73,7 +73,6 @@ public class FunctionalCodeGenITest {
 
 		System.out.println(code);
 	}
-
 
 	@Test
 	public void shouldGenerateConsumers() {

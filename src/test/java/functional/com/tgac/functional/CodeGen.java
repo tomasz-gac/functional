@@ -1,12 +1,13 @@
 package functional.com.tgac.functional;
 
-import com.tgac.monads.functional.Functions;
 import io.vavr.Predicates;
 import io.vavr.collection.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.stream.Collectors;
+
+import static com.tgac.functional.Functions.function;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CodeGen {
 
@@ -50,7 +51,7 @@ public class CodeGen {
 
 	public static List<String> genericNames(String name, int maxIndex) {
 		return range(0, maxIndex)
-				.map(Functions.function(CodeGen::genericName)
+				.map(function(CodeGen::genericName)
 						.partial(name)::apply);
 	}
 
