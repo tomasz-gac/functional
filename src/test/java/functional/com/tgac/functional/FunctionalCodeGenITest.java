@@ -12,6 +12,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static functional.com.tgac.functional.CodeGen.codeBlock;
+import static functional.com.tgac.functional.CodeGen.genericNames;
 import static functional.com.tgac.functional.CodeGen.genericsList;
 import static java.lang.String.format;
 
@@ -199,7 +200,7 @@ public class FunctionalCodeGenITest {
 	@Test
 	public void shouldGenerateNAryFunction() {
 		int n = 5;
-		String code = buildNAryFunction(n).toJavaStream().collect(Collectors.joining("\n"));
+		String code = buildNAryConsumer(n).toJavaStream().collect(Collectors.joining("\n"));
 		System.out.println(code);
 	}
 
@@ -241,6 +242,15 @@ public class FunctionalCodeGenITest {
 								.boxed()
 								.flatMap(i -> generateConsumerPositionalPartial(n, i).toJavaStream())
 								.collect(List.collector())))
+				.map(l -> l.append(format("default Functions._%s%s asFunction()",
+								n, genericsList(createGenerics(n).append("Numbers._0"))))
+						.appendAll(codeBlock(
+								List.of(format("return (%s) -> ",
+												genericNames("v", n).collect(Collectors.joining(", "))))
+										.appendAll(codeBlock(List.of(format("accept(%s);",
+														genericNames("v", n).collect(Collectors.joining(", "))),
+												"return Numbers._0();"))
+												.append(";")))))
 				.apply(Function.identity());
 	}
 

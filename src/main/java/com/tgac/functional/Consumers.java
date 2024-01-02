@@ -121,6 +121,12 @@ public class Consumers {
 	public interface _0 {
 		void accept();
 
+		default Functions._0<Numbers._0> asFunction() {
+			return () -> {
+				accept();
+				return Numbers._0();
+			};
+		}
 	}
 	public interface _1<T0> {
 		void accept(T0 v0);
@@ -135,6 +141,13 @@ public class Consumers {
 
 		default Consumers._0 partial(Numbers._0 ignored, T0 v) {
 			return () -> accept(v);
+		}
+
+		default Functions._1<T0, Numbers._0> asFunction() {
+			return (v0) -> {
+				accept(v0);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _2<T0, T1> {
@@ -154,6 +167,13 @@ public class Consumers {
 
 		default Consumers._1<T0> partial(Numbers._1 ignored, T1 v) {
 			return (T0 v0) -> accept(v0, v);
+		}
+
+		default Functions._2<T0, T1, Numbers._0> asFunction() {
+			return (v0, v1) -> {
+				accept(v0, v1);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _3<T0, T1, T2> {
@@ -177,6 +197,13 @@ public class Consumers {
 
 		default Consumers._2<T0, T1> partial(Numbers._2 ignored, T2 v) {
 			return (T0 v0, T1 v1) -> accept(v0, v1, v);
+		}
+
+		default Functions._3<T0, T1, T2, Numbers._0> asFunction() {
+			return (v0, v1, v2) -> {
+				accept(v0, v1, v2);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _4<T0, T1, T2, T3> {
@@ -204,6 +231,13 @@ public class Consumers {
 
 		default Consumers._3<T0, T1, T2> partial(Numbers._3 ignored, T3 v) {
 			return (T0 v0, T1 v1, T2 v2) -> accept(v0, v1, v2, v);
+		}
+
+		default Functions._4<T0, T1, T2, T3, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3) -> {
+				accept(v0, v1, v2, v3);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _5<T0, T1, T2, T3, T4> {
@@ -235,6 +269,13 @@ public class Consumers {
 
 		default Consumers._4<T0, T1, T2, T3> partial(Numbers._4 ignored, T4 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3) -> accept(v0, v1, v2, v3, v);
+		}
+
+		default Functions._5<T0, T1, T2, T3, T4, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4) -> {
+				accept(v0, v1, v2, v3, v4);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _6<T0, T1, T2, T3, T4, T5> {
@@ -270,6 +311,13 @@ public class Consumers {
 
 		default Consumers._5<T0, T1, T2, T3, T4> partial(Numbers._5 ignored, T5 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4) -> accept(v0, v1, v2, v3, v4, v);
+		}
+
+		default Functions._6<T0, T1, T2, T3, T4, T5, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5) -> {
+				accept(v0, v1, v2, v3, v4, v5);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _7<T0, T1, T2, T3, T4, T5, T6> {
@@ -309,6 +357,13 @@ public class Consumers {
 
 		default Consumers._6<T0, T1, T2, T3, T4, T5> partial(Numbers._6 ignored, T6 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5) -> accept(v0, v1, v2, v3, v4, v5, v);
+		}
+
+		default Functions._7<T0, T1, T2, T3, T4, T5, T6, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _8<T0, T1, T2, T3, T4, T5, T6, T7> {
@@ -352,6 +407,13 @@ public class Consumers {
 
 		default Consumers._7<T0, T1, T2, T3, T4, T5, T6> partial(Numbers._7 ignored, T7 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6) -> accept(v0, v1, v2, v3, v4, v5, v6, v);
+		}
+
+		default Functions._8<T0, T1, T2, T3, T4, T5, T6, T7, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _9<T0, T1, T2, T3, T4, T5, T6, T7, T8> {
@@ -399,6 +461,13 @@ public class Consumers {
 
 		default Consumers._8<T0, T1, T2, T3, T4, T5, T6, T7> partial(Numbers._8 ignored, T8 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v);
+		}
+
+		default Functions._9<T0, T1, T2, T3, T4, T5, T6, T7, T8, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _10<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> {
@@ -450,6 +519,13 @@ public class Consumers {
 
 		default Consumers._9<T0, T1, T2, T3, T4, T5, T6, T7, T8> partial(Numbers._9 ignored, T9 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v);
+		}
+
+		default Functions._10<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _11<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> {
@@ -505,6 +581,13 @@ public class Consumers {
 
 		default Consumers._10<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> partial(Numbers._10 ignored, T10 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v);
+		}
+
+		default Functions._11<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _12<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> {
@@ -564,6 +647,13 @@ public class Consumers {
 
 		default Consumers._11<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> partial(Numbers._11 ignored, T11 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v);
+		}
+
+		default Functions._12<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _13<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> {
@@ -627,6 +717,13 @@ public class Consumers {
 
 		default Consumers._12<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> partial(Numbers._12 ignored, T12 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v);
+		}
+
+		default Functions._13<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _14<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> {
@@ -694,6 +791,13 @@ public class Consumers {
 
 		default Consumers._13<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> partial(Numbers._13 ignored, T13 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v);
+		}
+
+		default Functions._14<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _15<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> {
@@ -776,6 +880,13 @@ public class Consumers {
 
 		default Consumers._14<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> partial(Numbers._14 ignored, T14 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v);
+		}
+
+		default Functions._15<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _16<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> {
@@ -869,6 +980,13 @@ public class Consumers {
 		default Consumers._15<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> partial(Numbers._15 ignored, T15 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12,
 					v13, v14, v);
+		}
+
+		default Functions._16<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _17<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> {
@@ -967,6 +1085,13 @@ public class Consumers {
 		default Consumers._16<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> partial(Numbers._16 ignored, T16 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10,
 					v11, v12, v13, v14, v15, v);
+		}
+
+		default Functions._17<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _18<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17> {
@@ -1070,6 +1195,13 @@ public class Consumers {
 		default Consumers._17<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> partial(Numbers._17 ignored, T17 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16) -> accept(v0, v1, v2, v3, v4, v5, v6, v7, v8,
 					v9, v10, v11, v12, v13, v14, v15, v16, v);
+		}
+
+		default Functions._18<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _19<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18> {
@@ -1178,6 +1310,13 @@ public class Consumers {
 		default Consumers._18<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17> partial(Numbers._18 ignored, T18 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17) -> accept(v0, v1, v2, v3, v4, v5, v6,
 					v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v);
+		}
+
+		default Functions._19<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _20<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> {
@@ -1291,6 +1430,13 @@ public class Consumers {
 		default Consumers._19<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18> partial(Numbers._19 ignored, T19 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17, T18 v18) -> accept(v0, v1, v2, v3, v4,
 					v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v);
+		}
+
+		default Functions._20<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _21<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20> {
@@ -1409,6 +1555,13 @@ public class Consumers {
 		default Consumers._20<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> partial(Numbers._20 ignored, T20 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17, T18 v18, T19 v19) -> accept(v0, v1,
 					v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v);
+		}
+
+		default Functions._21<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _22<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21> {
@@ -1532,6 +1685,13 @@ public class Consumers {
 		default Consumers._21<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20> partial(Numbers._21 ignored, T21 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17, T18 v18, T19 v19, T20 v20) -> accept(
 					v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v);
+		}
+
+		default Functions._22<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _23<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22> {
@@ -1661,6 +1821,13 @@ public class Consumers {
 		default Consumers._22<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21> partial(Numbers._22 ignored, T22 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17, T18 v18, T19 v19, T20 v20, T21 v21) -> accept(
 					v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v);
+		}
+
+		default Functions._23<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22);
+				return Numbers._0();
+			};
 		}
 	}
 	public interface _24<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23> {
@@ -1795,6 +1962,13 @@ public class Consumers {
 		default Consumers._23<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22> partial(Numbers._23 ignored, T23 v) {
 			return (T0 v0, T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, T9 v9, T10 v10, T11 v11, T12 v12, T13 v13, T14 v14, T15 v15, T16 v16, T17 v17, T18 v18, T19 v19, T20 v20, T21 v21, T22 v22) -> accept(
 					v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v);
+		}
+
+		default Functions._24<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, Numbers._0> asFunction() {
+			return (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23) -> {
+				accept(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23);
+				return Numbers._0();
+			};
 		}
 	}
 }
