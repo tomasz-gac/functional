@@ -50,6 +50,10 @@ public class Recur<A> implements Supplier<A> {
 		return flatMap(v -> done(f.apply(v)));
 	}
 
+	public <B> B to(Function<Recur<A>, B> f) {
+		return f.apply(this);
+	}
+
 	public boolean isDone() {
 		return eval.isLeft();
 	}
