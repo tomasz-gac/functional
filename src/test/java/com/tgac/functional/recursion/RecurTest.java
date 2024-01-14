@@ -1,6 +1,4 @@
-package functional.com.tgac.functional.recursion;
-import com.tgac.functional.recursion.Engine;
-import com.tgac.functional.recursion.Recur;
+package com.tgac.functional.recursion;
 import io.vavr.Tuple;
 import io.vavr.Tuple3;
 import io.vavr.collection.Stream;

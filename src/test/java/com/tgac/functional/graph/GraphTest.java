@@ -1,6 +1,5 @@
-package functional.com.tgac.functional.graph;
+package com.tgac.functional.graph;
 
-import com.tgac.functional.graph.Graph;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

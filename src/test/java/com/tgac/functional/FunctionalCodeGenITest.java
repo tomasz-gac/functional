@@ -1,5 +1,4 @@
-package functional.com.tgac.functional;
-import com.tgac.functional.Streams;
+package com.tgac.functional;
 import com.tgac.monads.continuation.Cont;
 import io.vavr.Value;
 import io.vavr.collection.List;
@@ -11,9 +10,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static functional.com.tgac.functional.CodeGen.codeBlock;
-import static functional.com.tgac.functional.CodeGen.genericNames;
-import static functional.com.tgac.functional.CodeGen.genericsList;
 import static java.lang.String.format;
 
 public class FunctionalCodeGenITest {
@@ -30,7 +26,7 @@ public class FunctionalCodeGenITest {
 						.append("")
 						.append("@NoArgsConstructor(access = AccessLevel.PRIVATE)")
 						.append("public class Numbers"))
-				.<List<String>> flatMap(l -> k -> l.appendAll(codeBlock(k.apply(List.empty()))))
+				.<List<String>> flatMap(l -> k -> l.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.appendAll(generateNumberConstructor(n))
 						.append(""))
 				.map(l -> l.appendAll(IntStream.range(0, n)
@@ -58,7 +54,7 @@ public class FunctionalCodeGenITest {
 						.append("")
 						.append("@NoArgsConstructor(access = AccessLevel.PRIVATE)")
 						.append("public class Functions")
-						.appendAll(codeBlock(k.apply(List.empty()))))
+						.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.appendAll(
 						IntStream.range(0, n)
 								.mapToObj(FunctionalCodeGenITest::buildFunctionConstructor)
@@ -87,7 +83,7 @@ public class FunctionalCodeGenITest {
 						.append("")
 						.append("@NoArgsConstructor(access = AccessLevel.PRIVATE)")
 						.append("public class Consumers")
-						.appendAll(codeBlock(k.apply(List.empty()))))
+						.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.appendAll(
 						IntStream.range(0, n)
 								.mapToObj(FunctionalCodeGenITest::buildConsumerConstructor)
@@ -116,10 +112,10 @@ public class FunctionalCodeGenITest {
 						.append("")
 						.append("@NoArgsConstructor(access = AccessLevel.PRIVATE)")
 						.append("public class Tuples"))
-				.<List<String>> flatMap(l -> k -> l.appendAll(codeBlock(k.apply(List.empty()))))
+				.<List<String>> flatMap(l -> k -> l.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.append("")
 						.append("public interface Tuple")
-						.appendAll(codeBlock(List.of("Object[] toArray();")))
+						.appendAll(CodeGen.codeBlock(List.of("Object[] toArray();")))
 						.append(""))
 				.map(l -> l.appendAll(IntStream.range(0, n)
 						.mapToObj(this::generateTupleConstructor)
@@ -141,7 +137,7 @@ public class FunctionalCodeGenITest {
 				.boxed()
 				.flatMap(i -> List.of(
 								format("public static Numbers._%s _%s()", i, i))
-						.appendAll(codeBlock(List.of(format("return Numbers._%s.INSTANCE;", i))))
+						.appendAll(CodeGen.codeBlock(List.of(format("return Numbers._%s.INSTANCE;", i))))
 						.append("")
 						.toJavaStream())
 				.collect(List.collector());
@@ -159,7 +155,7 @@ public class FunctionalCodeGenITest {
 		return Cont.<List<String>> builder()
 				.just(List.of("@NoArgsConstructor(access = AccessLevel.PRIVATE)",
 						format("public static class _%s extends Number", n)))
-				.<List<String>> flatMap(l -> k -> l.appendAll(codeBlock(k.apply(List.empty()))))
+				.<List<String>> flatMap(l -> k -> l.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.append(format("private static final Number value = %s;", n))
 						.append(format("private static final _%s INSTANCE = new _%s();", n, n))
 						.append(""))
@@ -167,7 +163,7 @@ public class FunctionalCodeGenITest {
 						Stream.of("int", "long", "float", "double")
 								.flatMap(t ->
 										List.of("@Override", format("public %s %sValue()", t, t))
-												.appendAll(codeBlock(List.of(format("return value.%sValue();", t))))
+												.appendAll(CodeGen.codeBlock(List.of(format("return value.%sValue();", t))))
 												.toJavaStream())
 								.collect(List.collector())))
 				.apply(Function.identity());
@@ -179,15 +175,15 @@ public class FunctionalCodeGenITest {
 				.collect(Collectors.joining(", "));
 		return List.of(format("public static <%s> Functions._%s<%s> function(Functions._%s<%s> f)",
 						generics, i, generics, i, generics))
-				.appendAll(codeBlock(List.of("return f;")))
+				.appendAll(CodeGen.codeBlock(List.of("return f;")))
 				.append("");
 	}
 
 	private static List<String> buildConsumerConstructor(int i) {
-		String generics = genericsList(createGenerics(i));
+		String generics = CodeGen.genericsList(createGenerics(i));
 		return List.of(format("public static %s Consumers._%s%s consumer(Consumers._%s%s f)",
 						generics, i, generics, i, generics))
-				.appendAll(codeBlock(List.of("return f;")))
+				.appendAll(CodeGen.codeBlock(List.of("return f;")))
 				.append("");
 	}
 
@@ -209,7 +205,7 @@ public class FunctionalCodeGenITest {
 		return Cont.<List<String>> builder()
 				.just(List.of(format("public interface _%s<%s>", n,
 						genericsList)))
-				.<List<String>> flatMap(l -> k -> l.appendAll(codeBlock(k.apply(List.empty()))))
+				.<List<String>> flatMap(l -> k -> l.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.appendAll(
 								List.of(format("R apply(%s);", IntStream.range(0, n)
 										.mapToObj(i -> "T" + i + " v" + i)
@@ -229,7 +225,7 @@ public class FunctionalCodeGenITest {
 		return Cont.<List<String>> builder()
 				.just(List.of(format("public interface _%s%s", n,
 						CodeGen.genericsList(createGenerics(n)))))
-				.<List<String>> flatMap(l -> k -> l.appendAll(codeBlock(k.apply(List.empty()))))
+				.<List<String>> flatMap(l -> k -> l.appendAll(CodeGen.codeBlock(k.apply(List.empty()))))
 				.map(l -> l.appendAll(
 								List.of(format("void accept(%s);", IntStream.range(0, n)
 										.mapToObj(i -> "T" + i + " v" + i)
@@ -242,14 +238,14 @@ public class FunctionalCodeGenITest {
 								.boxed()
 								.flatMap(i -> generateConsumerPositionalPartial(n, i).toJavaStream())
 								.collect(List.collector())))
-				.map(l -> l.append(format("default Functions._%s%s asFunction()",
-								n, genericsList(createGenerics(n).append("Numbers._0"))))
-						.appendAll(codeBlock(
-								List.of(format("return (%s) -> ",
-												genericNames("v", n).collect(Collectors.joining(", "))))
-										.appendAll(codeBlock(List.of(format("accept(%s);",
-														genericNames("v", n).collect(Collectors.joining(", "))),
-												"return Numbers._0();"))
+				.map(l -> l.append(String.format("default Functions._%s%s asFunction()",
+								n, CodeGen.genericsList(createGenerics(n).append("Numbers._0"))))
+						.appendAll(CodeGen.codeBlock(
+								List.of(String.format("return (%s) -> ",
+												CodeGen.genericNames("v", n).collect(Collectors.joining(", "))))
+										.appendAll(CodeGen.codeBlock(List.of(String.format("accept(%s);",
+																CodeGen.genericNames("v", n).collect(Collectors.joining(", "))),
+														"return Numbers._0();"))
 												.append(";")))))
 				.apply(Function.identity());
 	}
@@ -257,7 +253,7 @@ public class FunctionalCodeGenITest {
 	private static List<String> generateFunctionPartialLeft(int n) {
 		String partialGenericsList = n > 1 ? createGenerics(n).drop(1).collect(Collectors.joining(", ")) + ", R" : "R";
 		return List.of(format("default Functions._%s<%s> partial(T0 v)", n - 1, partialGenericsList))
-				.appendAll(codeBlock(List.of(format(
+				.appendAll(CodeGen.codeBlock(List.of(format(
 						"return (%s) -> apply(%s);",
 						IntStream.range(1, n)
 								.mapToObj(i -> "T" + i + " v" + i)
@@ -269,9 +265,9 @@ public class FunctionalCodeGenITest {
 	}
 
 	private static List<String> generateConsumerPartialLeft(int n) {
-		String partialGenericsList = genericsList(createGenerics(n).drop(1));
+		String partialGenericsList = CodeGen.genericsList(createGenerics(n).drop(1));
 		return List.of(format("default Consumers._%s%s partial(T0 v)", n - 1, partialGenericsList))
-				.appendAll(codeBlock(List.of(format(
+				.appendAll(CodeGen.codeBlock(List.of(format(
 						"return (%s) -> accept(%s);",
 						IntStream.range(1, n)
 								.mapToObj(i -> "T" + i + " v" + i)
@@ -285,7 +281,7 @@ public class FunctionalCodeGenITest {
 	private static List<String> generateFunctionPartialRight(int n) {
 		String partialGenericsList = n > 1 ? createGenerics(n).dropRight(1).collect(Collectors.joining(", ")) + ", R" : "R";
 		return List.of(format("default Functions._%s<%s> partialRight(T%s v)", n - 1, partialGenericsList, n - 1))
-				.appendAll(codeBlock(List.of(format(
+				.appendAll(CodeGen.codeBlock(List.of(format(
 						"return (%s) -> apply(%s);",
 						IntStream.range(0, n - 1)
 								.mapToObj(i -> "T" + i + " v" + i)
@@ -297,9 +293,9 @@ public class FunctionalCodeGenITest {
 	}
 
 	private static List<String> generateConsumerPartialRight(int n) {
-		String partialGenericsList = genericsList(createGenerics(n).dropRight(1));
+		String partialGenericsList = CodeGen.genericsList(createGenerics(n).dropRight(1));
 		return List.of(format("default Consumers._%s%s partialRight(T%s v)", n - 1, partialGenericsList, n - 1))
-				.appendAll(codeBlock(List.of(format(
+				.appendAll(CodeGen.codeBlock(List.of(format(
 						"return (%s) -> accept(%s);",
 						IntStream.range(0, n - 1)
 								.mapToObj(i -> "T" + i + " v" + i)
@@ -325,7 +321,7 @@ public class FunctionalCodeGenITest {
 				generics.removeAt(arg).append("R").collect(Collectors.joining(", ")) : "R";
 		return List.of(format("default Functions._%s<%s> partial(Numbers._%s ignored, T%s v)",
 						n - 1, partialGenericsList, arg, arg))
-				.appendAll(codeBlock(List.of(format("return (%s) -> apply(%s);",
+				.appendAll(CodeGen.codeBlock(List.of(format("return (%s) -> apply(%s);",
 						IntStream.range(0, n)
 								.filter(j -> j != arg)
 								.mapToObj(j -> "T" + j + " v" + j)
@@ -336,10 +332,10 @@ public class FunctionalCodeGenITest {
 	}
 
 	private static List<String> generateConsumerPositionalPartial(int n, int arg) {
-		String partialGenericsList = genericsList(createGenerics(n).removeAt(arg));
+		String partialGenericsList = CodeGen.genericsList(createGenerics(n).removeAt(arg));
 		return List.of(format("default Consumers._%s%s partial(Numbers._%s ignored, T%s v)",
 						n - 1, partialGenericsList, arg, arg))
-				.appendAll(codeBlock(List.of(format("return (%s) -> accept(%s);",
+				.appendAll(CodeGen.codeBlock(List.of(format("return (%s) -> accept(%s);",
 						IntStream.range(0, n)
 								.filter(j -> j != arg)
 								.mapToObj(j -> "T" + j + " v" + j)
@@ -358,7 +354,7 @@ public class FunctionalCodeGenITest {
 										generics.toJavaStream(),
 										(i, g) -> g + " v" + i)
 								.collect(Collectors.joining(", "))))
-				.appendAll(codeBlock(List.of(
+				.appendAll(CodeGen.codeBlock(List.of(
 						format("return new Tuples._%s%s(%s);",
 								n, n > 0 ? "<>" : "",
 								IntStream.range(0, n)
@@ -424,13 +420,13 @@ public class FunctionalCodeGenITest {
 				.map(l -> l.appendAll(override(generateTupleToArray(n))).append(""))
 				.map(l -> l.appendAll(List.of("@Override",
 								"public String toString()")
-						.appendAll(codeBlock("return \"(\" + Arrays.stream(toArray()).map(Object::toString).collect(Collectors.joining(\", \")) + \")\";"))))
+						.appendAll(CodeGen.codeBlock("return \"(\" + Arrays.stream(toArray()).map(Object::toString).collect(Collectors.joining(\", \")) + \")\";"))))
 				.apply(Function.identity());
 	}
 	private List<String> generateTupleAppend(int n) {
 		return List.of(format("public <T> Tuples._%s<%s> append(T v)",
 						n + 1, createGenerics(n).append("T").collect(Collectors.joining(", "))))
-				.appendAll(codeBlock(List.of(format("return tuple(%s);",
+				.appendAll(CodeGen.codeBlock(List.of(format("return tuple(%s);",
 						Stream.concat(IntStream.range(0, n)
 												.mapToObj(i -> "_" + i),
 										Stream.of("v"))
@@ -439,7 +435,7 @@ public class FunctionalCodeGenITest {
 
 	private List<String> generateTupleToArray(int n) {
 		return List.of("public Object[] toArray()")
-				.appendAll(codeBlock(List.of("return new Object[]")
+				.appendAll(CodeGen.codeBlock(List.of("return new Object[]")
 						.append("{" + IntStream.range(0, n)
 								.mapToObj(i -> "_" + i)
 								.collect(Collectors.joining(",")) + "};")));
@@ -449,7 +445,7 @@ public class FunctionalCodeGenITest {
 		List<String> generics = createGenerics(n);
 		return List.of(format("public <R> R apply(Functions._%s<%s> f)",
 						n, generics.append("R").collect(Collectors.joining(","))))
-				.appendAll(codeBlock(List.of(format("return f.apply(%s);",
+				.appendAll(CodeGen.codeBlock(List.of(format("return f.apply(%s);",
 						IntStream.range(0, n)
 								.mapToObj(i -> "_" + i)
 								.collect(Collectors.joining(", "))))));
@@ -472,7 +468,7 @@ public class FunctionalCodeGenITest {
 		return List.of(format("public %s _%s%s concat(_%s%s rhs)",
 						rhsGenerics, n, allGenerics,
 						rhsN, rhsGenerics))
-				.appendAll(codeBlock(List.of(
+				.appendAll(CodeGen.codeBlock(List.of(
 						format("return new Tuples._%s%s(%s);", n,
 								n > 0 ? "<>" : "",
 								Stream.concat(
@@ -495,7 +491,7 @@ public class FunctionalCodeGenITest {
 								.mapToObj(j -> j == i ? "R" : "T" + j)
 								.collect(Collectors.joining(", ")),
 						i, "T" + i + ", R"))
-				.appendAll(codeBlock(
+				.appendAll(CodeGen.codeBlock(
 						List.of(format("return tuple(%s);",
 								IntStream.range(0, n)
 										.mapToObj(j -> j == i ? "mapper.apply(_" + j + ")" : "_" + j)
@@ -517,7 +513,7 @@ public class FunctionalCodeGenITest {
 				.collect(Collectors.joining(", "));
 		return List.of(format("public Tuples._%s%s remove(Numbers._%s ignored)",
 						n - 1, generics.isEmpty() ? "" : "<" + generics + ">", i))
-				.appendAll(codeBlock(
+				.appendAll(CodeGen.codeBlock(
 						List.of(format("return tuple(%s);",
 								IntStream.range(0, n)
 										.filter(j -> j != i)
@@ -538,7 +534,7 @@ public class FunctionalCodeGenITest {
 								generics.isEmpty() ? "" :
 										"<" + String.join(", ", generics) + ">",
 								implementedList.isEmpty() ? "" : " implements " + implementedList))
-				.appendAll(codeBlock(contents.get()));
+				.appendAll(CodeGen.codeBlock(contents.get()));
 	}
 
 	private static List<String> override(List<String> code) {

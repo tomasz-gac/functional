@@ -1,6 +1,4 @@
-package functional.com.tgac.functional;
-import com.tgac.functional.Numbers;
-import com.tgac.functional.Reference;
+package com.tgac.functional;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

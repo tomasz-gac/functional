@@ -1,6 +1,4 @@
-package functional.com.tgac.functional;
-import com.tgac.functional.Numbers;
-import com.tgac.functional.Tuples;
+package com.tgac.functional;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -23,14 +21,14 @@ public class TupleTest {
 	}
 
 	@Test
-	public void shouldRemoveFromTuple(){
+	public void shouldRemoveFromTuple() {
 		Assertions.assertThat(tuple("1", 3, true)
-				.remove(Numbers._1()))
+						.remove(Numbers._1()))
 				.isEqualTo(tuple("1", true));
 	}
 
 	@Test
-	public void shouldApplyTuple(){
+	public void shouldApplyTuple() {
 		String apply = tuple("1", 3, true)
 				.apply((a, b, c) -> a + b + c);
 		Assertions.assertThat(apply)

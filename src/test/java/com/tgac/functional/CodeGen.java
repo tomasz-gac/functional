@@ -1,4 +1,4 @@
-package functional.com.tgac.functional;
+package com.tgac.functional;
 
 import io.vavr.Predicates;
 import io.vavr.collection.List;
