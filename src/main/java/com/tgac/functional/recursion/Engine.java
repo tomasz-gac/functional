@@ -9,8 +9,6 @@ import java.util.Deque;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static com.tgac.functional.recursion.Recur.done;
-
 @RequiredArgsConstructor
 public class Engine<A> implements Supplier<A> {
 	@NonNull
@@ -19,15 +17,40 @@ public class Engine<A> implements Supplier<A> {
 
 	@SuppressWarnings("unchecked")
 	protected Option<A> computeResult(int iterations,
-			Either<Supplier<Recur<Object>>, Recur.FlatMap<Object, Object>> eval) {
-		result = eval.fold(Supplier::get, f -> processFlatMap(fs, f));
+			Recur<Object> eval) {
+		Recur.Visitor<Object, Recur<Object>> visitor = new Recur.Visitor<Object, Recur<Object>>() {
+			@Override
+			public Recur<Object> visit(Recur.Done<Object> done) {
+				return done;
+			}
+			@Override
+			public Recur<Object> visit(Recur.More<Object> more) {
+				return more.getRec().get();
+			}
+			@Override
+			public <B> Recur<Object> visit(Recur.FlatMap<B, Object> flatMap) {
+				return processFlatMap(fs, (Recur.FlatMap<Object, Object>) flatMap);
+			}
+		};
+		result = eval.accept(visitor);
 		int i = 0;
-		while (i < iterations && (!fs.isEmpty() || result.eval.fold(l -> false, r -> true))) {
-			result = result.eval.fold(
-					val -> fs.isEmpty() ? done(val) : fs.pollLast().apply(val),
-					more -> more.fold(
-							Supplier::get,
-							f -> processFlatMap(fs, f)));
+		while (i < iterations && (!fs.isEmpty() || !result.isDone())) {
+			result = result.accept(
+					new Recur.Visitor<Object, Recur<Object>>() {
+						@Override
+						public Recur<Object> visit(Recur.Done<Object> done) {
+							return fs.isEmpty() ? done : fs.pollLast().apply(done.get());
+						}
+						@Override
+						public Recur<Object> visit(Recur.More<Object> more) {
+							return more.getRec().get();
+						}
+						@Override
+						public <B> Recur<Object> visit(Recur.FlatMap<B, Object> flatMap) {
+							return processFlatMap(fs, (Recur.FlatMap<Object, Object>) flatMap);
+						}
+					}
+			);
 			++i;
 		}
 		final int j = i;
@@ -43,13 +66,24 @@ public class Engine<A> implements Supplier<A> {
 
 	@SuppressWarnings("unchecked")
 	public Either<Engine<A>, A> run(int iterations) {
-		return result.eval.fold(
-						l -> Option.of((A) l),
-						r -> computeResult(iterations, r))
-				.map(Either::<Engine<A>, A>right)
+		return result.accept(new Recur.Visitor<Object, Option<A>>() {
+					@Override
+					public Option<A> visit(Recur.Done<Object> done) {
+						return Option.of((A) done.get());
+					}
+					@Override
+					public Option<A> visit(Recur.More<Object> more) {
+						return computeResult(iterations, more);
+					}
+					@Override
+					public <B> Option<A> visit(Recur.FlatMap<B, Object> flatMap) {
+						return computeResult(iterations, flatMap);
+					}
+				}).
+				map(Either::<Engine<A>, A>right)
 				.getOrElse(() -> Either.left(this));
 	}
-
+	;
 	@Override
 	public A get() {
 		Either<Engine<A>, A> result = Either.left(this);

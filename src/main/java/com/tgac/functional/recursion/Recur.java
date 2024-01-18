@@ -13,82 +13,62 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
+import lombok.Value;
 import lombok.experimental.FieldDefaults;
 
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-@RequiredArgsConstructor(staticName = "of", access = AccessLevel.PRIVATE)
-public class Recur<A> implements Supplier<A> {
-	protected final Either<A, Either<
-			Supplier<Recur<A>>, FlatMap<Object, A>>> eval;
-
-	public static <A> Recur<A> done(A v) {
-		return Recur.of(Either.left(v));
+public interface Recur<A> extends Supplier<A> {
+	static <A> Recur<A> done(A v) {
+		return Done.of(v);
 	}
 
-	public static <A> Recur<A> recur(Supplier<Recur<A>> rec) {
-		return Recur.of(
-				Either.right(
-						Either.left(rec)));
+	static <A> Recur<A> recur(Supplier<Recur<A>> rec) {
+		return More.of(rec);
 	}
+
+	interface	Visitor<A, R>{
+		R visit(Done<A> done);
+		R visit(More<A> more);
+		<B> R visit(FlatMap<B, A> flatMap);
+	}
+
+	<R> R accept(Visitor<A, R> visitor);
 
 	@Override
 	@SneakyThrows
-	public A get() {
+	default A get() {
 		return toEngine().get();
 	}
 
-	public <B> Recur<B> flatMap(Function<A, Recur<B>> f) {
-		return Recur.of(
-				Either.right(
-						Either.right(FlatMap.of(f, this))));
+	default <B> Recur<B> flatMap(Function<A, Recur<B>> f) {
+		return FlatMap.of(f, this);
 	}
 
-	public <B> Recur<B> map(Function<A, B> f) {
+	default <B> Recur<B> map(Function<A, B> f) {
 		return flatMap(v -> done(f.apply(v)));
 	}
 
-	public <B> B to(Function<Recur<A>, B> f) {
+	default <B> B to(Function<Recur<A>, B> f) {
 		return f.apply(this);
 	}
 
-	public boolean isDone() {
-		return eval.isLeft();
+	default boolean isDone(){
+		return false;
 	}
 
 	@SuppressWarnings("unchecked")
-	public Engine<A> toEngine() {
+	default Engine<A> toEngine() {
 		return new Engine<>((Recur<Object>) this);
 	}
 
-	@Getter
-	@ToString
-	@EqualsAndHashCode
-	@AllArgsConstructor
-	@FieldDefaults(makeFinal = true, level = AccessLevel.MODULE)
-	protected static class FlatMap<A, B> implements Function<A, Recur<B>> {
-
-		Function<A, Recur<B>> f;
-		Recur<A> arg;
-
-		@SuppressWarnings("unchecked")
-		public static <C, D> FlatMap<Object, D> of(Function<C, Recur<D>> f, Recur<C> r) {
-			return new FlatMap<>(o -> f.apply((C) o), (Recur<Object>) r);
-		}
-
-		@Override
-		public Recur<B> apply(A v) {
-			return f.apply(v);
-		}
-	}
-
-	public static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
+	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
 		return lhs.flatMap(l -> rhs.map(r -> Tuple.of(l, r)));
 	}
 
-	public static <T> Recur<T> cache(Supplier<Recur<T>> r) {
+	static <T> Recur<T> cache(Supplier<Recur<T>> r) {
 		Reference<T> cache = Reference.empty();
 		return recur(() -> done(cache.get()))
 				.flatMap(h -> Objects.nonNull(h) ? done(h) : r.get())
@@ -98,12 +78,79 @@ public class Recur<A> implements Supplier<A> {
 				});
 	}
 
-	public static <A> Option<Recur<Iterable<A>>> lift(Iterable<Recur<A>> iterable) {
+	static <A> Option<Recur<Iterable<A>>> lift(Iterable<Recur<A>> iterable) {
 		return Stream.ofAll(iterable)
 				.map(v -> v.map(Stream::of))
 				.reduceOption((acc, item) -> Recur.zip(acc, item.map(Stream::head))
 						.map(lr -> lr.apply(Stream::append)))
 				// cast
 				.map(r -> r.map(v -> v));
+	}
+
+	@Value
+	@RequiredArgsConstructor(staticName = "of")
+	class	Done<A> implements Recur<A>{
+		A value;
+
+		@Override
+		public <R> R accept(Visitor<A, R> visitor) {
+			return visitor.visit(this);
+		}
+		@Override
+		public A get() {
+			return value;
+		}
+		@Override
+		public <B> Recur<B> flatMap(Function<A, Recur<B>> f) {
+			return f.apply(value);
+		}
+		@Override
+		public <B> Recur<B> map(Function<A, B> f) {
+			return Done.of(f.apply(value));
+		}
+		@Override
+		public <B> B to(Function<Recur<A>, B> f) {
+			return f.apply(this);
+		}
+		@Override
+		public boolean isDone() {
+			return true;
+		}
+	}
+
+	@Value
+	@RequiredArgsConstructor(staticName = "of")
+	class	More<A> implements Recur<A>{
+		Supplier<Recur<A>> rec;
+
+		@Override
+		public <R> R accept(Visitor<A, R> visitor) {
+			return visitor.visit(this);
+		}
+	}
+
+	@Getter
+	@ToString
+	@EqualsAndHashCode
+	@AllArgsConstructor
+	@FieldDefaults(makeFinal = true, level = AccessLevel.MODULE)
+	class	FlatMap<A, B> implements Recur<B>, Function<A, Recur<B>>{
+		Function<A, Recur<B>> f;
+		Recur<A> arg;
+
+
+		@Override
+		public Recur<B> apply(A v) {
+			return f.apply(v);
+		}
+
+		@SuppressWarnings("unchecked")
+		public static <C, D> FlatMap<Object, D> of(Function<C, Recur<D>> f, Recur<C> r) {
+			return new FlatMap<>(o -> f.apply((C) o), (Recur<Object>) r);
+		}
+		@Override
+		public <R> R accept(Visitor<B, R> visitor) {
+			return visitor.visit(this);
+		}
 	}
 }
