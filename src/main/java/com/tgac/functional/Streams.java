@@ -1,9 +1,6 @@
 package com.tgac.functional;
 
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import static com.tgac.functional.Tuples.tuple;
 
 import java.util.Iterator;
 import java.util.Spliterator;
@@ -14,6 +11,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Streams {
@@ -33,6 +32,7 @@ public class Streams {
 							public boolean hasNext() {
 								return iteratorA.hasNext() && iteratorB.hasNext();
 							}
+
 							@Override
 							public C next() {
 								return f.apply(iteratorA.next(), iteratorB.next());
@@ -41,13 +41,13 @@ public class Streams {
 				false);
 	}
 
-	public static <A> Function<A, Tuple2<Long, A>> enumerateLong() {
+	public static <A> Function<A, Tuples._2<Long, A>> enumerateLong() {
 		AtomicLong i = new AtomicLong(0);
-		return v -> Tuple.of(i.getAndIncrement(), v);
+		return v -> tuple(i.getAndIncrement(), v);
 	}
 
-	public static <A> Function<A, Tuple2<Integer, A>> enumerate() {
+	public static <A> Function<A, Tuples._2<Integer, A>> enumerate() {
 		AtomicInteger i = new AtomicInteger(0);
-		return v -> Tuple.of(i.getAndIncrement(), v);
+		return v -> tuple(i.getAndIncrement(), v);
 	}
 }

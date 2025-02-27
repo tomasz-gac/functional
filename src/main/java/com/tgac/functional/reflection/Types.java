@@ -1,14 +1,13 @@
 package com.tgac.functional.reflection;
 
 import io.vavr.control.Option;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * @author TGa
@@ -47,6 +46,10 @@ public class Types {
 
 	public static <T> Function<Object, Option<T>> cast(Class<T> cls) {
 		return v -> cast(v, cls);
+	}
+
+	public static <U> Function<Object, U> cast() {
+		return v -> (U) v;
 	}
 
 	public static Type[] resolveGenerics(Type type) {

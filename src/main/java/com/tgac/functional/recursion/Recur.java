@@ -1,11 +1,14 @@
 package com.tgac.functional.recursion;
 
 import com.tgac.functional.Reference;
+import com.tgac.functional.category.Monad;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
-import io.vavr.control.Either;
 import io.vavr.control.Option;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -16,11 +19,7 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.FieldDefaults;
 
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-public interface Recur<A> extends Supplier<A> {
+public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	static <A> Recur<A> done(A v) {
 		return Done.of(v);
 	}
@@ -29,13 +28,30 @@ public interface Recur<A> extends Supplier<A> {
 		return More.of(rec);
 	}
 
-	interface	Visitor<A, R>{
+	interface Visitor<A, R> {
 		R visit(Done<A> done);
+
 		R visit(More<A> more);
+
 		<B> R visit(FlatMap<B, A> flatMap);
 	}
 
 	<R> R accept(Visitor<A, R> visitor);
+
+	@Override
+	default <B> Recur<B> flatMap(Function<? super A, ? extends Monad<Recur<?>, B>> f) {
+		return FlatMap.of(f, this);
+	}
+
+	@Override
+	default <B> Recur<B> map(Function<? super A, B> f) {
+		return flatMap(v -> done(f.apply(v)));
+	}
+
+	@Override
+	default <B> Recur<B> pure(B value) {
+		return null;
+	}
 
 	@Override
 	@SneakyThrows
@@ -43,19 +59,7 @@ public interface Recur<A> extends Supplier<A> {
 		return toEngine().get();
 	}
 
-	default <B> Recur<B> flatMap(Function<A, Recur<B>> f) {
-		return FlatMap.of(f, this);
-	}
-
-	default <B> Recur<B> map(Function<A, B> f) {
-		return flatMap(v -> done(f.apply(v)));
-	}
-
-	default <B> B to(Function<Recur<A>, B> f) {
-		return f.apply(this);
-	}
-
-	default boolean isDone(){
+	default boolean isDone() {
 		return false;
 	}
 
@@ -70,7 +74,7 @@ public interface Recur<A> extends Supplier<A> {
 
 	static <T> Recur<T> cache(Supplier<Recur<T>> r) {
 		Reference<T> cache = Reference.empty();
-		return recur(() -> done(cache.get()))
+		return (Recur<T>) recur(() -> done(cache.get()))
 				.flatMap(h -> Objects.nonNull(h) ? done(h) : r.get())
 				.map(v -> {
 					cache.set(v);
@@ -89,29 +93,29 @@ public interface Recur<A> extends Supplier<A> {
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
-	class	Done<A> implements Recur<A>{
+	class Done<A> implements Recur<A> {
 		A value;
 
 		@Override
 		public <R> R accept(Visitor<A, R> visitor) {
 			return visitor.visit(this);
 		}
+
 		@Override
 		public A get() {
 			return value;
 		}
+
 		@Override
-		public <B> Recur<B> flatMap(Function<A, Recur<B>> f) {
-			return f.apply(value);
+		public <B> Recur<B> flatMap(Function<? super A, ? extends Monad<Recur<?>, B>> f) {
+			return (Recur<B>) f.apply(value);
 		}
+
 		@Override
-		public <B> Recur<B> map(Function<A, B> f) {
+		public <B> Recur<B> map(Function<? super A, B> f) {
 			return Done.of(f.apply(value));
 		}
-		@Override
-		public <B> B to(Function<Recur<A>, B> f) {
-			return f.apply(this);
-		}
+
 		@Override
 		public boolean isDone() {
 			return true;
@@ -120,7 +124,7 @@ public interface Recur<A> extends Supplier<A> {
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
-	class	More<A> implements Recur<A>{
+	class More<A> implements Recur<A> {
 		Supplier<Recur<A>> rec;
 
 		@Override
@@ -134,10 +138,9 @@ public interface Recur<A> extends Supplier<A> {
 	@EqualsAndHashCode
 	@AllArgsConstructor
 	@FieldDefaults(makeFinal = true, level = AccessLevel.MODULE)
-	class	FlatMap<A, B> implements Recur<B>, Function<A, Recur<B>>{
+	class FlatMap<A, B> implements Recur<B>, Function<A, Recur<B>> {
 		Function<A, Recur<B>> f;
 		Recur<A> arg;
-
 
 		@Override
 		public Recur<B> apply(A v) {
@@ -145,9 +148,10 @@ public interface Recur<A> extends Supplier<A> {
 		}
 
 		@SuppressWarnings("unchecked")
-		public static <C, D> FlatMap<Object, D> of(Function<C, Recur<D>> f, Recur<C> r) {
-			return new FlatMap<>(o -> f.apply((C) o), (Recur<Object>) r);
+		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Monad<Recur<?>, D>> f, Recur<C> r) {
+			return new FlatMap<>(o -> (Recur<D>) f.apply((C) o), (Recur<Object>) r);
 		}
+
 		@Override
 		public <R> R accept(Visitor<B, R> visitor) {
 			return visitor.visit(this);

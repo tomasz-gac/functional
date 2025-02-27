@@ -1,19 +1,18 @@
 package com.tgac.functional.step;
+
+import static com.tgac.functional.recursion.Recur.done;
+import static com.tgac.functional.recursion.Recur.recur;
+
 import com.tgac.functional.recursion.Recur;
-import io.vavr.Predicates;
 import io.vavr.collection.Array;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
-
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
 
 @Getter
 @ToString
@@ -40,14 +39,10 @@ public class Incomplete<A> implements Step<A> {
 	}
 
 	private static <T> Step<T> eval(Step<T> stream) {
-		if (stream instanceof Incomplete) {
-			return java.util.stream.Stream.iterate(((Incomplete<T>) stream).rest.get(), Incomplete::eval)
-					.filter(Predicates.not(Incomplete.class::isInstance))
-					.findFirst()
-					.orElseThrow(IllegalStateException::new);
-		} else {
-			return stream;
+		while (stream instanceof Incomplete) {
+			stream = ((Incomplete<T>) stream).getOrEvaluate();
 		}
+		return stream;
 	}
 
 	@Override
@@ -75,6 +70,7 @@ public class Incomplete<A> implements Step<A> {
 		return getRest()
 				.flatMap(s -> s.interleave(rest));
 	}
+
 	@Override
 	public Recur<Step<A>> bind(Function<A, Step<A>> f) {
 		return getRest()
