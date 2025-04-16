@@ -8,10 +8,10 @@ import lombok.Value;
 
 @Value
 @RequiredArgsConstructor(staticName = "of")
-public class TryMT<M extends Monad<M, ?>, A> implements Monad<TryMT<M, ?>, A> {
-	EitherMT<M, Throwable, A> value;
+public class TryT<M extends Monad<M, ?>, A> implements Monad<TryT<M, ?>, A> {
+	EitherT<M, Throwable, A> value;
 
-	public static <M extends Monad<M, ?>, A> TryMT<M, A> of(
+	public static <M extends Monad<M, ?>, A> TryT<M, A> of(
 			Callable<Monad<M, A>> callable,
 			Function<Throwable, ? extends Monad<M, Throwable>> pure) {
 		try {
@@ -21,35 +21,35 @@ public class TryMT<M extends Monad<M, ?>, A> implements Monad<TryMT<M, ?>, A> {
 		}
 	}
 
-	public static <M extends Monad<M, ?>, A> TryMT<M, A> success(Monad<M, A> ma) {
-		return TryMT.of(EitherMT.right(ma));
+	public static <M extends Monad<M, ?>, A> TryT<M, A> success(Monad<M, A> ma) {
+		return TryT.of(EitherT.right(ma));
 	}
 
-	public static <M extends Monad<M, ?>, A> TryMT<M, A> failure(Monad<M, Throwable> mt) {
-		return TryMT.of(EitherMT.left(mt));
+	public static <M extends Monad<M, ?>, A> TryT<M, A> failure(Monad<M, Throwable> mt) {
+		return TryT.of(EitherT.left(mt));
 	}
 
 	@Override
-	public <B> TryMT<M, B> flatMap(Function<? super A, ? extends Monad<TryMT<M, ?>, B>> f) {
-		return new TryMT<>(value
+	public <B> TryT<M, B> flatMap(Function<? super A, ? extends Monad<TryT<M, ?>, B>> f) {
+		return new TryT<>(value
 				.flatMap(a -> {
 					try {
 						return f.apply(a)
-								.<TryMT<M, B>> cast()
+								.<TryT<M, B>> cast()
 								.getValue();
 					} catch (Throwable t) {
-						return TryMT.<M, B> failure(value.getValue().pure(t))
+						return TryT.<M, B> failure(value.getValue().pure(t))
 								.getValue();
 					}
 				}));
 	}
 
 	@Override
-	public <B> TryMT<M, B> pure(B value) {
-		return TryMT.of(this.value.pure(value));
+	public <B> TryT<M, B> pure(B value) {
+		return TryT.of(this.value.pure(value));
 	}
 
-	public EitherMT<M, A, Throwable> swap() {
+	public EitherT<M, A, Throwable> swap() {
 		return value.swap();
 	}
 

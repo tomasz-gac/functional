@@ -6,6 +6,4 @@ public interface Functor<F extends Functor<F, ?>, A> extends TypeConstructor<Fun
 	default <B> Functor<F, B> map(Function<? super A, B> f) {
 		throw new UnsupportedOperationException();
 	}
-
-	;
 }

@@ -8,17 +8,17 @@ import lombok.Value;
 
 @Value
 @RequiredArgsConstructor(staticName = "of")
-public class IdentityM<A> implements Monad<IdentityM<?>, A>, Supplier<A> {
+public class Identity<A> implements Monad<Identity<?>, A>, Supplier<A> {
 	A value;
 
 	@Override
-	public <B> IdentityM<B> flatMap(Function<? super A, ? extends Monad<IdentityM<?>, B>> f) {
+	public <B> Identity<B> flatMap(Function<? super A, ? extends Monad<Identity<?>, B>> f) {
 		return f.apply(value).cast();
 	}
 
 	@Override
-	public <B> IdentityM<B> pure(B value) {
-		return IdentityM.of(value);
+	public <B> Identity<B> pure(B value) {
+		return Identity.of(value);
 	}
 
 	@Override

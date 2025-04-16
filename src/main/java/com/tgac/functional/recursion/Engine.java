@@ -1,6 +1,6 @@
 package com.tgac.functional.recursion;
 
-import com.tgac.functional.monad.EitherM;
+import com.tgac.functional.monad.Either;
 import io.vavr.control.Option;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -69,7 +69,7 @@ public class Engine<A> implements Supplier<A> {
 	}
 
 	@SuppressWarnings("unchecked")
-	public EitherM<Engine<A>, A> run(int iterations) {
+	public Either<Engine<A>, A> run(int iterations) {
 		return result.accept(new Recur.Visitor<Object, Option<A>>() {
 					@Override
 					public Option<A> visit(Recur.Done<Object> done) {
@@ -86,13 +86,13 @@ public class Engine<A> implements Supplier<A> {
 						return computeResult(iterations, flatMap);
 					}
 				}).
-				map(EitherM::<Engine<A>, A>right)
-				.getOrElse(() -> EitherM.left(this));
+				map(Either::<Engine<A>, A>right)
+				.getOrElse(() -> Either.left(this));
 	}
 
 	@Override
 	public A get() {
-		EitherM<Engine<A>, A> result = EitherM.left(this);
+		Either<Engine<A>, A> result = Either.left(this);
 		while (result.isLeft()) {
 			result = result.getLeft().run(Integer.MAX_VALUE);
 		}

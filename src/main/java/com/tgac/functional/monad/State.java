@@ -13,26 +13,26 @@ import lombok.experimental.FieldDefaults;
 @EqualsAndHashCode
 @RequiredArgsConstructor(staticName = "of")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class StateM<S, R> implements Monad<StateM<S, ?>, R>, Function<S, StateM.StateAndResult<S, R>> {
+public class State<S, R> implements Monad<State<S, ?>, R>, Function<S, State.StateAndResult<S, R>> {
 	Function<S, StateAndResult<S, R>> f;
 
-	public static <S, R> StateM<S, R> just(R value) {
-		return StateM.of(s -> StateM.StateAndResult.of(s, value));
+	public static <S, R> State<S, R> just(R value) {
+		return State.of(s -> State.StateAndResult.of(s, value));
 	}
 
 	@Override
-	public <B> Monad<StateM<S, ?>, B> flatMap(Function<? super R, ? extends Monad<StateM<S, ?>, B>> f) {
-		return StateM.of(s -> {
+	public <B> Monad<State<S, ?>, B> flatMap(Function<? super R, ? extends Monad<State<S, ?>, B>> f) {
+		return State.of(s -> {
 			StateAndResult<S, R> nextState = this.f.apply(s);
 			return f.apply(nextState.getResult())
-					.<StateM<S, B>> cast()
+					.<State<S, B>> cast()
 					.f.apply(nextState.getState());
 		});
 	}
 
 	@Override
-	public <B> StateM<S, B> pure(B value) {
-		return StateM.of(s -> StateAndResult.of(s, value));
+	public <B> State<S, B> pure(B value) {
+		return State.of(s -> StateAndResult.of(s, value));
 	}
 
 	@Override

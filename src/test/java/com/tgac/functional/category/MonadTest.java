@@ -1,19 +1,18 @@
 package com.tgac.functional.category;
 
 import com.tgac.functional.Exceptions;
-import com.tgac.functional.monad.EitherM;
-import com.tgac.functional.monad.FutureM;
-import com.tgac.functional.monad.StreamM;
-import com.tgac.functional.transformer.EitherMT;
-import com.tgac.functional.transformer.FutureMT;
-import com.tgac.functional.transformer.OptionMT;
+import com.tgac.functional.monad.Either;
+import com.tgac.functional.monad.Future;
+import com.tgac.functional.monad.Stream;
+import com.tgac.functional.transformer.EitherT;
+import com.tgac.functional.transformer.FutureT;
+import com.tgac.functional.transformer.OptionT;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import lombok.experimental.ExtensionMethod;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -23,22 +22,22 @@ class MonadTest {
 
 	@Test
 	public void testFutureMT() {
-		FutureMT<StreamM<?>, Integer> fut = FutureMT.of(
+		FutureT<Stream<?>, Integer> fut = FutureT.of(
 				IntStream.range(0, 10)
 						.boxed()
 						.map(delay(100))
 						.asMonad());
 
 		List<Integer> collect =
-				fut.flatMap(i -> FutureMT.just(
+				fut.flatMap(i -> FutureT.just(
 								IntStream.range(0, i)
 										.boxed()
 										.asMonad()))
 						.getValue()
-						.<StreamM<CompletableFuture<Integer>>> cast()
+						.<Stream<CompletableFuture<Integer>>> cast()
 						.get()
-						.reduce(CompletableFuture.completedFuture(Stream.<Integer> empty()),
-								(acc, f) -> acc.thenCompose(v -> f.thenApply(j -> Stream.concat(v, Stream.of(j)))),
+						.reduce(CompletableFuture.completedFuture(java.util.stream.Stream.<Integer> empty()),
+								(acc, f) -> acc.thenCompose(v -> f.thenApply(j -> java.util.stream.Stream.concat(v, java.util.stream.Stream.of(j)))),
 								Exceptions.throwingBiOp(UnsupportedOperationException::new))
 						.join()
 						.collect(Collectors.toList());
@@ -71,29 +70,29 @@ class MonadTest {
 
 	@Test
 	public void testEitherMT() {
-		EitherMT<StreamM<?>, String, Integer> eitherStream = EitherMT.right(
-				StreamM.of(IntStream.range(0, 10).boxed()));
+		EitherT<Stream<?>, String, Integer> eitherStream = EitherT.right(
+				Stream.of(IntStream.range(0, 10).boxed()));
 
 		List<String> evenOrNumber = eitherStream
 				.flatMap(v -> v % 2 == 0 ?
-						EitherMT.right(Stream.of(v).asMonad()) :
-						EitherMT.left(Stream.of("Even number: " + v).asMonad()))
+						EitherT.right(java.util.stream.Stream.of(v).asMonad()) :
+						EitherT.left(java.util.stream.Stream.of("Even number: " + v).asMonad()))
 				.fold(String::valueOf, String::valueOf)
-				.<StreamM<String>> cast()
+				.<Stream<String>> cast()
 				.get()
 				.collect(Collectors.toList());
 
-		StreamM<EitherM<String, Integer>> stream2 = StreamM.of(
+		Stream<Either<String, Integer>> stream2 = Stream.of(
 				IntStream.range(0, 10).boxed()
-						.map(EitherM::right));
+						.map(Either::right));
 
 		List<String> collect = stream2
 				.map(e -> e
 						.flatMap(v -> v % 2 == 0 ?
-								EitherM.right(v) :
-								EitherM.left("Event number: " + v)))
+								Either.right(v) :
+								Either.left("Event number: " + v)))
 				.map(e -> e.fold(String::valueOf, String::valueOf))
-				.<StreamM<String>> cast()
+				.<Stream<String>> cast()
 				.toJavaStream()
 				.collect(Collectors.toList());
 
@@ -114,15 +113,15 @@ class MonadTest {
 
 	@Test
 	public void testOptionMTPresent() {
-		OptionMT<FutureM<?>, Integer> futureMIntegerOptionMT = OptionMT.just(
+		OptionT<Future<?>, Integer> futureMIntegerOptionMT = OptionT.just(
 				MonadTest.<Integer> delay(100)
 						.apply(1)
 						.asMonad());
 
 		Assertions.assertThat(futureMIntegerOptionMT
-						.flatMap(i -> OptionMT.just(FutureM.just(i + 4)))
+						.flatMap(i -> OptionT.just(Future.just(i + 4)))
 						.getValue()
-						.<FutureM<Optional<Integer>>> cast()
+						.<Future<Optional<Integer>>> cast()
 						.get()
 						.join())
 				.hasValue(5);
@@ -130,15 +129,15 @@ class MonadTest {
 
 	@Test
 	public void testOptionMTEmpty() {
-		OptionMT<FutureM<?>, Integer> futureMIntegerOptionMT = OptionMT.just(
+		OptionT<Future<?>, Integer> futureMIntegerOptionMT = OptionT.just(
 				MonadTest.<Integer> delay(100)
 						.apply(1)
 						.asMonad());
 
 		Assertions.assertThat(futureMIntegerOptionMT
-						.flatMap(i -> OptionMT.<FutureM<?>, Integer> none(FutureM::just))
+						.flatMap(i -> OptionT.<Future<?>, Integer> none(Future::just))
 						.getValue()
-						.<FutureM<Optional<Integer>>> cast()
+						.<Future<Optional<Integer>>> cast()
 						.get()
 						.join())
 				.isEmpty();

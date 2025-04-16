@@ -12,25 +12,25 @@ import lombok.experimental.FieldDefaults;
 @EqualsAndHashCode
 @RequiredArgsConstructor(staticName = "of")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class ReaderM<R, A> implements Monad<ReaderM<R, ?>, A>, Function<R, A> {
-	StateM<R, A> value;
+public class Reader<R, A> implements Monad<Reader<R, ?>, A>, Function<R, A> {
+	State<R, A> value;
 
-	public static <S, R> ReaderM<S, R> just(R value) {
-		return ReaderM.of(StateM.of(s -> StateM.StateAndResult.of(s, value)));
+	public static <S, R> Reader<S, R> just(R value) {
+		return Reader.of(State.of(s -> State.StateAndResult.of(s, value)));
 	}
 
 	@Override
-	public <B> ReaderM<R, B> flatMap(Function<? super A, ? extends Monad<ReaderM<R, ?>, B>> f) {
-		return ReaderM.of(value
+	public <B> Reader<R, B> flatMap(Function<? super A, ? extends Monad<Reader<R, ?>, B>> f) {
+		return Reader.of(value
 				.flatMap(a -> f.apply(a)
-						.<ReaderM<R, B>> cast()
+						.<Reader<R, B>> cast()
 						.value)
 				.cast());
 	}
 
 	@Override
-	public <B> ReaderM<R, B> pure(B value) {
-		return ReaderM.of(this.value.pure(value));
+	public <B> Reader<R, B> pure(B value) {
+		return Reader.of(this.value.pure(value));
 	}
 
 	@Override
