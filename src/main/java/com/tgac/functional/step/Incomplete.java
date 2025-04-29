@@ -3,6 +3,7 @@ package com.tgac.functional.step;
 import static com.tgac.functional.recursion.Recur.done;
 import static com.tgac.functional.recursion.Recur.recur;
 
+import com.tgac.functional.category.Monad;
 import com.tgac.functional.recursion.Recur;
 import io.vavr.collection.Array;
 import java.util.function.Function;
@@ -51,12 +52,12 @@ public class Incomplete<A> implements Step<A> {
 	}
 
 	@Override
-	public <B> Step<B> flatMap(Function<A, Step<B>> f) {
+	public <B> Step<B> flatMap(Function<? super A, ? extends Monad<Step<?>, B>> f) {
 		return Incomplete.of(() -> rest.map(s -> s.flatMap(f)));
 	}
 
 	@Override
-	public <B> Step<B> map(Function<A, B> f) {
+	public <B> Step<B> map(Function<? super A, B> f) {
 		return Incomplete.of(() -> rest.map(s -> s.map(f)));
 	}
 

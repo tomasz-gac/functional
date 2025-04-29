@@ -1,5 +1,6 @@
 package com.tgac.functional.step;
 
+import com.tgac.functional.category.Monad;
 import com.tgac.functional.recursion.Recur;
 import io.vavr.collection.Array;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +26,12 @@ public class Single<A> implements Step<A> {
 	}
 
 	@Override
-	public <B> Step<B> flatMap(Function<A, Step<B>> f) {
-		return f.apply(head);
+	public <B> Step<B> flatMap(Function<? super A, ? extends Monad<Step<?>, B>> f) {
+		return f.apply(head).cast();
 	}
 
 	@Override
-	public <B> Step<B> map(Function<A, B> f) {
+	public <B> Step<B> map(Function<? super A, B> f) {
 		return Single.of(f.apply(head));
 	}
 	@Override

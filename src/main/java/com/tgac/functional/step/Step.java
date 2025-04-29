@@ -1,6 +1,7 @@
 package com.tgac.functional.step;
 
 import com.tgac.functional.Exceptions;
+import com.tgac.functional.category.Monad;
 import com.tgac.functional.recursion.Recur;
 import io.vavr.collection.Array;
 import io.vavr.control.Option;
@@ -14,15 +15,20 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-public interface Step<A> {
+public interface Step<A> extends Monad<Step<?>, A> {
+
+	@Override
+	default <B> Step<B> pure(B value) {
+		return Single.of(value);
+	}
 
 	<R> R accept(Visitor<A, R> visitor);
 
 	boolean isEmpty();
 
-	<B> Step<B> flatMap(Function<A, Step<B>> f);
+	<B> Step<B> flatMap(Function<? super A, ? extends Monad<Step<?>, B>> f);
 
-	<B> Step<B> map(Function<A, B> f);
+	<B> Step<B> map(Function<? super A, B> f);
 
 	Step<A> append(Step<A> rhs);
 

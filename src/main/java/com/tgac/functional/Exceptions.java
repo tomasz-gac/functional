@@ -24,7 +24,6 @@ public class Exceptions {
 	}
 
 	public static <T> Consumer<T> throwingConsumer(Supplier<Throwable> throwable) {
-		//noinspection ResultOfMethodCallIgnored
 		return ignored -> throwNow(throwable.get());
 	}
 
@@ -45,10 +44,8 @@ public class Exceptions {
 	}
 
 	public static <A> A throwNow(Throwable throwable) {
-		try {
-			throw throwable;
-		} catch (Throwable e) {
-			throw new RuntimeException(e);
-		}
+		throw throwable instanceof RuntimeException ?
+				(RuntimeException) throwable :
+				new RuntimeException(throwable);
 	}
 }
