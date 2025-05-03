@@ -5,6 +5,8 @@
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/../logic/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/../logic/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../monads/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../monads/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/../pldb/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/../pldb/src/main/resources" charset="UTF-8" />
   </component>

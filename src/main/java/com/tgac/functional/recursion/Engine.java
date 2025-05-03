@@ -1,101 +1,126 @@
 package com.tgac.functional.recursion;
 
-import com.tgac.functional.monad.Either;
-import io.vavr.control.Option;
+import com.tgac.functional.reflection.Types;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
+import java.util.Spliterator;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import lombok.NonNull;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 
-@RequiredArgsConstructor
-public class Engine<A> implements Supplier<A> {
-	@NonNull
-	Recur<Object> result;
-	private final Deque<Function<Object, Recur<Object>>> fs = new ArrayDeque<>();
+@SuppressWarnings("unchecked")
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public final class Engine<A> implements Supplier<List<A>> {
+	int index = -1;
+	private final List<Stack> stacks;
 
-	@SuppressWarnings("unchecked")
-	protected Option<A> computeResult(int iterations,
-			Recur<Object> eval) {
-		Recur.Visitor<Object, Recur<Object>> visitor = new Recur.Visitor<Object, Recur<Object>>() {
-			@Override
-			public Recur<Object> visit(Recur.Done<Object> done) {
-				return done;
+	public static <A> Engine<A> of(List<Recur<A>> recurs) {
+		return new Engine<>(recurs.stream()
+				.map(Types.<Recur<Object>> cast())
+				.map(Stack::new)
+				.collect(Collectors.toList()));
+	}
+
+	public static <A> Engine<A> interleave(List<Engine<A>> engines) {
+		return new Engine<>(engines.stream()
+				.flatMap(s -> s.stacks.stream())
+				.collect(Collectors.toList()));
+	}
+
+	public boolean run(int iterations, Consumer<? super A> sink) {
+		for (int step = 0; step < iterations; ++step) {
+			if (step(sink)) {
+				return true;
 			}
-
-			@Override
-			public Recur<Object> visit(Recur.More<Object> more) {
-				return more.getRec().get();
-			}
-
-			@Override
-			public <B> Recur<Object> visit(Recur.FlatMap<B, Object> flatMap) {
-				return processFlatMap(fs, (Recur.FlatMap<Object, Object>) flatMap);
-			}
-		};
-		result = eval.accept(visitor);
-		int i = 0;
-		while (i < iterations && (!fs.isEmpty() || !result.isDone())) {
-			result = result.accept(
-					new Recur.Visitor<Object, Recur<Object>>() {
-						@Override
-						public Recur<Object> visit(Recur.Done<Object> done) {
-							return fs.isEmpty() ? done : fs.pollLast().apply(done.get());
-						}
-
-						@Override
-						public Recur<Object> visit(Recur.More<Object> more) {
-							return more.getRec().get();
-						}
-
-						@Override
-						public <B> Recur<Object> visit(Recur.FlatMap<B, Object> flatMap) {
-							return processFlatMap(fs, (Recur.FlatMap<Object, Object>) flatMap);
-						}
-					}
-			);
-			++i;
 		}
-		final int j = i;
-		return Option.of(result)
-				.filter(__ -> j < iterations)
-				.map(r -> (A) r.get());
+		return stacks.isEmpty();
 	}
 
-	protected static Recur<Object> processFlatMap(Deque<Function<Object, Recur<Object>>> fs, Recur.FlatMap<Object, Object> f) {
-		fs.add(f.f);
-		return f.getArg();
+	public boolean runUntilResult(Consumer<? super A> sink) {
+		AtomicBoolean emitted = new AtomicBoolean(false);
+		while (true) {
+			if (step(v -> {
+				emitted.set(true);
+				sink.accept(v);
+			})) {
+				return true;
+			}
+			if (emitted.get()) {
+				return false;
+			}
+		}
 	}
 
-	@SuppressWarnings("unchecked")
-	public Either<Engine<A>, A> run(int iterations) {
-		return result.accept(new Recur.Visitor<Object, Option<A>>() {
-					@Override
-					public Option<A> visit(Recur.Done<Object> done) {
-						return Option.of((A) done.get());
-					}
+	public boolean step(Consumer<? super A> sink) {
+		index = (index + 1) % stacks.size();
+		Stack stack = stacks.get(index);
+		if (stack.computation instanceof Recur.More) {
+			stack.computation = ((Recur.More<Object>) stack.computation).getRec().get();
+		} else if (stack.computation instanceof Recur.FlatMap) {
+			Recur.FlatMap<Object, Object> flat = (Recur.FlatMap<Object, Object>) stack.computation;
+			stack.fs.addLast(flat.getF());
+			stack.computation = flat.getArg();
+		} else if (stack.computation instanceof Recur.Done) {
+			Object value = ((Recur.Done<Object>) stack.computation).getValue();
+			if (stack.fs.isEmpty()) {
+				sink.accept((A) value);
+				stacks.remove(index);
+				return stacks.isEmpty();
+			}
+			stack.computation = stack.fs.pollLast().apply(value);
+		} else {
+			throw new IllegalStateException("Unknown Recur subclass: " + stack.computation.getClass());
+		}
+		return false;
+	}
 
-					@Override
-					public Option<A> visit(Recur.More<Object> more) {
-						return computeResult(iterations, more);
-					}
+	@SuppressWarnings("StatementWithEmptyBody")
+	public void run(Consumer<? super A> sink) {
+		while (!run(Integer.MAX_VALUE, sink)) {
+		}
+	}
 
-					@Override
-					public <B> Option<A> visit(Recur.FlatMap<B, Object> flatMap) {
-						return computeResult(iterations, flatMap);
-					}
-				}).
-				map(Either::<Engine<A>, A>right)
-				.getOrElse(() -> Either.left(this));
+	public Spliterator<A> spliterator() {
+		return new EngineSpliterator<>(this);
+	}
+
+	public Stream<A> stream() {
+		return StreamSupport.stream(spliterator(), false);
+	}
+
+	public Result<A> run(int iterations) {
+		List<A> results = new ArrayList<>();
+		return Result.of(results,
+				run(iterations, results::add));
 	}
 
 	@Override
-	public A get() {
-		Either<Engine<A>, A> result = Either.left(this);
-		while (result.isLeft()) {
-			result = result.getLeft().run(Integer.MAX_VALUE);
-		}
-		return result.get();
+	public List<A> get() {
+		List<A> values = new ArrayList<>();
+		run(values::add);
+		return values;
+	}
+
+	@Value
+	@RequiredArgsConstructor(staticName = "of")
+	public static class Result<A> {
+		List<A> values;
+		boolean done;
+	}
+
+	@AllArgsConstructor
+	private static class Stack {
+		private Recur<Object> computation;
+		private final Deque<Function<Object, Recur<Object>>> fs = new ArrayDeque<>();
 	}
 }

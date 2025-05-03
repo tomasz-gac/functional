@@ -1,19 +1,21 @@
 package com.tgac.functional.recursion;
-import io.vavr.Tuple;
-import io.vavr.Tuple3;
-import io.vavr.collection.Stream;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import static com.tgac.functional.recursion.Recur.done;
 import static com.tgac.functional.recursion.Recur.recur;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import io.vavr.Tuple;
+import io.vavr.Tuple3;
+import io.vavr.collection.Stream;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class RecurTest {
 
@@ -119,10 +121,12 @@ public class RecurTest {
 	@Test
 	public void shouldTerminateAtOne11WithEngine() {
 		Engine<Long> e = collatz(11).toEngine();
-		e = e.run(5).getLeft();
-		e = e.run(5).getLeft();
-		Assertions.assertThat(e.run(5).get())
-				.isEqualTo(1);
+		Assertions.assertThat(e.run(5)).matches(r -> !r.isDone());
+		Assertions.assertThat(e.run(5)).matches(r -> !r.isDone());
+		Assertions.assertThat(e.run(5))
+				.matches(Engine.Result::isDone)
+				.matches(v -> v.getValues().size() == 1)
+				.matches(v -> v.getValues().contains(1L));
 	}
 
 	@Test
@@ -215,6 +219,23 @@ public class RecurTest {
 	public void shouldDecrement() {
 		Assertions.assertThat(dec(102400000).get())
 				.isEqualTo(0);
+	}
+
+	Recur<Integer> counterImpl(int n, int cnt) {
+		return cnt <= 0 ?
+				done(n) :
+				recur(() -> counterImpl(n + 1, cnt - 1));
+	}
+
+	Recur<Integer> counter(int n) {
+		return counterImpl(0, n);
+	}
+
+	@Test
+	public void shouldInterleave() {
+		Engine<Integer> multi = Engine.of(Arrays.asList(counter(100), counter(50), counter(10)));
+		Assertions.assertThat(multi.get())
+				.containsExactly(10, 50, 100);
 	}
 
 	private static final BigDecimal TOO_BIG_TO_DISPLAY = new BigDecimal(

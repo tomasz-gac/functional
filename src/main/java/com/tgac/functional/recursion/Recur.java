@@ -1,18 +1,26 @@
 package com.tgac.functional.recursion;
 
+import static com.tgac.functional.category.Unit.unit;
+
 import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
+import com.tgac.functional.category.Unit;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
 import io.vavr.control.Option;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
@@ -20,7 +28,10 @@ import lombok.Value;
 import lombok.experimental.FieldDefaults;
 
 public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
-	static <A> Recur<A> done(A v) {
+	interface Fn<T, R> extends Function<T, Recur<R>> {
+	}
+
+	static <A> Recur<A> done(@NonNull  A v) {
 		return Done.of(v);
 	}
 
@@ -50,22 +61,22 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 
 	@Override
 	default <B> Recur<B> pure(B value) {
-		return null;
+		return done(value);
 	}
 
 	@Override
 	@SneakyThrows
 	default A get() {
-		return toEngine().get();
+		return toEngine().get()
+				.get(0);
 	}
 
 	default boolean isDone() {
 		return false;
 	}
 
-	@SuppressWarnings("unchecked")
 	default Engine<A> toEngine() {
-		return new Engine<>((Recur<Object>) this);
+		return Engine.of(Collections.singletonList(this));
 	}
 
 	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
@@ -89,6 +100,13 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 						.map(lr -> lr.apply(Stream::append)))
 				// cast
 				.map(r -> r.map(v -> v));
+	}
+
+	static <A> Recur<Unit> interleave(List<Recur<A>> rs, Consumer<A> sink) {
+		Engine<A> engine = Engine.of(rs);
+		AtomicReference<Recur<Unit>> res = new AtomicReference<>();
+		res.set(recur(() -> engine.step(sink) ? done(unit()) : res.get()));
+		return res.get();
 	}
 
 	@Value
