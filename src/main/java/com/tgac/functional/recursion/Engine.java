@@ -1,24 +1,21 @@
 package com.tgac.functional.recursion;
 
-import com.tgac.functional.Streams;
 import com.tgac.functional.category.Nothing;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.Stack;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
@@ -27,8 +24,9 @@ public final class Engine<A> implements Supplier<A> {
 	private final List<Stack> stacks;
 
 	public static <A> Engine<A> of(Recur<A> recur) {
-		return new Engine<>(Stream.of(Stack.of(recur, null))
-				.collect(Collectors.toList()));
+		ArrayList<Stack> table = new ArrayList<>();
+		table.add(Stack.of(recur, null));
+		return new Engine<>(table);
 	}
 
 	public boolean run(int iterations, Consumer<? super A> sink) {
@@ -73,7 +71,8 @@ public final class Engine<A> implements Supplier<A> {
 			Object value = ((Recur.Done<Object>) computation).getValue();
 
 			if (stack.fs.isEmpty()) {
-				stacks.remove(index--); // current was processed
+				Collections.swap(stacks, index, stacks.size() - 1); // avoids shuffling
+				stacks.remove(stacks.size() - 1);
 
 				if (stack.originChoiceSink != null) {
 					stack.originChoiceSink.accept(value);
@@ -98,19 +97,17 @@ public final class Engine<A> implements Supplier<A> {
 			Consumer<Object> notifyParent = result -> {
 				if (counter.decrementAndGet() == 0) {
 					parentStack.computation = Recur.done(Nothing.nothing());
-					stacks.add(index + 1, parentStack); // resume parent at same position
+					stacks.add(index + 1, parentStack);
 				}
 				interleaved.getSink().accept(result);
 			};
 
-			List<Stack> newStacks = interleaved.getOptions().stream()
+			stacks.addAll(interleaved.getOptions().stream()
 					.map(s -> Stack.of(s, notifyParent))
-					.collect(Collectors.toList());
-
-			stacks.addAll(newStacks);
+					.collect(Collectors.toList()));
 			index = -1;
-			return false;
 
+			return false;
 		} else {
 			throw new IllegalStateException("Unknown Recur subclass: " + computation.getClass());
 		}
@@ -121,13 +118,6 @@ public final class Engine<A> implements Supplier<A> {
 		AtomicReference<A> result = new AtomicReference<>();
 		run(result::set);
 		return result.get();
-	}
-
-	@Value
-	@RequiredArgsConstructor(staticName = "of")
-	public static class Result<A> {
-		List<A> values;
-		boolean done;
 	}
 
 	@AllArgsConstructor
