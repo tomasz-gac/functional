@@ -1,18 +1,14 @@
 package com.tgac.functional.recursion;
 
-import static com.tgac.functional.category.Unit.unit;
-
 import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.category.Unit;
+import com.tgac.functional.category.Nothing;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
 import io.vavr.control.Option;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -31,7 +27,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	interface Fn<T, R> extends Function<T, Recur<R>> {
 	}
 
-	static <A> Recur<A> done(@NonNull  A v) {
+	static <A> Recur<A> done(@NonNull A v) {
 		return Done.of(v);
 	}
 
@@ -39,23 +35,13 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 		return More.of(rec);
 	}
 
-	interface Visitor<A, R> {
-		R visit(Done<A> done);
-
-		R visit(More<A> more);
-
-		<B> R visit(FlatMap<B, A> flatMap);
-	}
-
-	<R> R accept(Visitor<A, R> visitor);
-
 	@Override
-	default <B> Recur<B> flatMap(Function<? super A, ? extends Monad<Recur<?>, B>> f) {
+	default <B> Recur<B> flatMap(Function<? super A, @NonNull ? extends Monad<Recur<?>, B>> f) {
 		return FlatMap.of(f, this);
 	}
 
 	@Override
-	default <B> Recur<B> map(Function<? super A, B> f) {
+	default <B> Recur<B> map(Function<? super A, @NonNull B> f) {
 		return flatMap(v -> done(f.apply(v)));
 	}
 
@@ -67,8 +53,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	@Override
 	@SneakyThrows
 	default A get() {
-		return toEngine().get()
-				.get(0);
+		return toEngine().get();
 	}
 
 	default boolean isDone() {
@@ -76,7 +61,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	}
 
 	default Engine<A> toEngine() {
-		return Engine.of(Collections.singletonList(this));
+		return Engine.of(this);
 	}
 
 	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
@@ -102,22 +87,15 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 				.map(r -> r.map(v -> v));
 	}
 
-	static <A> Recur<Unit> interleave(List<Recur<A>> rs, Consumer<A> sink) {
-		Engine<A> engine = Engine.of(rs);
-		AtomicReference<Recur<Unit>> res = new AtomicReference<>();
-		res.set(recur(() -> engine.step(sink) ? done(unit()) : res.get()));
-		return res.get();
+	static <A> Recur<Nothing> interleave(List<Recur<A>> tasks, Consumer<A> sink) {
+		return new Interleaved<A>(tasks, sink)
+				.map(_0 -> Nothing.nothing());
 	}
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Recur<A> {
 		A value;
-
-		@Override
-		public <R> R accept(Visitor<A, R> visitor) {
-			return visitor.visit(this);
-		}
 
 		@Override
 		public A get() {
@@ -144,11 +122,13 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor(staticName = "of")
 	class More<A> implements Recur<A> {
 		Supplier<Recur<A>> rec;
+	}
 
-		@Override
-		public <R> R accept(Visitor<A, R> visitor) {
-			return visitor.visit(this);
-		}
+	@Getter
+	@RequiredArgsConstructor(staticName = "of")
+	class Interleaved<A> implements Recur<A> {
+		private final List<Recur<A>> options;
+		private final Consumer<A> sink;
 	}
 
 	@Getter
@@ -168,11 +148,6 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 		@SuppressWarnings("unchecked")
 		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Monad<Recur<?>, D>> f, Recur<C> r) {
 			return new FlatMap<>(o -> (Recur<D>) f.apply((C) o), (Recur<Object>) r);
-		}
-
-		@Override
-		public <R> R accept(Visitor<B, R> visitor) {
-			return visitor.visit(this);
 		}
 	}
 }

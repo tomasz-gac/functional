@@ -4,6 +4,7 @@ import static com.tgac.functional.recursion.Recur.done;
 import static com.tgac.functional.recursion.Recur.recur;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.tgac.functional.category.Nothing;
 import io.vavr.Tuple;
 import io.vavr.Tuple3;
 import io.vavr.collection.Stream;
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -121,12 +123,11 @@ public class RecurTest {
 	@Test
 	public void shouldTerminateAtOne11WithEngine() {
 		Engine<Long> e = collatz(11).toEngine();
-		Assertions.assertThat(e.run(5)).matches(r -> !r.isDone());
-		Assertions.assertThat(e.run(5)).matches(r -> !r.isDone());
+		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
+		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
 		Assertions.assertThat(e.run(5))
-				.matches(Engine.Result::isDone)
-				.matches(v -> v.getValues().size() == 1)
-				.matches(v -> v.getValues().contains(1L));
+				.matches(Optional::isPresent)
+				.hasValue(1L);
 	}
 
 	@Test
@@ -233,9 +234,33 @@ public class RecurTest {
 
 	@Test
 	public void shouldInterleave() {
-		Engine<Integer> multi = Engine.of(Arrays.asList(counter(100), counter(50), counter(10)));
-		Assertions.assertThat(multi.get())
+		List<Integer> results = new ArrayList<>();
+		Recur.interleave(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+				.get();
+
+		Assertions.assertThat(results)
 				.containsExactly(10, 50, 100);
+	}
+
+	@Test
+	public void shouldFlatMap() {
+		Assertions.assertThat(Recur.recur(() -> Recur.done(1))
+				.flatMap(_0 -> {
+					System.out.println(_0);
+					return done(_0);
+				}).get())
+				.isEqualTo(1);
+	}
+
+	@Test
+	public void shouldFlatMapAfterInterleave() {
+		List<Integer> results = new ArrayList<>();
+		Recur.interleave(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+				.flatMap(_0 -> {
+					System.out.println(_0);
+					return done(Nothing.nothing());
+				}).get();
+		System.out.println(results);
 	}
 
 	private static final BigDecimal TOO_BIG_TO_DISPLAY = new BigDecimal(

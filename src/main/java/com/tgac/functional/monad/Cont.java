@@ -4,7 +4,6 @@ import static com.tgac.functional.recursion.Recur.done;
 import static com.tgac.functional.recursion.Recur.recur;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.category.Unit;
 import com.tgac.functional.recursion.Recur;
 import java.io.Serializable;
 import java.util.function.Function;

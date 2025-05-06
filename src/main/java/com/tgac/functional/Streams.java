@@ -2,6 +2,8 @@ package com.tgac.functional;
 
 import static com.tgac.functional.Tuples.tuple;
 
+import io.vavr.Tuple;
+import io.vavr.Tuple2;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -46,8 +48,8 @@ public class Streams {
 		return v -> tuple(i.getAndIncrement(), v);
 	}
 
-	public static <A> Function<A, Tuples._2<Integer, A>> enumerate() {
+	public static <A> Function<A, Tuple2<Integer, A>> enumerate() {
 		AtomicInteger i = new AtomicInteger(0);
-		return v -> tuple(i.getAndIncrement(), v);
+		return v -> Tuple.of(i.getAndIncrement(), v);
 	}
 }

@@ -5,10 +5,10 @@ import lombok.NoArgsConstructor;
 
 @SuppressWarnings("InstantiationOfUtilityClass")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class Unit {
-	private static final Unit INSTANCE = new Unit();
+public class Nothing {
+	private static final Nothing INSTANCE = new Nothing();
 
-	public static Unit unit() {
+	public static Nothing nothing() {
 		return INSTANCE;
 	}
 }
