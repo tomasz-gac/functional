@@ -223,9 +223,10 @@ public class RecurTest {
 	}
 
 	Recur<Integer> counterImpl(int n, int cnt) {
-		return cnt <= 0 ?
+		System.out.println(cnt);
+		return n == cnt ?
 				done(n) :
-				recur(() -> counterImpl(n + 1, cnt - 1));
+				recur(() -> counterImpl(n + 1, cnt));
 	}
 
 	Recur<Integer> counter(int n) {
@@ -233,9 +234,9 @@ public class RecurTest {
 	}
 
 	@Test
-	public void shouldInterleave() {
+	public void shouldForEach() {
 		List<Integer> results = new ArrayList<>();
-		Recur.interleave(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+		Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
 				.get();
 
 		Assertions.assertThat(results)
@@ -253,14 +254,33 @@ public class RecurTest {
 	}
 
 	@Test
-	public void shouldFlatMapAfterInterleave() {
+	public void shouldFlatMapAfterForEach() {
 		List<Integer> results = new ArrayList<>();
-		Recur.interleave(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
-				.flatMap(_0 -> {
-					System.out.println(_0);
-					return done(Nothing.nothing());
-				}).get();
+		Assertions.assertThat(
+				Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+						.flatMap(_0 -> done(1))
+						.get())
+				.isEqualTo(1);
+		Assertions.assertThat(results)
+				.containsExactly(10, 50, 100);
+	}
+
+	@Test
+	public void shouldProcessNestedForEach() {
+		List<Integer> results = new ArrayList<>();
+		Recur<String> n = Recur.forEach(Arrays.asList(counter(50), counter(30), counter(20)), results::add)
+				.flatMap(_0 -> done("1"));
+		Recur<String> n1 = Recur.forEach(Arrays.asList(counter(60), counter(40), counter(10)), results::add)
+				.flatMap(_0 -> done("2"));
+		List<String> ns = new ArrayList<>();
+		Engine<Nothing> e = BFSEngine.of(Recur.forEach(Arrays.asList(n, n1), ns::add));
+		System.out.println(e.get());
 		System.out.println(results);
+		System.out.println(ns);
+//		Assertions.assertThat(results)
+//						.containsExactly(1, 2, 3, 4, 5, 6);
+//		Assertions.assertThat(ns)
+//						.containsExactly("1", "2");
 	}
 
 	private static final BigDecimal TOO_BIG_TO_DISPLAY = new BigDecimal(

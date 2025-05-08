@@ -61,7 +61,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	}
 
 	default Engine<A> toEngine() {
-		return Engine.of(this);
+		return BFSEngine.of(this);
 	}
 
 	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
@@ -87,8 +87,8 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 				.map(r -> r.map(v -> v));
 	}
 
-	static <A> Recur<Nothing> interleave(List<Recur<A>> tasks, Consumer<A> sink) {
-		return new Interleaved<A>(tasks, sink)
+	static <A> Recur<Nothing> forEach(List<Recur<A>> tasks, Consumer<A> sink) {
+		return new ForEach<A>(tasks, sink)
 				.map(_0 -> Nothing.nothing());
 	}
 
@@ -126,7 +126,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 
 	@Getter
 	@RequiredArgsConstructor(staticName = "of")
-	class Interleaved<A> implements Recur<A> {
+	class ForEach<A> implements Recur<A> {
 		private final List<Recur<A>> options;
 		private final Consumer<A> sink;
 	}

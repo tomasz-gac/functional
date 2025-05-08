@@ -11,4 +11,9 @@ public class Nothing {
 	public static Nothing nothing() {
 		return INSTANCE;
 	}
+
+	@Override
+	public String toString(){
+		return "Nothing";
+	}
 }
