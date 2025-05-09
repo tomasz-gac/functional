@@ -23,6 +23,7 @@ import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.FieldDefaults;
+import lombok.var;
 
 public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	interface Fn<T, R> extends Function<T, Recur<R>> {
@@ -54,7 +55,9 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	@Override
 	@SneakyThrows
 	default A get() {
-		return toEngine().get();
+		try( var e = toEngine()){
+			return e.get();
+		}
 	}
 
 	default boolean isDone() {
@@ -62,7 +65,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	}
 
 	default Engine<A> toEngine() {
-		return HierarchicalEngine.of(this);
+		return new BFSEngine<>(this);
 	}
 
 	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
