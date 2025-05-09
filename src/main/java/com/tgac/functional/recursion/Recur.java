@@ -9,6 +9,7 @@ import io.vavr.collection.Stream;
 import io.vavr.control.Option;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -61,7 +62,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	}
 
 	default Engine<A> toEngine() {
-		return BFSEngine.of(this);
+		return HierarchicalEngine.of(this);
 	}
 
 	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {

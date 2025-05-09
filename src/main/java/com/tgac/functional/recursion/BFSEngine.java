@@ -26,13 +26,18 @@ import lombok.RequiredArgsConstructor;
 public final class BFSEngine<A> implements Engine<A> {
 	@NonNull
 	private PriorityQueue<Stacks> stacksPerDepth;
+	private final int iterationsForPromotion;
 
-	public static <A> BFSEngine<A> of(Recur<A> recur) {
-		PriorityQueue<Stacks> table = new PriorityQueue<>(Comparator.comparingInt(Stacks::getDepth));
+	public BFSEngine(Recur<A> recur) {
+		this(recur, 10_000);
+	}
+
+	public BFSEngine(Recur<A> recur, int iterationsForPromotion) {
+		this.stacksPerDepth = new PriorityQueue<>(Comparator.comparingInt(Stacks::getDepth));
 		ArrayList<Stack> stacks = new ArrayList<>(1);
 		stacks.add(Stack.of(recur, null));
-		table.add(new Stacks(stacks, 0, -1, 0));
-		return new BFSEngine<>(table);
+		stacksPerDepth.add(new Stacks(stacks, 0, -1, 0));
+		this.iterationsForPromotion = iterationsForPromotion;
 	}
 
 	@Override
@@ -68,6 +73,7 @@ public final class BFSEngine<A> implements Engine<A> {
 		return result.get();
 	}
 
+	@Override
 	public boolean step(Consumer<? super A> sink) {
 		if (stacksPerDepth.isEmpty()) {
 			return true;
@@ -133,9 +139,14 @@ public final class BFSEngine<A> implements Engine<A> {
 		}
 	}
 
+	@Override
+	public void close() throws Exception {
+		// empty by design
+	}
+
 	private void tryPromote() {
 		Stacks current = stacksPerDepth.peek();
-		if (current != null && current.iterations > 10_000 && stacksPerDepth.size() > 1) {
+		if (current != null && current.iterations > iterationsForPromotion && stacksPerDepth.size() > 1) {
 			Iterator<Stacks> it = stacksPerDepth.iterator();
 			Stacks first = it.next();
 			Stacks second = it.next();

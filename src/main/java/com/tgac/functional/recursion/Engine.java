@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public interface Engine<A> extends Supplier<A> {
+public interface Engine<A> extends Supplier<A>, AutoCloseable {
 	boolean step(Consumer<? super A> sink);
 
 	boolean run(int iterations, Consumer<? super A> sink);

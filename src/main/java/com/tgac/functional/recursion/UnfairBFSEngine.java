@@ -60,6 +60,7 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 		return result.get();
 	}
 
+	@Override
 	public boolean step(Consumer<? super A> sink) {
 		if (stacks.isEmpty())
 			return true;
@@ -118,6 +119,11 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 		} else {
 			throw new IllegalStateException("Unknown Recur subclass: " + computation.getClass());
 		}
+	}
+
+	@Override
+	public void close() throws Exception {
+		// empty by design
 	}
 
 	@AllArgsConstructor

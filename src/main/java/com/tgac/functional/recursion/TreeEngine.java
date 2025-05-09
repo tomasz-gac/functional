@@ -78,6 +78,11 @@ public final class TreeEngine<A> implements Engine<A> {
 		return root == null;
 	}
 
+	@Override
+	public void close() throws Exception {
+		// empty by design
+	}
+
 	private static <A> Node stepLeaf(Leaf leaf, Consumer<? super A> sink) {
 		Recur<Object> computation = leaf.computation;
 

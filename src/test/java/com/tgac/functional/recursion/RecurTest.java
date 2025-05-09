@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -223,7 +224,6 @@ public class RecurTest {
 	}
 
 	Recur<Integer> counterImpl(int n, int cnt) {
-		System.out.println(cnt);
 		return n == cnt ?
 				done(n) :
 				recur(() -> counterImpl(n + 1, cnt));
@@ -246,10 +246,10 @@ public class RecurTest {
 	@Test
 	public void shouldFlatMap() {
 		Assertions.assertThat(Recur.recur(() -> Recur.done(1))
-				.flatMap(_0 -> {
-					System.out.println(_0);
-					return done(_0);
-				}).get())
+						.flatMap(_0 -> {
+							System.out.println(_0);
+							return done(_0);
+						}).get())
 				.isEqualTo(1);
 	}
 
@@ -257,9 +257,9 @@ public class RecurTest {
 	public void shouldFlatMapAfterForEach() {
 		List<Integer> results = new ArrayList<>();
 		Assertions.assertThat(
-				Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
-						.flatMap(_0 -> done(1))
-						.get())
+						Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+								.flatMap(_0 -> done(1))
+								.get())
 				.isEqualTo(1);
 		Assertions.assertThat(results)
 				.containsExactly(10, 50, 100);
@@ -267,20 +267,22 @@ public class RecurTest {
 
 	@Test
 	public void shouldProcessNestedForEach() {
-		List<Integer> results = new ArrayList<>();
+		List<Integer> results = new CopyOnWriteArrayList<>();
 		Recur<String> n = Recur.forEach(Arrays.asList(counter(50), counter(30), counter(20)), results::add)
 				.flatMap(_0 -> done("1"));
 		Recur<String> n1 = Recur.forEach(Arrays.asList(counter(60), counter(40), counter(10)), results::add)
 				.flatMap(_0 -> done("2"));
-		List<String> ns = new ArrayList<>();
-		Engine<Nothing> e = BFSEngine.of(Recur.forEach(Arrays.asList(n, n1), ns::add));
+		List<String> ns = new CopyOnWriteArrayList<>();
+		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Recur.forEach(Arrays.asList(n, n1), ns::add),
+		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
+		Engine<Nothing> e = new BFSEngine(Recur.forEach(Arrays.asList(n, n1), ns::add));
 		System.out.println(e.get());
 		System.out.println(results);
 		System.out.println(ns);
-//		Assertions.assertThat(results)
-//						.containsExactly(1, 2, 3, 4, 5, 6);
-//		Assertions.assertThat(ns)
-//						.containsExactly("1", "2");
+		//		Assertions.assertThat(results)
+		//						.containsExactly(1, 2, 3, 4, 5, 6);
+		//		Assertions.assertThat(ns)
+		//						.containsExactly("1", "2");
 	}
 
 	private static final BigDecimal TOO_BIG_TO_DISPLAY = new BigDecimal(

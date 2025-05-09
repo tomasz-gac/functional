@@ -126,6 +126,11 @@ public final class SimpleEngine<A> implements Engine<A> {
 		}
 	}
 
+	@Override
+	public void close() throws Exception {
+		// empty by design
+	}
+
 	@AllArgsConstructor
 	static class Stack {
 		private Recur<Object> computation;
