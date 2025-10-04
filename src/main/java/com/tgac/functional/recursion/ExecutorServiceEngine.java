@@ -2,66 +2,76 @@ package com.tgac.functional.recursion;
 
 import com.tgac.functional.category.Nothing;
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * An Engine that uses an ExecutorService to run Recur computations. It supports parallel execution for ForEach nodes.
+ */
 @SuppressWarnings({"unchecked"})
 public final class ExecutorServiceEngine<A> implements Engine<A> {
 
 	private final Recur<A> initialRecur;
-	private final ExecutorService executorService; // Shared executor
-
-	private final Set<EngineStack> pausedForEachParentStacks;
+	private final ExecutorService executorService; // Shared executor for running tasks.
+	private final RecurProcessor<A> recurProcessor;
 
 	private volatile boolean processingStarted = false;
 	private volatile boolean cancelled = false;
-	private Consumer<? super A> rootSink;
-	private final CompletableFuture<A> finalResultFuture;
+	private Consumer<? super A> resultConsumer; // The final consumer for the result of the root computation.
+	private final CompletableFuture<A> finalResultFuture; // Future that completes with the final result or an exception.
 
-	private final AtomicInteger activeTasksCount = new AtomicInteger(0);
-	private final Object cancellationLock = new Object();
+	private final AtomicInteger activeTasksCount = new AtomicInteger(0); // Tracks the number of tasks currently running.
+	private final Object cancellationLock = new Object(); // Lock for waiting on tasks to complete after cancellation.
 
-	private static class EngineStack {
+	/**
+	 * Base class for the internal execution stack. It holds the state of a computation.
+	 */
+	static abstract class EngineStack {
 		Recur<Object> computation;
-		final Deque<Function<Object, Recur<Object>>> fs = new ArrayDeque<>();
+		final Deque<Function<Object, Recur<Object>>> continuationStack = new ArrayDeque<>(); // Stack of flatMap functions.
 		final boolean isRootStackForEngine;
+		ForEachParentStack parent;
 
-		Consumer<Object> forEachItemSinkInternal;
-		AtomicInteger forEachChildrenPendingCount;
-		EngineStack childOfWhichParentForEachStack;
-		private static final AtomicInteger idGenerator = new AtomicInteger(0);
-		private final int stackId = idGenerator.incrementAndGet();
-
-		public EngineStack(Recur<Object> initialComputation, boolean isRootStackForEngine) {
-			this.computation = initialComputation;
+		EngineStack(Recur<Object> computation, boolean isRootStackForEngine, ForEachParentStack parent) {
+			this.computation = computation;
 			this.isRootStackForEngine = isRootStackForEngine;
+			this.parent = parent;
 		}
+	}
 
-		public void configureAsForEachParent(Recur.ForEach<Object> forEachNode) {
-			this.forEachItemSinkInternal = forEachNode.getSink();
-			List<Recur<Object>> options = forEachNode.getOptions();
-			this.forEachChildrenPendingCount = new AtomicInteger(options != null ? options.size() : 0);
+	/**
+	 * An EngineStack for standard sequential computations (Done, More, FlatMap).
+	 */
+	static final class ComputationStack extends EngineStack {
+		ComputationStack(Recur<Object> computation, boolean isRootStack, ForEachParentStack parent) {
+			super(computation, isRootStack, parent);
 		}
+	}
 
-		@Override
-		public String toString() {
-			return "EngineStack{id=" + stackId + ", isRoot=" + isRootStackForEngine +
-					", comp=" + (computation != null ? computation.getClass().getSimpleName() : "null") +
-					", fs=" + fs.size() +
-					(forEachChildrenPendingCount != null ? ", childrenPending=" + forEachChildrenPendingCount.get() : "") +
-					(childOfWhichParentForEachStack != null ? ", parentId=" + childOfWhichParentForEachStack.stackId : "") +
-					"}";
+	/**
+	 * An EngineStack that represents a ForEach node that has spawned child computations.
+	 * It waits for all its children to complete.
+	 */
+	static final class ForEachParentStack extends EngineStack {
+		final Consumer<Object> itemConsumer; // Consumer for the results of child computations.
+		final AtomicInteger forEachChildrenPendingCount;
+
+		ForEachParentStack(Recur.ForEach<Object> computation, EngineStack originalStack) {
+			super(computation, originalStack.isRootStackForEngine, originalStack.parent);
+			this.continuationStack.addAll(originalStack.continuationStack);
+			this.itemConsumer = computation.getSink();
+			this.forEachChildrenPendingCount = new AtomicInteger(computation.getOptions().size());
 		}
 	}
 
@@ -73,8 +83,12 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 
 		this.initialRecur = initialRecur;
 		this.executorService = executorService;
-		this.pausedForEachParentStacks = Collections.newSetFromMap(new ConcurrentHashMap<>());
 		this.finalResultFuture = new CompletableFuture<>();
+		this.recurProcessor = new RecurProcessor<>(this);
+	}
+
+	boolean isCancelled() {
+		return cancelled;
 	}
 
 	@Override
@@ -86,6 +100,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 			}
 		}
 
+		// Wait for all active tasks to finish before closing.
 		synchronized (cancellationLock) {
 			long timeoutMillis = 5000;
 			long startTime = System.currentTimeMillis();
@@ -104,7 +119,10 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		}
 	}
 
-	private void submitEngineTask(EngineStack stack) {
+	/**
+	 * Submits a new computation task to the executor service.
+	 */
+	void submitEngineTask(EngineStack stack) {
 		activeTasksCount.incrementAndGet();
 		try {
 			executorService.submit(() -> {
@@ -114,7 +132,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 					if (!this.cancelled) {
 						handleFailure(stack, t);
 					} else {
-						cleanupParentForCancelledTask(stack, true);
+						cleanupParentForCancelledTask(stack);
 					}
 				} finally {
 					int remainingTasks = activeTasksCount.decrementAndGet();
@@ -146,123 +164,85 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 				return;
 			}
 			if (processingStarted) {
-				if (this.rootSink != sink && sink != null)
-					this.rootSink = sink;
+				if (this.resultConsumer != sink && sink != null)
+					this.resultConsumer = sink;
 				return;
 			}
-			this.rootSink = sink;
-			EngineStack rootStack = new EngineStack((Recur<Object>) this.initialRecur, true);
+			this.resultConsumer = sink;
+			ComputationStack rootStack = new ComputationStack((Recur<Object>) this.initialRecur, true, null);
 			processingStarted = true;
 			submitEngineTask(rootStack);
 		}
 	}
 
+	/**
+	 * Main processing loop for a computation stack. It delegates the actual processing to RecurProcessor.
+	 */
 	private void processRecurComputation(EngineStack stack) {
-		String workerName = Thread.currentThread().getName();
 		try {
-			while (true) {
-				if (this.cancelled) {
-					cleanupParentForCancelledTask(stack, false);
-					return;
+			EngineStack currentStack = stack;
+			while (!this.cancelled) {
+				EngineStack nextStack = recurProcessor.process(currentStack);
+				if (nextStack == null) { // Computation is done or paused
+					break;
 				}
+				currentStack = nextStack;
+			}
 
-				Recur<Object> computation = stack.computation;
-
-				if (computation instanceof Recur.More) {
-					stack.computation = ((Recur.More<Object>) computation).getRec().get();
-				} else if (computation instanceof Recur.FlatMap) {
-					Recur.FlatMap<Object, Object> flatMapNode = (Recur.FlatMap<Object, Object>) computation;
-					stack.fs.addLast(flatMapNode.getF());
-					stack.computation = flatMapNode.getArg();
-				} else if (computation instanceof Recur.Done) {
-					Object value = ((Recur.Done<Object>) computation).getValue();
-					if (!stack.fs.isEmpty()) {
-						stack.computation = stack.fs.pollLast().apply(value);
-					} else {
-						if (stack.childOfWhichParentForEachStack != null) {
-							EngineStack parentForEachStack = stack.childOfWhichParentForEachStack;
-							if (!this.cancelled && parentForEachStack.forEachItemSinkInternal != null) {
-								parentForEachStack.forEachItemSinkInternal.accept(value);
-							}
-							if (parentForEachStack.forEachChildrenPendingCount.decrementAndGet() == 0) {
-								pausedForEachParentStacks.remove(parentForEachStack);
-								parentForEachStack.computation = Recur.done(Nothing.nothing());
-								if (!this.cancelled) {
-									submitEngineTask(parentForEachStack);
-								}
-							}
-						} else if (stack.isRootStackForEngine) {
-							if (!this.cancelled && this.rootSink != null) {
-								try {
-									this.rootSink.accept((A) value);
-								} catch (Exception e) {
-									if (!finalResultFuture.isDone())
-										finalResultFuture.completeExceptionally(e);
-									return;
-								}
-							}
-							if (!finalResultFuture.isDone())
-								finalResultFuture.complete((A) value);
-						}
-						return;
-					}
-				} else if (computation instanceof Recur.ForEach) {
-					Recur.ForEach<Object> forEachNode = (Recur.ForEach<Object>) computation;
-					List<Recur<Object>> options = forEachNode.getOptions();
-
-					if (options == null || options.isEmpty()) {
-						stack.computation = Recur.done(Nothing.nothing());
-					} else {
-						stack.configureAsForEachParent(forEachNode);
-
-						if (stack.forEachChildrenPendingCount.get() == 0) {
-							stack.computation = Recur.done(Nothing.nothing());
-						} else {
-							pausedForEachParentStacks.add(stack);
-							final EngineStack parentStackForChildren = stack;
-							int submittedChildCount = 0;
-							for (int i = 0; i < options.size(); i++) {
-								if (this.cancelled) {
-									int skippedOrFailedCount = options.size() - submittedChildCount;
-									if (parentStackForChildren.forEachChildrenPendingCount.addAndGet(-skippedOrFailedCount) == 0) {
-										pausedForEachParentStacks.remove(parentStackForChildren);
-									}
-									break;
-								}
-								Recur<Object> branchRecur = options.get(i);
-								EngineStack childStack = new EngineStack(branchRecur, false);
-								childStack.childOfWhichParentForEachStack = parentStackForChildren;
-								submitEngineTask(childStack);
-								submittedChildCount++;
-							}
-							return;
-						}
-					}
-				} else {
-					IllegalStateException ex = new IllegalStateException("Unknown Recur subclass: " + computation.getClass().getName() + " in stack " + stack);
-					if (!this.cancelled)
-						handleFailure(stack, ex);
-					else
-						cleanupParentForCancelledTask(stack, true);
-					return;
-				}
+			if (this.cancelled) {
+				cleanupParentForCancelledTask(currentStack);
 			}
 		} catch (Throwable t) {
-			if (!this.cancelled)
+			if (!this.cancelled) {
 				handleFailure(stack, t);
-			else {
-				cleanupParentForCancelledTask(stack, true);
+			} else {
+				cleanupParentForCancelledTask(stack);
 			}
 		}
 	}
 
-	private void cleanupParentForCancelledTask(EngineStack cancelledChildStack, boolean isDueToError) {
+	/**
+	 * Handles the completion of a child computation (part of a ForEach).
+	 */
+	void handleDoneForChild(EngineStack stack, Object value) {
+		ForEachParentStack parentForEachStack = stack.parent;
+		if (!this.cancelled && parentForEachStack.itemConsumer != null) {
+			parentForEachStack.itemConsumer.accept(value);
+		}
+		if (parentForEachStack.forEachChildrenPendingCount.decrementAndGet() == 0) {
+			// All children are done, so this parent can continue its own computation.
+			parentForEachStack.computation = Recur.done(Nothing.nothing());
+			if (!this.cancelled) {
+				submitEngineTask(parentForEachStack);
+			}
+		}
+	}
+
+	/**
+	 * Handles the completion of the root computation.
+	 */
+	void handleDoneForRoot(EngineStack stack, Object value) {
+		if (!this.cancelled && this.resultConsumer != null) {
+			try {
+				this.resultConsumer.accept((A) value);
+			} catch (Exception e) {
+				if (!finalResultFuture.isDone()) {
+					finalResultFuture.completeExceptionally(e);
+				}
+				return;
+			}
+		}
+		if (!finalResultFuture.isDone()) {
+			finalResultFuture.complete((A) value);
+		}
+	}
+
+	private void cleanupParentForCancelledTask(EngineStack cancelledChildStack) {
 		if (cancelledChildStack == null)
 			return;
-		if (cancelledChildStack.childOfWhichParentForEachStack != null) {
-			EngineStack parent = cancelledChildStack.childOfWhichParentForEachStack;
+		if (cancelledChildStack.parent != null) {
+			ForEachParentStack parent = cancelledChildStack.parent;
 			if (parent.forEachChildrenPendingCount.decrementAndGet() == 0) {
-				pausedForEachParentStacks.remove(parent);
 				if (parent.isRootStackForEngine && !finalResultFuture.isDone() && this.cancelled) {
 					finalResultFuture.completeExceptionally(new CancellationException("Root ForEach parent completed due to child cancellations."));
 				}
@@ -274,9 +254,8 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 	}
 
 	private void handleFailure(EngineStack stack, Throwable t) {
-		String workerName = Thread.currentThread().getName();
 		if (this.cancelled) {
-			cleanupParentForCancelledTask(stack, true);
+			cleanupParentForCancelledTask(stack);
 			return;
 		}
 
@@ -284,10 +263,9 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 			finalResultFuture.completeExceptionally(t);
 		}
 
-		if (stack != null && stack.childOfWhichParentForEachStack != null) {
-			EngineStack parentForEachStack = stack.childOfWhichParentForEachStack;
+		if (stack != null && stack.parent != null) {
+			ForEachParentStack parentForEachStack = stack.parent;
 			if (parentForEachStack.forEachChildrenPendingCount.decrementAndGet() == 0) {
-				pausedForEachParentStacks.remove(parentForEachStack);
 				parentForEachStack.computation = Recur.done(Nothing.nothing());
 				if (!this.cancelled)
 					submitEngineTask(parentForEachStack);
@@ -338,23 +316,25 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 				startRootProcessing(sink);
 		}
 		return finalResultFuture.isDone();
+
 	}
 
 	@Override
 	public boolean run(int iterations, Consumer<? super A> sink) {
-		if (this.cancelled)
+		if (this.cancelled) {
 			return true;
+		}
 		startRootProcessing(sink);
-		for (int i = 0; i < iterations; i++) {
-			if (finalResultFuture.isDone() || this.cancelled) {
-				return true;
-			}
-			try {
-				Thread.sleep(1);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				return finalResultFuture.isDone() || this.cancelled;
-			}
+		if (finalResultFuture.isDone()) {
+			return true;
+		}
+		try {
+			finalResultFuture.get(iterations, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException | CancellationException | TimeoutException e) {
+			// The future might be done (exceptionally) or not done (timeout).
+			// We just proceed to the final check.
 		}
 		return finalResultFuture.isDone() || this.cancelled;
 	}
@@ -363,30 +343,11 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 	public Optional<A> run(int iterations) {
 		if (this.cancelled)
 			return Optional.empty();
-		final CompletableFuture<A> resultCapture = new CompletableFuture<>();
-		run(iterations, result -> {
-			if (!resultCapture.isDone()) {
-				resultCapture.complete(result);
-			}
-		});
+		run(iterations, null);
 
 		if (finalResultFuture.isDone()) {
 			try {
-				if (finalResultFuture.isCompletedExceptionally()) {
-					return Optional.empty();
-				}
 				return Optional.ofNullable(finalResultFuture.getNow(null));
-			} catch (CancellationException e) {
-				return Optional.empty();
-			} catch (Exception e) {
-				return Optional.empty();
-			}
-		}
-		if (resultCapture.isDone()) {
-			try {
-				if (resultCapture.isCompletedExceptionally())
-					return Optional.empty();
-				return Optional.ofNullable(resultCapture.getNow(null));
 			} catch (Exception e) {
 				return Optional.empty();
 			}

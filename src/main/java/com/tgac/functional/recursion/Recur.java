@@ -9,7 +9,6 @@ import io.vavr.collection.Stream;
 import io.vavr.control.Option;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -55,7 +54,7 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	@Override
 	@SneakyThrows
 	default A get() {
-		try( var e = toEngine()){
+		try (var e = toEngine()) {
 			return e.get();
 		}
 	}
