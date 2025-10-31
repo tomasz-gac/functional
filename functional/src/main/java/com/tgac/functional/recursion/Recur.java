@@ -9,6 +9,9 @@ import io.vavr.collection.Stream;
 import io.vavr.control.Option;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -34,6 +37,10 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 
 	static <A> Recur<A> recur(Supplier<Recur<A>> rec) {
 		return More.of(rec);
+	}
+
+	static <W, A> Recur<A> suspend(CompletableFuture<W> future, Function<W, Recur<A>> resume) {
+		return new Suspended<>(future, resume);
 	}
 
 	@Override
@@ -132,6 +139,17 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	class ForEach<A> implements Recur<A> {
 		private final List<Recur<A>> options;
 		private final Consumer<A> sink;
+	}
+
+	/**
+	 * ABOUTME: Represents a suspended computation awaiting external completion via CompletableFuture.
+	 * ABOUTME: When the future completes with a value, the resume function is called to produce the next computation.
+	 */
+	@Getter
+	@RequiredArgsConstructor
+	class Suspended<W, A> implements Recur<A> {
+		private final CompletableFuture<W> future;
+		private final Function<W, Recur<A>> resume;
 	}
 
 	@Getter

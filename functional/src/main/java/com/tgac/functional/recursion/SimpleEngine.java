@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 public final class SimpleEngine<A> implements Engine<A> {
 	int index = -1;
 	private final List<Stack> stacks;
+	private final AtomicInteger parkedCount = new AtomicInteger(0);
 
 	public static <A> SimpleEngine<A> of(Recur<A> recur) {
 		ArrayList<Stack> table = new ArrayList<>();
@@ -63,7 +64,7 @@ public final class SimpleEngine<A> implements Engine<A> {
 
 	public boolean step(Consumer<? super A> sink) {
 		if (stacks.isEmpty())
-			return true;
+			return parkedCount.get() == 0;
 
 		index = (index + 1) % stacks.size();
 		Stack stack = stacks.get(index);
@@ -91,11 +92,15 @@ public final class SimpleEngine<A> implements Engine<A> {
 				} else {
 					sink.accept((A) value);
 				}
-				return stacks.isEmpty(); // true if this was the last one
+				return stacks.isEmpty() && parkedCount.get() == 0;
 			}
 
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
+
+		} else if (computation instanceof Recur.Suspended) {
+			handleSuspended(stack, index);
+			return stacks.isEmpty() && parkedCount.get() == 0;
 
 		} else if (computation instanceof Recur.ForEach) {
 			Recur.ForEach<Object> forEach = (Recur.ForEach<Object>) computation;
@@ -129,6 +134,30 @@ public final class SimpleEngine<A> implements Engine<A> {
 	@Override
 	public void close() throws Exception {
 		// empty by design
+	}
+
+	@SuppressWarnings("unchecked")
+	private <W> void handleSuspended(Stack stack, int idx) {
+		Recur.Suspended<W, Object> suspended = (Recur.Suspended<W, Object>) stack.computation;
+
+		parkedCount.incrementAndGet();
+
+		Stack capturedStack = stack;
+		suspended.getFuture().thenAccept(value -> {
+			Recur<Object> work = suspended.getResume().apply(value);
+			capturedStack.computation = work;
+
+			synchronized(stacks) {
+				stacks.add(capturedStack);
+			}
+
+			parkedCount.decrementAndGet();
+		});
+
+		// Remove from active (parking)
+		Collections.swap(stacks, idx, stacks.size() - 1);
+		stacks.remove(stacks.size() - 1);
+		index = Math.max(-1, index - 1);
 	}
 
 	@AllArgsConstructor
