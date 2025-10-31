@@ -112,4 +112,49 @@ public class SuspendedTest {
 
 		assertThat(results).containsExactlyInAnyOrder(20, 30);
 	}
+
+	@Test
+	public void testAwaitableInterface() throws Exception {
+		// Test Awaitable interface provides clean API
+		List<String> results = new CopyOnWriteArrayList<>();
+		List<CompletableFuture<String>> futures = new ArrayList<>();
+
+		// Create an Awaitable that manages its own future
+		Awaitable<String> awaitable1 = () -> {
+			CompletableFuture<String> future = new CompletableFuture<>();
+			futures.add(future);
+			return future;
+		};
+
+		Awaitable<String> awaitable2 = () -> {
+			CompletableFuture<String> future = new CompletableFuture<>();
+			futures.add(future);
+			return future;
+		};
+
+		// Use clean await() API instead of manual suspend()
+		Recur<Nothing> consumer = awaitable1.await(val1 -> {
+			results.add(val1);
+			return awaitable2.await(val2 -> {
+				results.add(val2);
+				return done(Nothing.nothing());
+			});
+		});
+
+		Recur<Nothing> producer = recur(() -> {
+			futures.get(0).complete("first");
+			return recur(() -> {
+				futures.get(1).complete("second");
+				return done(Nothing.nothing());
+			});
+		});
+
+		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+
+		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
+			engine.get();
+		}
+
+		assertThat(results).containsExactly("first", "second");
+	}
 }
