@@ -1,10 +1,10 @@
 package com.tgac.functional.step;
 
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
+import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.recursion.Fiber.defer;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import io.vavr.collection.Array;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -21,10 +21,10 @@ import lombok.ToString;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class Incomplete<A> implements Step<A> {
 	@NonNull
-	private Recur<Step<A>> rest;
+	private Fiber<Step<A>> rest;
 
-	public static <A> Incomplete<A> of(Supplier<Recur<Step<A>>> inc) {
-		return new Incomplete<>(recur(inc));
+	public static <A> Incomplete<A> of(Supplier<Fiber<Step<A>>> inc) {
+		return new Incomplete<>(defer(inc));
 	}
 
 	@Override
@@ -67,13 +67,13 @@ public class Incomplete<A> implements Step<A> {
 	}
 
 	@Override
-	public Recur<Step<A>> interleave(Array<Step<A>> rest) {
+	public Fiber<Step<A>> interleave(Array<Step<A>> rest) {
 		return getRest()
 				.flatMap(s -> s.interleave(rest));
 	}
 
 	@Override
-	public Recur<Step<A>> bind(Function<A, Step<A>> f) {
+	public Fiber<Step<A>> bind(Function<A, Step<A>> f) {
 		return getRest()
 				.flatMap(s -> s.bind(f));
 	}

@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 public final class UnfairBFSEngine<A> implements Engine<A> {
 	private final PriorityQueue<Stack> stacks;
 
-	public static <A> UnfairBFSEngine<A> of(Recur<A> recur) {
+	public static <A> UnfairBFSEngine<A> of(Fiber<A> recur) {
 		PriorityQueue<Stack> table = new PriorityQueue<>(Comparator.comparingInt(Stack::getDepth));
 		table.add(Stack.of(recur, null, 0));
 		return new UnfairBFSEngine<>(table);
@@ -66,20 +66,20 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 			return true;
 
 		Stack stack = stacks.peek();
-		Recur<Object> computation = stack.computation;
+		Fiber<Object> computation = stack.computation;
 
-		if (computation instanceof Recur.More) {
-			stack.computation = ((Recur.More<Object>) computation).getRec().get();
+		if (computation instanceof Fiber.More) {
+			stack.computation = ((Fiber.More<Object>) computation).getRec().get();
 			return false;
 
-		} else if (computation instanceof Recur.FlatMap) {
-			Recur.FlatMap<Object, Object> flat = (Recur.FlatMap<Object, Object>) computation;
+		} else if (computation instanceof Fiber.FlatMap) {
+			Fiber.FlatMap<Object, Object> flat = (Fiber.FlatMap<Object, Object>) computation;
 			stack.fs.addLast(flat.getF());
 			stack.computation = flat.getArg();
 			return false;
 
-		} else if (computation instanceof Recur.Done) {
-			Object value = ((Recur.Done<Object>) computation).getValue();
+		} else if (computation instanceof Fiber.Done) {
+			Object value = ((Fiber.Done<Object>) computation).getValue();
 
 			if (stack.fs.isEmpty()) {
 				stacks.poll();
@@ -95,8 +95,8 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
 
-		} else if (computation instanceof Recur.ForEach) {
-			Recur.ForEach<Object> forEach = (Recur.ForEach<Object>) computation;
+		} else if (computation instanceof Fiber.ForEach) {
+			Fiber.ForEach<Object> forEach = (Fiber.ForEach<Object>) computation;
 
 			// Remove the interleaving stack, defer resuming until all options complete
 			stacks.poll();
@@ -105,7 +105,7 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 
 			Consumer<Object> notifyParent = result -> {
 				if (counter.decrementAndGet() == 0) {
-					stack.computation = Recur.done(Nothing.nothing());
+					stack.computation = Fiber.done(Nothing.nothing());
 					stacks.offer(stack); // re-introduce the parent node
 				}
 				forEach.getSink().accept(result);
@@ -117,7 +117,7 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 
 			return false;
 		} else {
-			throw new IllegalStateException("Unknown Recur subclass: " + computation.getClass());
+			throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
 		}
 	}
 
@@ -128,14 +128,14 @@ public final class UnfairBFSEngine<A> implements Engine<A> {
 
 	@AllArgsConstructor
 	static class Stack {
-		private Recur<Object> computation;
+		private Fiber<Object> computation;
 		private Consumer<Object> originInterleaveSink;
 		@Getter
 		private int depth;
-		private final Deque<Function<Object, Recur<Object>>> fs = new ArrayDeque<>();
+		private final Deque<Function<Object, Fiber<Object>>> fs = new ArrayDeque<>();
 
-		public static <A> Stack of(Recur<A> recur, Consumer<A> sink, int depth) {
-			return new Stack((Recur<Object>) recur, (Consumer<Object>) sink, depth);
+		public static <A> Stack of(Fiber<A> recur, Consumer<A> sink, int depth) {
+			return new Stack((Fiber<Object>) recur, (Consumer<Object>) sink, depth);
 		}
 	}
 }

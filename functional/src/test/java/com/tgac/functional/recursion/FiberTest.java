@@ -1,7 +1,7 @@
 package com.tgac.functional.recursion;
 
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
+import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.recursion.Fiber.defer;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.category.Nothing;
@@ -20,7 +20,7 @@ import java.util.stream.LongStream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class RecurTest {
+public class FiberTest {
 
 	// Fibonacci sequence:
 	// 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584
@@ -58,20 +58,20 @@ public class RecurTest {
 				() -> printingFib(60000));
 	}
 
-	Recur<BigDecimal> lazyFib(int n) {
+	Fiber<BigDecimal> lazyFib(int n) {
 		if (n == 0) {
 			return done(BigDecimal.ONE);
 		} else if (n == 1) {
 			return done(BigDecimal.ONE);
 		} else {
-			return recur(() -> lazyFib(n - 1)
+			return defer(() -> lazyFib(n - 1)
 					.flatMap(v -> lazyFib(n - 2)
 							.map(v::add)));
 		}
 	}
 
 	@Test
-	public void shouldRecurseAtAll() {
+	public void shouldFiberseAtAll() {
 		Assertions.assertThat(lazyFib(33).get())
 				.isEqualTo(BigDecimal.valueOf(5702887));
 	}
@@ -90,28 +90,28 @@ public class RecurTest {
 				() -> fibIt(100000, BigDecimal.ONE, BigDecimal.ZERO));
 	}
 
-	Recur<BigDecimal> lazyFibIt(int n, BigDecimal current, BigDecimal last) {
+	Fiber<BigDecimal> lazyFibIt(int n, BigDecimal current, BigDecimal last) {
 		if (n == 0) {
 			return done(current);
 		} else {
-			return recur(() -> lazyFibIt(n - 1, last.add(current), current));
+			return defer(() -> lazyFibIt(n - 1, last.add(current), current));
 		}
 	}
 
 	@Test
-	public void shouldRecurseDeeplyIt() {
+	public void shouldFiberseDeeplyIt() {
 		BigDecimal actual = lazyFibIt(100000, BigDecimal.ONE, BigDecimal.ZERO).get();
 		Assertions.assertThat(actual)
 				.isEqualByComparingTo(TOO_BIG_TO_DISPLAY);
 	}
 
-	static Recur<Long> collatz(long n) {
+	static Fiber<Long> collatz(long n) {
 		if (n == 1) {
 			return done(1L);
 		} else if (n % 2 == 0) {
-			return recur(() -> collatz(n / 2));
+			return defer(() -> collatz(n / 2));
 		} else {
-			return recur(() -> collatz(3 * n + 1));
+			return defer(() -> collatz(3 * n + 1));
 		}
 	}
 
@@ -192,7 +192,7 @@ public class RecurTest {
 				.mapToObj(i -> lazyFib(i)
 						.map(Stream::of))
 				.reduce(done(Stream.<BigDecimal> empty()),
-						(acc, i) -> Recur.zip(acc, i).map(args -> args.apply(Stream::concat)),
+						(acc, i) -> Fiber.zip(acc, i).map(args -> args.apply(Stream::concat)),
 						(l, r) -> null)
 				.get()
 				.collect(Collectors.toList());
@@ -202,18 +202,18 @@ public class RecurTest {
 
 	@Test
 	public void shouldBacktrackWhenStackOverflowed() {
-		Recur<Integer> item = done(0);
+		Fiber<Integer> item = done(0);
 		for (int i = 0; i < 1_000_000; ++i) {
 			item = item.map(j -> ++j);
 		}
 		System.out.println(item.get());
 	}
 
-	Recur<Integer> dec(int i) {
+	Fiber<Integer> dec(int i) {
 		if (i == 0) {
 			return done(0);
 		} else {
-			return recur(() -> dec(i - 1));
+			return defer(() -> dec(i - 1));
 		}
 	}
 
@@ -223,20 +223,20 @@ public class RecurTest {
 				.isEqualTo(0);
 	}
 
-	Recur<Integer> counterImpl(int n, int cnt) {
+	Fiber<Integer> counterImpl(int n, int cnt) {
 		return n == cnt ?
 				done(n) :
-				recur(() -> counterImpl(n + 1, cnt));
+				defer(() -> counterImpl(n + 1, cnt));
 	}
 
-	Recur<Integer> counter(int n) {
+	Fiber<Integer> counter(int n) {
 		return counterImpl(0, n);
 	}
 
 	@Test
 	public void shouldForEach() {
 		List<Integer> results = new ArrayList<>();
-		Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+		Fiber.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
 				.get();
 
 		Assertions.assertThat(results)
@@ -245,7 +245,7 @@ public class RecurTest {
 
 	@Test
 	public void shouldFlatMap() {
-		Assertions.assertThat(Recur.recur(() -> Recur.done(1))
+		Assertions.assertThat(Fiber.defer(() -> Fiber.done(1))
 						.flatMap(_0 -> {
 							System.out.println(_0);
 							return done(_0);
@@ -257,7 +257,7 @@ public class RecurTest {
 	public void shouldFlatMapAfterForEach() {
 		List<Integer> results = new ArrayList<>();
 		Assertions.assertThat(
-						Recur.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+						Fiber.forEach(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
 								.flatMap(_0 -> done(1))
 								.get())
 				.isEqualTo(1);
@@ -268,14 +268,14 @@ public class RecurTest {
 	@Test
 	public void shouldProcessNestedForEach() {
 		List<Integer> results = new CopyOnWriteArrayList<>();
-		Recur<String> n = Recur.forEach(Arrays.asList(counter(50), counter(30), counter(20)), results::add)
+		Fiber<String> n = Fiber.forEach(Arrays.asList(counter(50), counter(30), counter(20)), results::add)
 				.flatMap(_0 -> done("1"));
-		Recur<String> n1 = Recur.forEach(Arrays.asList(counter(60), counter(40), counter(10)), results::add)
+		Fiber<String> n1 = Fiber.forEach(Arrays.asList(counter(60), counter(40), counter(10)), results::add)
 				.flatMap(_0 -> done("2"));
 		List<String> ns = new CopyOnWriteArrayList<>();
-		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Recur.forEach(Arrays.asList(n, n1), ns::add),
+		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Fiber.forEach(Arrays.asList(n, n1), ns::add),
 		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
-		Engine<Nothing> e = new BFSEngine(Recur.forEach(Arrays.asList(n, n1), ns::add));
+		Engine<Nothing> e = new BFSEngine(Fiber.forEach(Arrays.asList(n, n1), ns::add));
 		System.out.println(e.get());
 		System.out.println(results);
 		System.out.println(ns);

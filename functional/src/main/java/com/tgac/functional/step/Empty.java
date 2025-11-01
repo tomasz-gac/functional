@@ -1,9 +1,9 @@
 package com.tgac.functional.step;
 
-import static com.tgac.functional.recursion.Recur.done;
+import static com.tgac.functional.recursion.Fiber.done;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import io.vavr.collection.Array;
 import java.util.function.Function;
 import lombok.AccessLevel;
@@ -47,16 +47,16 @@ public class Empty<A> implements Step<A> {
 	}
 
 	@Override
-	public Recur<Step<A>> interleave(Array<Step<A>> rest) {
+	public Fiber<Step<A>> interleave(Array<Step<A>> rest) {
 		if (rest.isEmpty()) {
-			return Recur.done(this);
+			return Fiber.done(this);
 		} else {
-			return Recur.recur(() -> rest.head().interleave(rest.tail()));
+			return Fiber.defer(() -> rest.head().interleave(rest.tail()));
 		}
 	}
 
 	@Override
-	public Recur<Step<A>> bind(Function<A, Step<A>> f) {
+	public Fiber<Step<A>> bind(Function<A, Step<A>> f) {
 		return done(Empty.instance());
 	}
 

@@ -2,7 +2,7 @@ package com.tgac.functional.step;
 
 import com.tgac.functional.Exceptions;
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import io.vavr.collection.Array;
 import io.vavr.control.Option;
 import java.util.List;
@@ -32,9 +32,9 @@ public interface Step<A> extends Monad<Step<?>, A> {
 
 	Step<A> append(Step<A> rhs);
 
-	Recur<Step<A>> interleave(Array<Step<A>> rest);
+	Fiber<Step<A>> interleave(Array<Step<A>> rest);
 
-	Recur<Step<A>> bind(Function<A, Step<A>> f);
+	Fiber<Step<A>> bind(Function<A, Step<A>> f);
 
 	default Stream<A> stream() {
 		return StreamSupport.stream(
@@ -52,7 +52,7 @@ public interface Step<A> extends Monad<Step<?>, A> {
 		return Single.of(v);
 	}
 
-	static <A> Step<A> incomplete(Supplier<Recur<Step<A>>> s) {
+	static <A> Step<A> incomplete(Supplier<Fiber<Step<A>>> s) {
 		return Incomplete.of(s);
 	}
 

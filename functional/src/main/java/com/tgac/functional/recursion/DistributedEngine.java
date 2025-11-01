@@ -31,7 +31,7 @@ import java.util.function.Function;
 @SuppressWarnings({"unchecked"})
 public final class DistributedEngine<A> implements Engine<A> {
 
-	private final Recur<A> initialRecur;
+	private final Fiber<A> initialFiber;
 	private final ExecutorService executorService;
 	private final ConcurrentMap<String, byte[]> stackStore; // Simulates a distributed IMap<String, byte[]>
 
@@ -45,8 +45,8 @@ public final class DistributedEngine<A> implements Engine<A> {
 	private static class State implements Serializable {
 		private static final long serialVersionUID = 1L;
 
-		Recur<Object> computation;
-		final Deque<Function<Object, Recur<Object>>> continuationStack = new ArrayDeque<>();
+		Fiber<Object> computation;
+		final Deque<Function<Object, Fiber<Object>>> continuationStack = new ArrayDeque<>();
 		final boolean isRootStack;
 		final String parentStackId;
 
@@ -55,7 +55,7 @@ public final class DistributedEngine<A> implements Engine<A> {
 		final AtomicInteger childrenPendingCount;
 
 		// Constructor for a new computation
-		State(Recur<Object> computation, boolean isRootStack, String parentStackId) {
+		State(Fiber<Object> computation, boolean isRootStack, String parentStackId) {
 			this.computation = computation;
 			this.isRootStack = isRootStack;
 			this.parentStackId = parentStackId;
@@ -64,7 +64,7 @@ public final class DistributedEngine<A> implements Engine<A> {
 		}
 
 		// Constructor for creating a ForEach parent
-		State(Recur.ForEach<Object> forEachNode, State originalState) {
+		State(Fiber.ForEach<Object> forEachNode, State originalState) {
 			this.computation = forEachNode;
 			this.continuationStack.addAll(originalState.continuationStack);
 			this.isRootStack = originalState.isRootStack;
@@ -94,24 +94,24 @@ public final class DistributedEngine<A> implements Engine<A> {
 				return; // State was already processed or removed
 			State state = deserialize(stateBytes);
 
-			Recur<Object> computation = state.computation;
+			Fiber<Object> computation = state.computation;
 
-			if (computation instanceof Recur.More) {
-				state.computation = ((Recur.More<Object>) computation).getRec().get();
+			if (computation instanceof Fiber.More) {
+				state.computation = ((Fiber.More<Object>) computation).getRec().get();
 				engine.stackStore.put(stackId, serialize(state));
 				engine.executorService.submit(this); // Resubmit for the next step
-			} else if (computation instanceof Recur.FlatMap) {
-				Recur.FlatMap<Object, Object> flatMapNode = (Recur.FlatMap<Object, Object>) computation;
+			} else if (computation instanceof Fiber.FlatMap) {
+				Fiber.FlatMap<Object, Object> flatMapNode = (Fiber.FlatMap<Object, Object>) computation;
 				state.continuationStack.addLast(flatMapNode.getF());
 				state.computation = flatMapNode.getArg();
 				engine.stackStore.put(stackId, serialize(state));
 				engine.executorService.submit(this); // Resubmit for the next step
-			} else if (computation instanceof Recur.Done) {
-				handleDone(state, ((Recur.Done<Object>) computation).getValue());
-			} else if (computation instanceof Recur.ForEach) {
-				handleForEach(state, (Recur.ForEach<Object>) computation);
+			} else if (computation instanceof Fiber.Done) {
+				handleDone(state, ((Fiber.Done<Object>) computation).getValue());
+			} else if (computation instanceof Fiber.ForEach) {
+				handleForEach(state, (Fiber.ForEach<Object>) computation);
 			} else {
-				engine.finalResultFuture.completeExceptionally(new IllegalStateException("Unknown Recur subclass"));
+				engine.finalResultFuture.completeExceptionally(new IllegalStateException("Unknown Fiber subclass"));
 			}
 		}
 
@@ -130,10 +130,10 @@ public final class DistributedEngine<A> implements Engine<A> {
 			}
 		}
 
-		private void handleForEach(State state, Recur.ForEach<Object> forEachNode) {
-			List<Recur<Object>> options = forEachNode.getOptions();
+		private void handleForEach(State state, Fiber.ForEach<Object> forEachNode) {
+			List<Fiber<Object>> options = forEachNode.getOptions();
 			if (options == null || options.isEmpty()) {
-				state.computation = Recur.done(Nothing.nothing());
+				state.computation = Fiber.done(Nothing.nothing());
 				engine.stackStore.put(stackId, serialize(state));
 				engine.executorService.submit(this); // Process the new Done node
 				return;
@@ -142,7 +142,7 @@ public final class DistributedEngine<A> implements Engine<A> {
 			State parentState = new State(forEachNode, state);
 			engine.stackStore.put(stackId, serialize(parentState));
 
-			for (Recur<Object> option : options) {
+			for (Fiber<Object> option : options) {
 				String childId = UUID.randomUUID().toString();
 				State childState = new State(option, false, stackId);
 				engine.stackStore.put(childId, serialize(childState));
@@ -178,7 +178,7 @@ public final class DistributedEngine<A> implements Engine<A> {
 			}
 
 			if (parentState.childrenPendingCount.decrementAndGet() == 0) {
-				parentState.computation = Recur.done(Nothing.nothing());
+				parentState.computation = Fiber.done(Nothing.nothing());
 				engine.stackStore.put(parentStackId, serialize(parentState));
 				engine.executorService.submit(new ProcessTask(parentStackId, engine));
 			} else {
@@ -187,11 +187,11 @@ public final class DistributedEngine<A> implements Engine<A> {
 		}
 	}
 
-	public DistributedEngine(Recur<A> initialRecur, ExecutorService executorService, ConcurrentMap<String, byte[]> stackStore) {
-		if (initialRecur == null || executorService == null || stackStore == null) {
+	public DistributedEngine(Fiber<A> initialFiber, ExecutorService executorService, ConcurrentMap<String, byte[]> stackStore) {
+		if (initialFiber == null || executorService == null || stackStore == null) {
 			throw new NullPointerException();
 		}
-		this.initialRecur = initialRecur;
+		this.initialFiber = initialFiber;
 		this.executorService = executorService;
 		this.stackStore = stackStore;
 	}
@@ -278,7 +278,7 @@ public final class DistributedEngine<A> implements Engine<A> {
 		});
 
 		String rootStackId = UUID.randomUUID().toString();
-		State rootState = new State((Recur<Object>) initialRecur, true, null);
+		State rootState = new State((Fiber<Object>) initialFiber, true, null);
 		stackStore.put(rootStackId, serialize(rootState));
 		executorService.submit(new ProcessTask(rootStackId, this));
 	}

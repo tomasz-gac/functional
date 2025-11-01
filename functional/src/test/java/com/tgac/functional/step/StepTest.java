@@ -1,8 +1,8 @@
 package com.tgac.functional.step;
 
-import static com.tgac.functional.recursion.Recur.done;
+import static com.tgac.functional.recursion.Fiber.done;
 
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import io.vavr.collection.Array;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,11 +42,11 @@ public class StepTest {
 				.isEqualTo(Collections.emptyList());
 	}
 
-	private static Recur<Step<Integer>> ints(int i, Step<Integer> tail) {
+	private static Fiber<Step<Integer>> ints(int i, Step<Integer> tail) {
 		if (i == 0) {
 			return done(tail);
 		} else {
-			return Recur.recur(() -> ints(i - 1, Cons.of(i, tail)));
+			return Fiber.defer(() -> ints(i - 1, Cons.of(i, tail)));
 		}
 	}
 

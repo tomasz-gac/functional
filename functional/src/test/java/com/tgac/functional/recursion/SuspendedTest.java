@@ -1,7 +1,7 @@
 package com.tgac.functional.recursion;
 
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
+import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.recursion.Fiber.defer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
@@ -13,7 +13,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 
 /**
- * ABOUTME: Tests for Recur.Suspended functionality - verifying suspension and resumption semantics.
+ * ABOUTME: Tests for Fiber.Suspended functionality - verifying suspension and resumption semantics.
  * ABOUTME: Covers producer/consumer patterns and CompletableFuture integration with the fiber execution model.
  */
 public class SuspendedTest {
@@ -30,11 +30,11 @@ public class SuspendedTest {
 		}
 
 		// Producer: completes futures with values 1, 2, 3
-		Recur<Nothing> producer = recur(() -> {
+		Fiber<Nothing> producer = defer(() -> {
 			futures.get(0).complete(1);
-			return recur(() -> {
+			return defer(() -> {
 				futures.get(1).complete(2);
-				return recur(() -> {
+				return defer(() -> {
 					futures.get(2).complete(3);
 					return done(Nothing.nothing());
 				});
@@ -42,11 +42,11 @@ public class SuspendedTest {
 		});
 
 		// Consumer: suspends waiting for each value
-		Recur<Nothing> consumer = Recur.suspend(futures.get(0), val1 -> {
+		Fiber<Nothing> consumer = Fiber.suspend(futures.get(0), val1 -> {
 			consumed.add(val1);
-			return Recur.suspend(futures.get(1), val2 -> {
+			return Fiber.suspend(futures.get(1), val2 -> {
 				consumed.add(val2);
-				return Recur.suspend(futures.get(2), val3 -> {
+				return Fiber.suspend(futures.get(2), val3 -> {
 					consumed.add(val3);
 					return done(Nothing.nothing());
 				});
@@ -54,7 +54,7 @@ public class SuspendedTest {
 		});
 
 		// Run both concurrently
-		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
 		// Execute with SimpleEngine
 		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
@@ -71,7 +71,7 @@ public class SuspendedTest {
 		CompletableFuture<String> future = CompletableFuture.completedFuture("hello");
 		List<String> results = new CopyOnWriteArrayList<>();
 
-		Recur<Nothing> program = Recur.suspend(future, value -> {
+		Fiber<Nothing> program = Fiber.suspend(future, value -> {
 			results.add(value);
 			return done(Nothing.nothing());
 		});
@@ -89,22 +89,22 @@ public class SuspendedTest {
 		CompletableFuture<Integer> sharedFuture = new CompletableFuture<>();
 		List<Integer> results = new CopyOnWriteArrayList<>();
 
-		Recur<Nothing> waiter1 = Recur.suspend(sharedFuture, val -> {
+		Fiber<Nothing> waiter1 = Fiber.suspend(sharedFuture, val -> {
 			results.add(val * 2);
 			return done(Nothing.nothing());
 		});
 
-		Recur<Nothing> waiter2 = Recur.suspend(sharedFuture, val -> {
+		Fiber<Nothing> waiter2 = Fiber.suspend(sharedFuture, val -> {
 			results.add(val * 3);
 			return done(Nothing.nothing());
 		});
 
-		Recur<Nothing> completer = recur(() -> {
+		Fiber<Nothing> completer = defer(() -> {
 			sharedFuture.complete(10);
 			return done(Nothing.nothing());
 		});
 
-		Recur<Nothing> program = Recur.forEach(Arrays.asList(waiter1, waiter2, completer), r -> {});
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(waiter1, waiter2, completer), r -> {});
 
 		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
 			engine.get();
@@ -133,7 +133,7 @@ public class SuspendedTest {
 		};
 
 		// Use clean await() API instead of manual suspend()
-		Recur<Nothing> consumer = awaitable1.await(val1 -> {
+		Fiber<Nothing> consumer = awaitable1.await(val1 -> {
 			results.add(val1);
 			return awaitable2.await(val2 -> {
 				results.add(val2);
@@ -141,15 +141,15 @@ public class SuspendedTest {
 			});
 		});
 
-		Recur<Nothing> producer = recur(() -> {
+		Fiber<Nothing> producer = defer(() -> {
 			futures.get(0).complete("first");
-			return recur(() -> {
+			return defer(() -> {
 				futures.get(1).complete("second");
 				return done(Nothing.nothing());
 			});
 		});
 
-		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
 		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
 			engine.get();
@@ -168,29 +168,29 @@ public class SuspendedTest {
 			futures.add(new CompletableFuture<>());
 		}
 
-		Recur<Nothing> producer = recur(() -> {
+		Fiber<Nothing> producer = defer(() -> {
 			futures.get(0).complete(1);
-			return recur(() -> {
+			return defer(() -> {
 				futures.get(1).complete(2);
-				return recur(() -> {
+				return defer(() -> {
 					futures.get(2).complete(3);
 					return done(Nothing.nothing());
 				});
 			});
 		});
 
-		Recur<Nothing> consumer = Recur.suspend(futures.get(0), val1 -> {
+		Fiber<Nothing> consumer = Fiber.suspend(futures.get(0), val1 -> {
 			consumed.add(val1);
-			return Recur.suspend(futures.get(1), val2 -> {
+			return Fiber.suspend(futures.get(1), val2 -> {
 				consumed.add(val2);
-				return Recur.suspend(futures.get(2), val3 -> {
+				return Fiber.suspend(futures.get(2), val3 -> {
 					consumed.add(val3);
 					return done(Nothing.nothing());
 				});
 			});
 		});
 
-		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
 		try (Engine<Nothing> engine = new BFSEngine<>(program)) {
 			engine.get();
@@ -209,29 +209,29 @@ public class SuspendedTest {
 			futures.add(new CompletableFuture<>());
 		}
 
-		Recur<Nothing> producer = recur(() -> {
+		Fiber<Nothing> producer = defer(() -> {
 			futures.get(0).complete(1);
-			return recur(() -> {
+			return defer(() -> {
 				futures.get(1).complete(2);
-				return recur(() -> {
+				return defer(() -> {
 					futures.get(2).complete(3);
 					return done(Nothing.nothing());
 				});
 			});
 		});
 
-		Recur<Nothing> consumer = Recur.suspend(futures.get(0), val1 -> {
+		Fiber<Nothing> consumer = Fiber.suspend(futures.get(0), val1 -> {
 			consumed.add(val1);
-			return Recur.suspend(futures.get(1), val2 -> {
+			return Fiber.suspend(futures.get(1), val2 -> {
 				consumed.add(val2);
-				return Recur.suspend(futures.get(2), val3 -> {
+				return Fiber.suspend(futures.get(2), val3 -> {
 					consumed.add(val3);
 					return done(Nothing.nothing());
 				});
 			});
 		});
 
-		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
 		try (Engine<Nothing> engine = new ExecutorServiceEngine<>(program, new java.util.concurrent.ForkJoinPool())) {
 			engine.get();

@@ -1,10 +1,10 @@
 package com.tgac.functional.monad;
 
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
+import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.recursion.Fiber.defer;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import java.io.Serializable;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -15,13 +15,13 @@ import lombok.Value;
 
 public interface Cont<T, R> extends
 		Monad<Cont<?, R>, T>,
-		Recur.Fn<Recur.Fn<T, R>, R> {
+		Fiber.Fn<Fiber.Fn<T, R>, R> {
 
 	@Override
 	default <B> Cont<B, R> flatMap(Function<? super T, ? extends Monad<Cont<?, R>, B>> f) {
 		return k ->
-				recur(() -> apply(a ->
-						recur(() -> f.apply(a).<Cont<B, R>> cast()
+				Fiber.defer(() -> apply(a ->
+						Fiber.defer(() -> f.apply(a).<Cont<B, R>> cast()
 								.apply(k))));
 	}
 
@@ -31,7 +31,7 @@ public interface Cont<T, R> extends
 	@Value
 	@RequiredArgsConstructor(access = AccessLevel.MODULE, staticName = "of")
 	class Resume<T, R> implements Serializable {
-		Function<T, Recur<R>> k;
+		Function<T, Fiber<R>> k;
 
 		public <U> Cont<U, R> with(T value) {
 			return aborted -> k.apply(value);
@@ -49,11 +49,11 @@ public interface Cont<T, R> extends
 		return suspend(cc -> body.apply(Resume.of(cc)).apply(cc));
 	}
 
-	default Recur<R> runRec(Recur.Fn<T, R> cont) {
+	default Fiber<R> runRec(Fiber.Fn<T, R> cont) {
 		return apply(cont);
 	}
 
-	default Recur<R> run(Function<T, @NonNull R> cont) {
+	default Fiber<R> run(Function<T, @NonNull R> cont) {
 		return apply(v -> done(cont.apply(v)));
 	}
 
@@ -62,7 +62,7 @@ public interface Cont<T, R> extends
 		return just(value);
 	}
 
-	static <T, R> Cont<T, R> suspend(Recur.Fn<Recur.Fn<T, R>, R> f) {
+	static <T, R> Cont<T, R> suspend(Fiber.Fn<Fiber.Fn<T, R>, R> f) {
 		return f::apply;
 	}
 
@@ -70,7 +70,7 @@ public interface Cont<T, R> extends
 		return suspend(k -> done(value));
 	}
 
-	static <T, R> Cont<T, R> defer(Supplier<Recur<Cont<T, R>>> deferred) {
+	static <T, R> Cont<T, R> defer(Supplier<Fiber<Cont<T, R>>> deferred) {
 		return k -> deferred.get().flatMap(c -> c.apply(k));
 	}
 

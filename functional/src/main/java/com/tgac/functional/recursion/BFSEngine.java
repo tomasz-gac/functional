@@ -29,11 +29,11 @@ public final class BFSEngine<A> implements Engine<A> {
 	private final int iterationsForPromotion;
 	private final AtomicInteger parkedCount = new AtomicInteger(0);
 
-	public BFSEngine(Recur<A> recur) {
+	public BFSEngine(Fiber<A> recur) {
 		this(recur, 10_000);
 	}
 
-	public BFSEngine(Recur<A> recur, int iterationsForPromotion) {
+	public BFSEngine(Fiber<A> recur, int iterationsForPromotion) {
 		this.stacksPerDepth = new PriorityQueue<>(Comparator.comparingInt(Stacks::getDepth));
 		ArrayList<Stack> stacks = new ArrayList<>(1);
 		stacks.add(Stack.of(recur, null));
@@ -84,20 +84,20 @@ public final class BFSEngine<A> implements Engine<A> {
 		++stacks.iterations;
 		stacks.index = (stacks.index + 1) % stacks.stacks.size();
 		Stack stack = stacks.stacks.get(stacks.index);
-		Recur<Object> computation = stack.computation;
+		Fiber<Object> computation = stack.computation;
 
-		if (computation instanceof Recur.More) {
-			stack.computation = ((Recur.More<Object>) computation).getRec().get();
+		if (computation instanceof Fiber.More) {
+			stack.computation = ((Fiber.More<Object>) computation).getRec().get();
 			return false;
 
-		} else if (computation instanceof Recur.FlatMap) {
-			Recur.FlatMap<Object, Object> flat = (Recur.FlatMap<Object, Object>) computation;
+		} else if (computation instanceof Fiber.FlatMap) {
+			Fiber.FlatMap<Object, Object> flat = (Fiber.FlatMap<Object, Object>) computation;
 			stack.fs.addLast(flat.getF());
 			stack.computation = flat.getArg();
 			return false;
 
-		} else if (computation instanceof Recur.Done) {
-			Object value = ((Recur.Done<Object>) computation).getValue();
+		} else if (computation instanceof Fiber.Done) {
+			Object value = ((Fiber.Done<Object>) computation).getValue();
 
 			if (stack.fs.isEmpty()) {
 				removeCurrentStackItem(stacks);
@@ -113,12 +113,12 @@ public final class BFSEngine<A> implements Engine<A> {
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
 
-		} else if (computation instanceof Recur.Suspended) {
+		} else if (computation instanceof Fiber.Suspended) {
 			handleSuspended(stack, stacks);
 			return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
 
-		} else if (computation instanceof Recur.ForEach) {
-			Recur.ForEach<Object> forEach = (Recur.ForEach<Object>) computation;
+		} else if (computation instanceof Fiber.ForEach) {
+			Fiber.ForEach<Object> forEach = (Fiber.ForEach<Object>) computation;
 
 			// Remove the interleaving stack, defer resuming until all options complete
 			removeCurrentStackItem(stacks);
@@ -127,7 +127,7 @@ public final class BFSEngine<A> implements Engine<A> {
 
 			Consumer<Object> notifyParent = result -> {
 				if (counter.decrementAndGet() == 0) {
-					stack.computation = Recur.done(Nothing.nothing());
+					stack.computation = Fiber.done(Nothing.nothing());
 					add(stack);
 
 				}
@@ -140,7 +140,7 @@ public final class BFSEngine<A> implements Engine<A> {
 
 			return false;
 		} else {
-			throw new IllegalStateException("Unknown Recur subclass: " + computation.getClass());
+			throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
 		}
 	}
 
@@ -150,14 +150,14 @@ public final class BFSEngine<A> implements Engine<A> {
 	}
 
 	private <W> void handleSuspended(Stack stack, Stacks stacks) {
-		Recur.Suspended<W, Object> suspended = (Recur.Suspended<W, Object>) stack.computation;
+		Fiber.Suspended<W, Object> suspended = (Fiber.Suspended<W, Object>) stack.computation;
 
 		parkedCount.incrementAndGet();
 
 		Stack capturedStack = stack;
 		int capturedDepth = stacks.depth;
 		suspended.getFuture().thenAccept(value -> {
-			Recur<Object> work = suspended.getResume().apply(value);
+			Fiber<Object> work = suspended.getResume().apply(value);
 			capturedStack.computation = work;
 
 			synchronized(stacksPerDepth) {
@@ -215,12 +215,12 @@ public final class BFSEngine<A> implements Engine<A> {
 
 	@AllArgsConstructor
 	static class Stack {
-		private Recur<Object> computation;
+		private Fiber<Object> computation;
 		private Consumer<Object> originInterleaveSink;
-		private final Deque<Function<Object, Recur<Object>>> fs = new ArrayDeque<>();
+		private final Deque<Function<Object, Fiber<Object>>> fs = new ArrayDeque<>();
 
-		public static <A> Stack of(Recur<A> recur, Consumer<A> sink) {
-			return new Stack((Recur<Object>) recur, (Consumer<Object>) sink);
+		public static <A> Stack of(Fiber<A> recur, Consumer<A> sink) {
+			return new Stack((Fiber<Object>) recur, (Consumer<Object>) sink);
 		}
 	}
 

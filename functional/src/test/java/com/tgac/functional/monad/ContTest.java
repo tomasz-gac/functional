@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.Exceptions;
 import com.tgac.functional.Reference;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import io.vavr.collection.List;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,14 +41,14 @@ public class ContTest {
 
 	@Test
 	public void shouldBlowStack() {
-		Reference<Recur.Fn<Integer, String>> bad = Reference.empty();
+		Reference<Fiber.Fn<Integer, String>> bad = Reference.empty();
 
 		AtomicInteger i = new AtomicInteger(0);
 		bad.set(x -> {
 			if (i.incrementAndGet() < 1_000_000) {
 				return bad.get().apply(x);
 			} else {
-				return Recur.done("done");
+				return Fiber.done("done");
 			}
 		});
 
@@ -60,14 +60,14 @@ public class ContTest {
 
 	@Test
 	public void shouldNotBlowStack3() {
-		Reference<Recur.Fn<Integer, String>> good = Reference.empty();
+		Reference<Fiber.Fn<Integer, String>> good = Reference.empty();
 
 		AtomicInteger i = new AtomicInteger(0);
-		good.set(x -> Recur.recur(() -> {
+		good.set(x -> Fiber.defer(() -> {
 			if (i.incrementAndGet() < 1_000_000) {
 				return good.get().apply(x);
 			} else {
-				return Recur.done("done");
+				return Fiber.done("done");
 			}
 		}));
 
@@ -97,7 +97,7 @@ public class ContTest {
 	@SafeVarargs
 	static <T> Cont<T, List<T>> choose(T... values) {
 		return k -> Arrays.stream(values)
-				.reduce(Recur.done(List.empty()),
+				.reduce(Fiber.done(List.empty()),
 						(acc, v) -> acc.flatMap(xs -> k.apply(v).map(xs::appendAll)),
 						Exceptions.throwingBiOp(UnsupportedOperationException::new));
 	}

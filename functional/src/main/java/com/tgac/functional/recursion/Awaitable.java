@@ -30,10 +30,10 @@ public interface Awaitable<T> {
 	 *
 	 * @param continuation The function to call with the awaited value
 	 * @param <A> The result type of the continuation
-	 * @return A Recur.Suspended that will resume when the value is available
+	 * @return A Fiber.Suspended that will resume when the value is available
 	 */
-	default <A> Recur<A> await(Function<T, Recur<A>> continuation) {
+	default <A> Fiber<A> await(Function<T, Fiber<A>> continuation) {
 		CompletableFuture<T> future = prepare();
-		return Recur.suspend(future, continuation);
+		return Fiber.suspend(future, continuation);
 	}
 }

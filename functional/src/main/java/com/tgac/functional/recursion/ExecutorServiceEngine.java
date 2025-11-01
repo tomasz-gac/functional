@@ -16,14 +16,14 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * An Engine that uses an ExecutorService to run Recur computations. It supports parallel execution for ForEach nodes.
+ * An Engine that uses an ExecutorService to run Fiber computations. It supports parallel execution for ForEach nodes.
  */
 @SuppressWarnings({"unchecked"})
 public final class ExecutorServiceEngine<A> implements Engine<A> {
 
-	private final Recur<A> initialRecur;
+	private final Fiber<A> initialFiber;
 	private final ExecutorService executorService; // Shared executor for running tasks.
-	private final RecurProcessor<A> recurProcessor;
+	private final FiberProcessor<A> recurProcessor;
 
 	private volatile boolean processingStarted = false;
 	private volatile boolean cancelled = false;
@@ -38,12 +38,12 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 	 * Base class for the internal execution stack. It holds the state of a computation.
 	 */
 	static abstract class EngineStack {
-		Recur<Object> computation;
-		final Deque<Function<Object, Recur<Object>>> continuationStack = new ArrayDeque<>(); // Stack of flatMap functions.
+		Fiber<Object> computation;
+		final Deque<Function<Object, Fiber<Object>>> continuationStack = new ArrayDeque<>(); // Stack of flatMap functions.
 		final boolean isRootStackForEngine;
 		ForEachParentStack parent;
 
-		EngineStack(Recur<Object> computation, boolean isRootStackForEngine, ForEachParentStack parent) {
+		EngineStack(Fiber<Object> computation, boolean isRootStackForEngine, ForEachParentStack parent) {
 			this.computation = computation;
 			this.isRootStackForEngine = isRootStackForEngine;
 			this.parent = parent;
@@ -54,7 +54,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 	 * An EngineStack for standard sequential computations (Done, More, FlatMap).
 	 */
 	static final class ComputationStack extends EngineStack {
-		ComputationStack(Recur<Object> computation, boolean isRootStack, ForEachParentStack parent) {
+		ComputationStack(Fiber<Object> computation, boolean isRootStack, ForEachParentStack parent) {
 			super(computation, isRootStack, parent);
 		}
 	}
@@ -67,7 +67,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		final Consumer<Object> itemConsumer; // Consumer for the results of child computations.
 		final AtomicInteger forEachChildrenPendingCount;
 
-		ForEachParentStack(Recur.ForEach<Object> computation, EngineStack originalStack) {
+		ForEachParentStack(Fiber.ForEach<Object> computation, EngineStack originalStack) {
 			super(computation, originalStack.isRootStackForEngine, originalStack.parent);
 			this.continuationStack.addAll(originalStack.continuationStack);
 			this.itemConsumer = computation.getSink();
@@ -75,16 +75,16 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		}
 	}
 
-	public ExecutorServiceEngine(Recur<A> initialRecur, ExecutorService executorService) {
-		if (initialRecur == null)
-			throw new NullPointerException("Initial Recur cannot be null");
+	public ExecutorServiceEngine(Fiber<A> initialFiber, ExecutorService executorService) {
+		if (initialFiber == null)
+			throw new NullPointerException("Initial Fiber cannot be null");
 		if (executorService == null)
 			throw new NullPointerException("ExecutorService cannot be null");
 
-		this.initialRecur = initialRecur;
+		this.initialFiber = initialFiber;
 		this.executorService = executorService;
 		this.finalResultFuture = new CompletableFuture<>();
-		this.recurProcessor = new RecurProcessor<>(this);
+		this.recurProcessor = new FiberProcessor<>(this);
 	}
 
 	boolean isCancelled() {
@@ -139,7 +139,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		try {
 			executorService.submit(() -> {
 				try {
-					processRecurComputation(stack);
+					processFiberComputation(stack);
 				} catch (Throwable t) {
 					if (!this.cancelled) {
 						handleFailure(stack, t);
@@ -181,16 +181,16 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 				return;
 			}
 			this.resultConsumer = sink;
-			ComputationStack rootStack = new ComputationStack((Recur<Object>) this.initialRecur, true, null);
+			ComputationStack rootStack = new ComputationStack((Fiber<Object>) this.initialFiber, true, null);
 			processingStarted = true;
 			submitEngineTask(rootStack);
 		}
 	}
 
 	/**
-	 * Main processing loop for a computation stack. It delegates the actual processing to RecurProcessor.
+	 * Main processing loop for a computation stack. It delegates the actual processing to FiberProcessor.
 	 */
-	private void processRecurComputation(EngineStack stack) {
+	private void processFiberComputation(EngineStack stack) {
 		try {
 			EngineStack currentStack = stack;
 			while (!this.cancelled) {
@@ -223,7 +223,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		}
 		if (parentForEachStack.forEachChildrenPendingCount.decrementAndGet() == 0) {
 			// All children are done, so this parent can continue its own computation.
-			parentForEachStack.computation = Recur.done(Nothing.nothing());
+			parentForEachStack.computation = Fiber.done(Nothing.nothing());
 			if (!this.cancelled) {
 				submitEngineTask(parentForEachStack);
 			}
@@ -279,7 +279,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		if (stack != null && stack.parent != null) {
 			ForEachParentStack parentForEachStack = stack.parent;
 			if (parentForEachStack.forEachChildrenPendingCount.decrementAndGet() == 0) {
-				parentForEachStack.computation = Recur.done(Nothing.nothing());
+				parentForEachStack.computation = Fiber.done(Nothing.nothing());
 				if (!this.cancelled)
 					submitEngineTask(parentForEachStack);
 			}

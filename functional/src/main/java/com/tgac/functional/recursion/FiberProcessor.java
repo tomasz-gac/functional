@@ -4,16 +4,16 @@ import com.tgac.functional.category.Nothing;
 import java.util.List;
 
 /**
- * Processes the different types of Recur computations. This class encapsulates the business logic
+ * Processes the different types of Fiber computations. This class encapsulates the business logic
  * of how to handle each step of a recursive computation.
  *
  * @param <A> The type of the final result of the computation.
  */
-class RecurProcessor<A> {
+class FiberProcessor<A> {
 
 	private final ExecutorServiceEngine<A> engine;
 
-	RecurProcessor(ExecutorServiceEngine<A> engine) {
+	FiberProcessor(ExecutorServiceEngine<A> engine) {
 		this.engine = engine;
 	}
 
@@ -24,36 +24,36 @@ class RecurProcessor<A> {
 	 * @return The next stack to be processed, or null if the computation is paused or finished.
 	 */
 	ExecutorServiceEngine.EngineStack process(ExecutorServiceEngine.EngineStack stack) {
-		Recur<Object> computation = stack.computation;
+		Fiber<Object> computation = stack.computation;
 
-		if (computation instanceof Recur.More) {
-			handleMore(stack, (Recur.More<Object>) computation);
+		if (computation instanceof Fiber.More) {
+			handleMore(stack, (Fiber.More<Object>) computation);
 			return stack;
-		} else if (computation instanceof Recur.FlatMap) {
-			handleFlatMap(stack, (Recur.FlatMap<Object, Object>) computation);
+		} else if (computation instanceof Fiber.FlatMap) {
+			handleFlatMap(stack, (Fiber.FlatMap<Object, Object>) computation);
 			return stack;
-		} else if (computation instanceof Recur.Done) {
-			return handleDone(stack, (Recur.Done<Object>) computation);
-		} else if (computation instanceof Recur.Suspended) {
-			return handleSuspended(stack, (Recur.Suspended<?, Object>) computation);
-		} else if (computation instanceof Recur.ForEach) {
-			return handleForEach(stack, (Recur.ForEach<Object>) computation);
+		} else if (computation instanceof Fiber.Done) {
+			return handleDone(stack, (Fiber.Done<Object>) computation);
+		} else if (computation instanceof Fiber.Suspended) {
+			return handleSuspended(stack, (Fiber.Suspended<?, Object>) computation);
+		} else if (computation instanceof Fiber.ForEach) {
+			return handleForEach(stack, (Fiber.ForEach<Object>) computation);
 		} else {
-			throw new IllegalStateException("Unknown Recur subclass: " + computation.getClass().getName() + " in stack " + stack);
+			throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass().getName() + " in stack " + stack);
 		}
 	}
 
 	/**
 	 * Handles a More node by unwrapping the next computation.
 	 */
-	private void handleMore(ExecutorServiceEngine.EngineStack stack, Recur.More<Object> more) {
+	private void handleMore(ExecutorServiceEngine.EngineStack stack, Fiber.More<Object> more) {
 		stack.computation = more.getRec().get();
 	}
 
 	/**
 	 * Handles a FlatMap node by pushing the function onto the continuation stack and setting the next computation to the argument.
 	 */
-	private void handleFlatMap(ExecutorServiceEngine.EngineStack stack, Recur.FlatMap<Object, Object> flatMap) {
+	private void handleFlatMap(ExecutorServiceEngine.EngineStack stack, Fiber.FlatMap<Object, Object> flatMap) {
 		stack.continuationStack.addLast(flatMap.getF());
 		stack.computation = flatMap.getArg();
 	}
@@ -63,7 +63,7 @@ class RecurProcessor<A> {
 	 *
 	 * @return The next stack to process, or null to pause/finish.
 	 */
-	private ExecutorServiceEngine.EngineStack handleDone(ExecutorServiceEngine.EngineStack stack, Recur.Done<Object> done) {
+	private ExecutorServiceEngine.EngineStack handleDone(ExecutorServiceEngine.EngineStack stack, Fiber.Done<Object> done) {
 		Object result = done.getValue();
 		if (!stack.continuationStack.isEmpty()) {
 			stack.computation = stack.continuationStack.pollLast().apply(result);
@@ -84,11 +84,11 @@ class RecurProcessor<A> {
 	 *
 	 * @return The next stack to process, or null to pause.
 	 */
-	private ExecutorServiceEngine.EngineStack handleForEach(ExecutorServiceEngine.EngineStack stack, Recur.ForEach<Object> forEachNode) {
-		List<Recur<Object>> options = forEachNode.getOptions();
+	private ExecutorServiceEngine.EngineStack handleForEach(ExecutorServiceEngine.EngineStack stack, Fiber.ForEach<Object> forEachNode) {
+		List<Fiber<Object>> options = forEachNode.getOptions();
 
 		if (options == null || options.isEmpty()) {
-			stack.computation = Recur.done(Nothing.nothing());
+			stack.computation = Fiber.done(Nothing.nothing());
 			return stack; // Continue processing with an empty result.
 		}
 
@@ -96,7 +96,7 @@ class RecurProcessor<A> {
 		ExecutorServiceEngine.ForEachParentStack parentStack = new ExecutorServiceEngine.ForEachParentStack(forEachNode, stack);
 
 		if (parentStack.forEachChildrenPendingCount.get() == 0) {
-			stack.computation = Recur.done(Nothing.nothing());
+			stack.computation = Fiber.done(Nothing.nothing());
 			return stack; // Continue processing with an empty result.
 		}
 
@@ -111,7 +111,7 @@ class RecurProcessor<A> {
 	 */
 	private <W> ExecutorServiceEngine.EngineStack handleSuspended(
 			ExecutorServiceEngine.EngineStack stack,
-			Recur.Suspended<W, Object> suspended) {
+			Fiber.Suspended<W, Object> suspended) {
 
 		engine.incrementParkedCount();
 
@@ -122,7 +122,7 @@ class RecurProcessor<A> {
 				return;
 			}
 
-			Recur<Object> work = suspended.getResume().apply(value);
+			Fiber<Object> work = suspended.getResume().apply(value);
 			capturedStack.computation = work;
 
 			engine.decrementParkedCount();
@@ -138,16 +138,16 @@ class RecurProcessor<A> {
 	/**
 	 * Spawns child tasks for each option in a ForEach node.
 	 */
-	private void spawnChildrenTasks(ExecutorServiceEngine.ForEachParentStack parentStack, List<Recur<Object>> options) {
+	private void spawnChildrenTasks(ExecutorServiceEngine.ForEachParentStack parentStack, List<Fiber<Object>> options) {
 		int submittedChildCount = 0;
-		for (Recur<Object> branchRecur : options) {
+		for (Fiber<Object> branchFiber : options) {
 			if (engine.isCancelled()) {
 				int skippedOrFailedCount = options.size() - submittedChildCount;
 				parentStack.forEachChildrenPendingCount.addAndGet(-skippedOrFailedCount);
 				break;
 			}
 			// Each option becomes a new computation stack.
-			ExecutorServiceEngine.ComputationStack childStack = new ExecutorServiceEngine.ComputationStack(branchRecur, false, parentStack);
+			ExecutorServiceEngine.ComputationStack childStack = new ExecutorServiceEngine.ComputationStack(branchFiber, false, parentStack);
 			engine.submitEngineTask(childStack);
 			submittedChildCount++;
 		}

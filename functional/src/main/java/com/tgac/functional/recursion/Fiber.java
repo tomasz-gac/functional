@@ -27,34 +27,34 @@ import lombok.Value;
 import lombok.experimental.FieldDefaults;
 import lombok.var;
 
-public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
-	interface Fn<T, R> extends Function<T, Recur<R>> {
+public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
+	interface Fn<T, R> extends Function<T, Fiber<R>> {
 	}
 
-	static <A> Recur<A> done(@NonNull A v) {
+	static <A> Fiber<A> done(@NonNull A v) {
 		return Done.of(v);
 	}
 
-	static <A> Recur<A> recur(Supplier<Recur<A>> rec) {
+	static <A> Fiber<A> defer(Supplier<Fiber<A>> rec) {
 		return More.of(rec);
 	}
 
-	static <W, A> Recur<A> suspend(CompletableFuture<W> future, Function<W, Recur<A>> resume) {
+	static <W, A> Fiber<A> suspend(CompletableFuture<W> future, Function<W, Fiber<A>> resume) {
 		return new Suspended<>(future, resume);
 	}
 
 	@Override
-	default <B> Recur<B> flatMap(Function<? super A, @NonNull ? extends Monad<Recur<?>, B>> f) {
+	default <B> Fiber<B> flatMap(Function<? super A, @NonNull ? extends Monad<Fiber<?>, B>> f) {
 		return FlatMap.of(f, this);
 	}
 
 	@Override
-	default <B> Recur<B> map(Function<? super A, @NonNull B> f) {
+	default <B> Fiber<B> map(Function<? super A, @NonNull B> f) {
 		return flatMap(v -> done(f.apply(v)));
 	}
 
 	@Override
-	default <B> Recur<B> pure(B value) {
+	default <B> Fiber<B> pure(B value) {
 		return done(value);
 	}
 
@@ -74,13 +74,13 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 		return new BFSEngine<>(this);
 	}
 
-	static <A, B> Recur<Tuple2<A, B>> zip(Recur<A> lhs, Recur<B> rhs) {
+	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {
 		return lhs.flatMap(l -> rhs.map(r -> Tuple.of(l, r)));
 	}
 
-	static <T> Recur<T> cache(Supplier<Recur<T>> r) {
+	static <T> Fiber<T> cache(Supplier<Fiber<T>> r) {
 		Reference<T> cache = Reference.empty();
-		return (Recur<T>) recur(() -> done(cache.get()))
+		return (Fiber<T>) defer(() -> done(cache.get()))
 				.flatMap(h -> Objects.nonNull(h) ? done(h) : r.get())
 				.map(v -> {
 					cache.set(v);
@@ -88,23 +88,23 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 				});
 	}
 
-	static <A> Option<Recur<Iterable<A>>> lift(Iterable<Recur<A>> iterable) {
+	static <A> Option<Fiber<Iterable<A>>> lift(Iterable<Fiber<A>> iterable) {
 		return Stream.ofAll(iterable)
 				.map(v -> v.map(Stream::of))
-				.reduceOption((acc, item) -> Recur.zip(acc, item.map(Stream::head))
+				.reduceOption((acc, item) -> Fiber.zip(acc, item.map(Stream::head))
 						.map(lr -> lr.apply(Stream::append)))
 				// cast
 				.map(r -> r.map(v -> v));
 	}
 
-	static <A> Recur<Nothing> forEach(List<Recur<A>> tasks, Consumer<A> sink) {
+	static <A> Fiber<Nothing> forEach(List<Fiber<A>> tasks, Consumer<A> sink) {
 		return new ForEach<A>(tasks, sink)
 				.map(_0 -> Nothing.nothing());
 	}
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
-	class Done<A> implements Recur<A> {
+	class Done<A> implements Fiber<A> {
 		A value;
 
 		@Override
@@ -113,12 +113,12 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 		}
 
 		@Override
-		public <B> Recur<B> flatMap(Function<? super A, ? extends Monad<Recur<?>, B>> f) {
-			return (Recur<B>) f.apply(value);
+		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
+			return (Fiber<B>) f.apply(value);
 		}
 
 		@Override
-		public <B> Recur<B> map(Function<? super A, B> f) {
+		public <B> Fiber<B> map(Function<? super A, B> f) {
 			return Done.of(f.apply(value));
 		}
 
@@ -130,14 +130,14 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
-	class More<A> implements Recur<A> {
-		Supplier<Recur<A>> rec;
+	class More<A> implements Fiber<A> {
+		Supplier<Fiber<A>> rec;
 	}
 
 	@Getter
 	@RequiredArgsConstructor(staticName = "of")
-	class ForEach<A> implements Recur<A> {
-		private final List<Recur<A>> options;
+	class ForEach<A> implements Fiber<A> {
+		private final List<Fiber<A>> options;
 		private final Consumer<A> sink;
 	}
 
@@ -147,9 +147,9 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	 */
 	@Getter
 	@RequiredArgsConstructor
-	class Suspended<W, A> implements Recur<A> {
+	class Suspended<W, A> implements Fiber<A> {
 		private final CompletableFuture<W> future;
-		private final Function<W, Recur<A>> resume;
+		private final Function<W, Fiber<A>> resume;
 	}
 
 	@Getter
@@ -157,18 +157,18 @@ public interface Recur<A> extends Monad<Recur<?>, A>, Supplier<A> {
 	@EqualsAndHashCode
 	@AllArgsConstructor
 	@FieldDefaults(makeFinal = true, level = AccessLevel.MODULE)
-	class FlatMap<A, B> implements Recur<B>, Function<A, Recur<B>> {
-		Function<A, Recur<B>> f;
-		Recur<A> arg;
+	class FlatMap<A, B> implements Fiber<B>, Function<A, Fiber<B>> {
+		Function<A, Fiber<B>> f;
+		Fiber<A> arg;
 
 		@Override
-		public Recur<B> apply(A v) {
+		public Fiber<B> apply(A v) {
 			return f.apply(v);
 		}
 
 		@SuppressWarnings("unchecked")
-		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Monad<Recur<?>, D>> f, Recur<C> r) {
-			return new FlatMap<>(o -> (Recur<D>) f.apply((C) o), (Recur<Object>) r);
+		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Monad<Fiber<?>, D>> f, Fiber<C> r) {
+			return new FlatMap<>(o -> (Fiber<D>) f.apply((C) o), (Fiber<Object>) r);
 		}
 	}
 }

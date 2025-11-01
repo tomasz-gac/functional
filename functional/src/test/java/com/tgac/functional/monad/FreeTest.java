@@ -1,12 +1,12 @@
 package com.tgac.functional.monad;
 
 import static com.tgac.functional.monad.Free.liftF;
-import static com.tgac.functional.recursion.Recur.done;
-import static com.tgac.functional.recursion.Recur.recur;
+import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.recursion.Fiber.defer;
 
 import com.tgac.functional.category.Functor;
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Recur;
+import com.tgac.functional.recursion.Fiber;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
@@ -75,7 +75,7 @@ class FreeTest {
 			return binaryOp(OpType.DIV, x, y);
 		}
 
-		static Recur<Double> run(Free<Calculator<?>, Double> program) {
+		static Fiber<Double> run(Free<Calculator<?>, Double> program) {
 			if (program instanceof Free.Pure) {
 				return done(((Free.Pure<Calculator<?>, Double>) program).getValue());
 			} else if (program instanceof Free.Suspend) {
@@ -85,14 +85,14 @@ class FreeTest {
 
 				if (calc instanceof Value) {
 					Value<Free<Calculator<?>, Double>, Double> value = (Value<Free<Calculator<?>, Double>, Double>) calc;
-					return recur(() -> run(value.next.apply(value.value)));
+					return defer(() -> run(value.next.apply(value.value)));
 				} else if (calc instanceof BinaryOp) {
 					BinaryOp<Free<Calculator<?>, Double>, Double> op = (BinaryOp<Free<Calculator<?>, Double>, Double>) calc;
 
-					Recur<Double> lhs = recur(() -> Calculator.run(op.getLhs()));
-					Recur<Double> rhs = recur(() -> Calculator.run(op.getRhs()));
+					Fiber<Double> lhs = defer(() -> Calculator.run(op.getLhs()));
+					Fiber<Double> rhs = defer(() -> Calculator.run(op.getRhs()));
 
-					Recur<Double> result;
+					Fiber<Double> result;
 					switch (op.getType()) {
 						case ADD:
 							result = lhs.flatMap(l -> rhs.map(r -> l + r));
@@ -109,7 +109,7 @@ class FreeTest {
 						default:
 							throw new UnsupportedOperationException("Unknown operator type: " + op.getType().name());
 					}
-					return result.flatMap(v -> recur(() -> run(
+					return result.flatMap(v -> defer(() -> run(
 							liftF(op.next.apply(v))
 									.flatMap(Function.identity())
 									.cast())));
@@ -122,7 +122,7 @@ class FreeTest {
 
 		}
 
-		static Recur<String> describe2(Free<Calculator<?>, Double> program) {
+		static Fiber<String> describe2(Free<Calculator<?>, Double> program) {
 			if (program instanceof Free.Pure) {
 				return done(((Free.Pure<Calculator<?>, Double>) program).get().toString());
 			} else if (program instanceof Free.Suspend) {
@@ -136,8 +136,8 @@ class FreeTest {
 					BinaryOp<Free<Calculator<?>, Double>, Double> op =
 							(BinaryOp<Free<Calculator<?>, Double>, Double>) instr;
 
-					Recur<String> lhs = recur(() -> describe2(op.getLhs()));
-					Recur<String> rhs = recur(() -> describe2(op.getRhs()));
+					Fiber<String> lhs = defer(() -> describe2(op.getLhs()));
+					Fiber<String> rhs = defer(() -> describe2(op.getRhs()));
 					String symbol;
 
 					switch (op.getType()) {
@@ -156,7 +156,7 @@ class FreeTest {
 						default:
 							throw new IllegalStateException("Unknown op");
 					}
-					return Recur.zip(lhs, rhs)
+					return Fiber.zip(lhs, rhs)
 							.map(t -> "(" + t._1 + " " + symbol + " " + t._2 + ")");
 				}
 			}
@@ -169,13 +169,13 @@ class FreeTest {
 		 * typically built by nested calls to smart constructors like Calculator.add(...).
 		 *
 		 * @param program The Free<Calculator<?>, Double> program to describe.
-		 * @return A Recur<String> representing the suspended or completed description.
+		 * @return A Fiber<String> representing the suspended or completed description.
 		 * 		Call runTrampoline() on the result to get the final String.
 		 */
-		public static Recur<String> describe(Free<Calculator<?>, Double> program) {
+		public static Fiber<String> describe(Free<Calculator<?>, Double> program) {
 			if (program instanceof Free.Pure) {
 				// Base case: the program is a pure value. Describe it as its string representation.
-				return Recur.done(((Free.Pure<Calculator<?>, Double>) program).getValue().toString());
+				return Fiber.done(((Free.Pure<Calculator<?>, Double>) program).getValue().toString());
 			} else if (program instanceof Free.Suspend) {
 				Free.Suspend<Calculator<?>, Double> suspendNode = (Free.Suspend<Calculator<?>, Double>) program;
 
@@ -197,8 +197,8 @@ class FreeTest {
 					Free<Calculator<?>, Double> nextFreeStep =
 							valueInstruction.getNext().apply(valueInstruction.getValue());
 
-					// Recursively describe this next step.
-					return Recur.recur(() -> describe(nextFreeStep));
+					// Fibersively describe this next step.
+					return Fiber.defer(() -> describe(nextFreeStep));
 
 				} else if (currentInstruction instanceof Calculator.BinaryOp) {
 					// The instruction is Calculator.BinaryOp<A, V_op>
@@ -207,9 +207,9 @@ class FreeTest {
 					Calculator.BinaryOp<Free<Calculator<?>, Double>, Double> binaryOpInstruction =
 							(Calculator.BinaryOp<Free<Calculator<?>, Double>, Double>) currentInstruction;
 
-					// Recursively describe the left and right hand side programs.
-					Recur<String> lhsDescRecur = Recur.recur(() -> describe(binaryOpInstruction.getLhs()));
-					Recur<String> rhsDescRecur = Recur.recur(() -> describe(binaryOpInstruction.getRhs()));
+					// Fibersively describe the left and right hand side programs.
+					Fiber<String> lhsDescFiber = Fiber.defer(() -> describe(binaryOpInstruction.getLhs()));
+					Fiber<String> rhsDescFiber = Fiber.defer(() -> describe(binaryOpInstruction.getRhs()));
 
 					String symbol;
 					switch (binaryOpInstruction.getType()) {
@@ -234,7 +234,7 @@ class FreeTest {
 					// The 'next' function of BinaryOp is not directly used here for string construction,
 					// as this describe method focuses on the structure of the current operation
 					// and its operands.
-					return Recur.zip(lhsDescRecur, rhsDescRecur)
+					return Fiber.zip(lhsDescFiber, rhsDescFiber)
 							.map(pair -> "(" + pair._1 + " " + symbol + " " + pair._2 + ")");
 				} else {
 					throw new IllegalStateException("Unknown Calculator instruction type: " + currentInstruction.getClass().getName());
