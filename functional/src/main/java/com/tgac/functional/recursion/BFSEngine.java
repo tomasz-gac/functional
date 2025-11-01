@@ -27,6 +27,7 @@ public final class BFSEngine<A> implements Engine<A> {
 	@NonNull
 	private PriorityQueue<Stacks> stacksPerDepth;
 	private final int iterationsForPromotion;
+	private final AtomicInteger parkedCount = new AtomicInteger(0);
 
 	public BFSEngine(Recur<A> recur) {
 		this(recur, 10_000);
@@ -46,7 +47,7 @@ public final class BFSEngine<A> implements Engine<A> {
 			if (step(sink))
 				return true;
 		}
-		return stacksPerDepth.isEmpty();
+		return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
 	}
 
 	@Override
@@ -76,7 +77,7 @@ public final class BFSEngine<A> implements Engine<A> {
 	@Override
 	public boolean step(Consumer<? super A> sink) {
 		if (stacksPerDepth.isEmpty()) {
-			return true;
+			return parkedCount.get() == 0;
 		}
 
 		Stacks stacks = stacksPerDepth.peek();
@@ -106,11 +107,15 @@ public final class BFSEngine<A> implements Engine<A> {
 				} else {
 					sink.accept((A) value);
 				}
-				return stacksPerDepth.isEmpty(); // true if this was the last one
+				return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
 			}
 
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
+
+		} else if (computation instanceof Recur.Suspended) {
+			handleSuspended(stack, stacks);
+			return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
 
 		} else if (computation instanceof Recur.ForEach) {
 			Recur.ForEach<Object> forEach = (Recur.ForEach<Object>) computation;
@@ -142,6 +147,28 @@ public final class BFSEngine<A> implements Engine<A> {
 	@Override
 	public void close() throws Exception {
 		// empty by design
+	}
+
+	private <W> void handleSuspended(Stack stack, Stacks stacks) {
+		Recur.Suspended<W, Object> suspended = (Recur.Suspended<W, Object>) stack.computation;
+
+		parkedCount.incrementAndGet();
+
+		Stack capturedStack = stack;
+		int capturedDepth = stacks.depth;
+		suspended.getFuture().thenAccept(value -> {
+			Recur<Object> work = suspended.getResume().apply(value);
+			capturedStack.computation = work;
+
+			synchronized(stacksPerDepth) {
+				addAll(capturedDepth, Collections.singletonList(capturedStack));
+			}
+
+			parkedCount.decrementAndGet();
+		});
+
+		// Remove from active (parking)
+		removeCurrentStackItem(stacks);
 	}
 
 	private void tryPromote() {

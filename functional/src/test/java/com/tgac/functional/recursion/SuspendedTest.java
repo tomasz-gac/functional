@@ -157,4 +157,86 @@ public class SuspendedTest {
 
 		assertThat(results).containsExactly("first", "second");
 	}
+
+	@Test
+	public void testSuspendedWithBFSEngine() throws Exception {
+		// Test Suspended with BFSEngine
+		List<Integer> consumed = new CopyOnWriteArrayList<>();
+		List<CompletableFuture<Integer>> futures = new ArrayList<>();
+
+		for (int i = 0; i < 3; i++) {
+			futures.add(new CompletableFuture<>());
+		}
+
+		Recur<Nothing> producer = recur(() -> {
+			futures.get(0).complete(1);
+			return recur(() -> {
+				futures.get(1).complete(2);
+				return recur(() -> {
+					futures.get(2).complete(3);
+					return done(Nothing.nothing());
+				});
+			});
+		});
+
+		Recur<Nothing> consumer = Recur.suspend(futures.get(0), val1 -> {
+			consumed.add(val1);
+			return Recur.suspend(futures.get(1), val2 -> {
+				consumed.add(val2);
+				return Recur.suspend(futures.get(2), val3 -> {
+					consumed.add(val3);
+					return done(Nothing.nothing());
+				});
+			});
+		});
+
+		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+
+		try (Engine<Nothing> engine = new BFSEngine<>(program)) {
+			engine.get();
+		}
+
+		assertThat(consumed).containsExactly(1, 2, 3);
+	}
+
+	@Test
+	public void testSuspendedWithExecutorServiceEngine() throws Exception {
+		// Test Suspended with ExecutorServiceEngine
+		List<Integer> consumed = new CopyOnWriteArrayList<>();
+		List<CompletableFuture<Integer>> futures = new ArrayList<>();
+
+		for (int i = 0; i < 3; i++) {
+			futures.add(new CompletableFuture<>());
+		}
+
+		Recur<Nothing> producer = recur(() -> {
+			futures.get(0).complete(1);
+			return recur(() -> {
+				futures.get(1).complete(2);
+				return recur(() -> {
+					futures.get(2).complete(3);
+					return done(Nothing.nothing());
+				});
+			});
+		});
+
+		Recur<Nothing> consumer = Recur.suspend(futures.get(0), val1 -> {
+			consumed.add(val1);
+			return Recur.suspend(futures.get(1), val2 -> {
+				consumed.add(val2);
+				return Recur.suspend(futures.get(2), val3 -> {
+					consumed.add(val3);
+					return done(Nothing.nothing());
+				});
+			});
+		});
+
+		Recur<Nothing> program = Recur.forEach(Arrays.asList(producer, consumer), r -> {});
+
+		try (Engine<Nothing> engine = new ExecutorServiceEngine<>(program, new java.util.concurrent.ForkJoinPool())) {
+			engine.get();
+		}
+
+		assertThat(consumed).containsExactly(1, 2, 3);
+	}
 }

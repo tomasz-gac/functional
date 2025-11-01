@@ -34,6 +34,8 @@ class RecurProcessor<A> {
 			return stack;
 		} else if (computation instanceof Recur.Done) {
 			return handleDone(stack, (Recur.Done<Object>) computation);
+		} else if (computation instanceof Recur.Suspended) {
+			return handleSuspended(stack, (Recur.Suspended<?, Object>) computation);
 		} else if (computation instanceof Recur.ForEach) {
 			return handleForEach(stack, (Recur.ForEach<Object>) computation);
 		} else {
@@ -100,6 +102,37 @@ class RecurProcessor<A> {
 
 		spawnChildrenTasks(parentStack, options);
 		return null; // Pause this stack; it's now waiting for children to complete.
+	}
+
+	/**
+	 * Handles a Suspended node by parking it and registering a callback for resumption.
+	 *
+	 * @return null to pause this stack - it will be resumed when the future completes.
+	 */
+	private <W> ExecutorServiceEngine.EngineStack handleSuspended(
+			ExecutorServiceEngine.EngineStack stack,
+			Recur.Suspended<W, Object> suspended) {
+
+		engine.incrementParkedCount();
+
+		ExecutorServiceEngine.EngineStack capturedStack = stack;
+		suspended.getFuture().thenAccept(value -> {
+			if (engine.isCancelled()) {
+				engine.decrementParkedCount();
+				return;
+			}
+
+			Recur<Object> work = suspended.getResume().apply(value);
+			capturedStack.computation = work;
+
+			engine.decrementParkedCount();
+
+			// Re-submit the stack with the resumed computation
+			engine.submitEngineTask(capturedStack);
+		});
+
+		// Pause this stack - it will be resumed via the callback
+		return null;
 	}
 
 	/**
