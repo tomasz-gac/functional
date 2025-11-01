@@ -35,7 +35,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	static <A> Fiber<A> defer(Supplier<Fiber<A>> rec) {
-		return More.of(rec);
+		return Deferred.of(rec);
 	}
 
 	static <W, A> Fiber<A> suspend(CompletableFuture<W> future, Function<W, Fiber<A>> resume) {
@@ -96,8 +96,8 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 				.map(r -> r.map(v -> v));
 	}
 
-	static <A> Fiber<Nothing> forEach(List<Fiber<A>> tasks, Consumer<A> sink) {
-		return new ForEach<A>(tasks, sink)
+	static <A> Fiber<Nothing> fork(List<Fiber<A>> tasks, Consumer<A> sink) {
+		return new Forked<A>(tasks, sink)
 				.map(_0 -> Nothing.nothing());
 	}
 
@@ -129,13 +129,13 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
-	class More<A> implements Fiber<A> {
+	class Deferred<A> implements Fiber<A> {
 		Supplier<Fiber<A>> rec;
 	}
 
 	@Getter
 	@RequiredArgsConstructor(staticName = "of")
-	class ForEach<A> implements Fiber<A> {
+	class Forked<A> implements Fiber<A> {
 		private final List<Fiber<A>> options;
 		private final Consumer<A> sink;
 	}

@@ -53,7 +53,7 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 	}
 
 	/**
-	 * An EngineStack for standard sequential computations (Done, More, FlatMap).
+	 * An EngineStack for standard sequential computations (Done, Deferred, FlatMap, Suspended).
 	 */
 	static final class ComputationStack extends EngineStack {
 		ComputationStack(Fiber<Object> computation, boolean isRootStack, ForEachParentStack parent) {
@@ -69,7 +69,7 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 		final Consumer<Object> itemConsumer; // Consumer for the results of child computations.
 		final AtomicInteger forEachChildrenPendingCount;
 
-		ForEachParentStack(Fiber.ForEach<Object> computation, EngineStack originalStack) {
+		ForEachParentStack(Fiber.Forked<Object> computation, EngineStack originalStack) {
 			super(computation, originalStack.isRootStackForEngine, originalStack.parent);
 			this.continuationStack.addAll(originalStack.continuationStack);
 			this.itemConsumer = computation.getSink();

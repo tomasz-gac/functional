@@ -27,8 +27,8 @@ class FiberProcessor<A> {
 	ExecutorServiceScheduler.EngineStack process(ExecutorServiceScheduler.EngineStack stack) {
 		Fiber<Object> computation = stack.computation;
 
-		if (computation instanceof Fiber.More) {
-			handleMore(stack, (Fiber.More<Object>) computation);
+		if (computation instanceof Fiber.Deferred) {
+			handleDeferred(stack, (Fiber.Deferred<Object>) computation);
 			return stack;
 		} else if (computation instanceof Fiber.FlatMap) {
 			handleFlatMap(stack, (Fiber.FlatMap<Object, Object>) computation);
@@ -37,18 +37,18 @@ class FiberProcessor<A> {
 			return handleDone(stack, (Fiber.Done<Object>) computation);
 		} else if (computation instanceof Fiber.Suspended) {
 			return handleSuspended(stack, (Fiber.Suspended<?, Object>) computation);
-		} else if (computation instanceof Fiber.ForEach) {
-			return handleForEach(stack, (Fiber.ForEach<Object>) computation);
+		} else if (computation instanceof Fiber.Forked) {
+			return handleForEach(stack, (Fiber.Forked<Object>) computation);
 		} else {
 			throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass().getName() + " in stack " + stack);
 		}
 	}
 
 	/**
-	 * Handles a More node by unwrapping the next computation.
+	 * Handles a Deferred node by unwrapping the next computation.
 	 */
-	private void handleMore(ExecutorServiceScheduler.EngineStack stack, Fiber.More<Object> more) {
-		stack.computation = more.getRec().get();
+	private void handleDeferred(ExecutorServiceScheduler.EngineStack stack, Fiber.Deferred<Object> deferred) {
+		stack.computation = deferred.getRec().get();
 	}
 
 	/**
@@ -85,8 +85,8 @@ class FiberProcessor<A> {
 	 *
 	 * @return The next stack to process, or null to pause.
 	 */
-	private ExecutorServiceScheduler.EngineStack handleForEach(ExecutorServiceScheduler.EngineStack stack, Fiber.ForEach<Object> forEachNode) {
-		List<Fiber<Object>> options = forEachNode.getOptions();
+	private ExecutorServiceScheduler.EngineStack handleForEach(ExecutorServiceScheduler.EngineStack stack, Fiber.Forked<Object> forkedNode) {
+		List<Fiber<Object>> options = forkedNode.getOptions();
 
 		if (options == null || options.isEmpty()) {
 			stack.computation = Fiber.done(Nothing.nothing());
@@ -94,7 +94,7 @@ class FiberProcessor<A> {
 		}
 
 		// Convert the current stack to a parent stack that will wait for children.
-		ExecutorServiceScheduler.ForEachParentStack parentStack = new ExecutorServiceScheduler.ForEachParentStack(forEachNode, stack);
+		ExecutorServiceScheduler.ForEachParentStack parentStack = new ExecutorServiceScheduler.ForEachParentStack(forkedNode, stack);
 
 		if (parentStack.forEachChildrenPendingCount.get() == 0) {
 			stack.computation = Fiber.done(Nothing.nothing());

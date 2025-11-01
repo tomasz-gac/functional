@@ -88,8 +88,8 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 		Stack stack = stacks.stacks.get(stacks.index);
 		Fiber<Object> computation = stack.computation;
 
-		if (computation instanceof Fiber.More) {
-			stack.computation = ((Fiber.More<Object>) computation).getRec().get();
+		if (computation instanceof Fiber.Deferred) {
+			stack.computation = ((Fiber.Deferred<Object>) computation).getRec().get();
 			return false;
 
 		} else if (computation instanceof Fiber.FlatMap) {
@@ -119,13 +119,13 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 			handleSuspended(stack, stacks);
 			return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
 
-		} else if (computation instanceof Fiber.ForEach) {
-			Fiber.ForEach<Object> forEach = (Fiber.ForEach<Object>) computation;
+		} else if (computation instanceof Fiber.Forked) {
+			Fiber.Forked<Object> forked = (Fiber.Forked<Object>) computation;
 
 			// Remove the interleaving stack, defer resuming until all options complete
 			removeCurrentStackItem(stacks);
 
-			AtomicInteger counter = new AtomicInteger(forEach.getOptions().size());
+			AtomicInteger counter = new AtomicInteger(forked.getOptions().size());
 
 			Consumer<Object> notifyParent = result -> {
 				if (counter.decrementAndGet() == 0) {
@@ -133,10 +133,10 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 					add(stack);
 
 				}
-				forEach.getSink().accept(result);
+				forked.getSink().accept(result);
 			};
 
-			addAll(stacks.depth + 1, forEach.getOptions().stream()
+			addAll(stacks.depth + 1, forked.getOptions().stream()
 					.map(s -> Stack.of(s, notifyParent))
 					.collect(Collectors.toList()));
 
