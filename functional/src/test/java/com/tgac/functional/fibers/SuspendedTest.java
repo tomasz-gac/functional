@@ -162,6 +162,56 @@ public class SuspendedTest {
 	}
 
 	@Test
+	public void testAwaitableFlatMonadicStyle() throws Exception {
+		// Test Awaitable with flat monadic composition (no nesting!)
+		List<String> results = new CopyOnWriteArrayList<>();
+
+		// Pre-create futures that will be completed by producer
+		CompletableFuture<String> future1 = new CompletableFuture<>();
+		CompletableFuture<String> future2 = new CompletableFuture<>();
+		CompletableFuture<String> future3 = new CompletableFuture<>();
+
+		// Create Awaitables that return the pre-created futures
+		Awaitable<String> awaitable1 = () -> future1;
+		Awaitable<String> awaitable2 = () -> future2;
+		Awaitable<String> awaitable3 = () -> future3;
+
+		// Use flat monadic style - no nesting!
+		Fiber<Nothing> consumer = awaitable1.await()
+				.flatMap(val1 -> {
+					results.add(val1);
+					return awaitable2.await();
+				})
+				.flatMap(val2 -> {
+					results.add(val2);
+					return awaitable3.await();
+				})
+				.flatMap(val3 -> {
+					results.add(val3);
+					return done(Nothing.nothing());
+				});
+
+		Fiber<Nothing> producer = defer(() -> {
+			future1.complete("first");
+			return defer(() -> {
+				future2.complete("second");
+				return defer(() -> {
+					future3.complete("third");
+					return done(Nothing.nothing());
+				});
+			});
+		});
+
+		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
+
+		try (Scheduler<Nothing> scheduler = RoundRobin.of(program)) {
+			scheduler.get();
+		}
+
+		assertThat(results).containsExactly("first", "second", "third");
+	}
+
+	@Test
 	public void testSuspendedWithBFSEngine() throws Exception {
 		// Test Suspended with BFSEngine
 		List<Integer> consumed = new CopyOnWriteArrayList<>();
