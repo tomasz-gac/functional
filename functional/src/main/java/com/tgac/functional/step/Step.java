@@ -2,7 +2,7 @@ package com.tgac.functional.step;
 
 import com.tgac.functional.Exceptions;
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.Array;
 import io.vavr.control.Option;
 import java.util.List;

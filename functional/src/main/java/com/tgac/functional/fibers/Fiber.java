@@ -1,17 +1,16 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
 import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.schedulers.BredthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
 import io.vavr.control.Option;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -70,8 +69,8 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		return false;
 	}
 
-	default Engine<A> toEngine() {
-		return new BFSEngine<>(this);
+	default Scheduler<A> toEngine() {
+		return new BredthFirstScheduler<>(this);
 	}
 
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {

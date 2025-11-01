@@ -1,10 +1,9 @@
 package com.tgac.functional.monad;
 
-import static com.tgac.functional.recursion.Fiber.done;
-import static com.tgac.functional.recursion.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import java.io.Serializable;
 import java.util.function.Function;
 import java.util.function.Supplier;

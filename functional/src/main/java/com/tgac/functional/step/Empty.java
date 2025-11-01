@@ -1,9 +1,9 @@
 package com.tgac.functional.step;
 
-import static com.tgac.functional.recursion.Fiber.done;
+import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.Array;
 import java.util.function.Function;
 import lombok.AccessLevel;

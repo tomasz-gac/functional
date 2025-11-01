@@ -1,4 +1,4 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
 import com.tgac.functional.Reference;
 import io.vavr.Tuple;

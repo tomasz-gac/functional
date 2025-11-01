@@ -1,6 +1,8 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Optional;
@@ -19,7 +21,7 @@ import java.util.function.Function;
  * An Engine that uses an ExecutorService to run Fiber computations. It supports parallel execution for ForEach nodes.
  */
 @SuppressWarnings({"unchecked"})
-public final class ExecutorServiceEngine<A> implements Engine<A> {
+public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 
 	private final Fiber<A> initialFiber;
 	private final ExecutorService executorService; // Shared executor for running tasks.
@@ -75,7 +77,7 @@ public final class ExecutorServiceEngine<A> implements Engine<A> {
 		}
 	}
 
-	public ExecutorServiceEngine(Fiber<A> initialFiber, ExecutorService executorService) {
+	public ExecutorServiceScheduler(Fiber<A> initialFiber, ExecutorService executorService) {
 		if (initialFiber == null)
 			throw new NullPointerException("Initial Fiber cannot be null");
 		if (executorService == null)

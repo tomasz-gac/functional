@@ -1,7 +1,7 @@
 package com.tgac.functional.step;
 
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.Array;
 import java.util.function.Function;
 import lombok.NonNull;

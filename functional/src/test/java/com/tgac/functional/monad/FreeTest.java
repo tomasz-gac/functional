@@ -1,12 +1,12 @@
 package com.tgac.functional.monad;
 
 import static com.tgac.functional.monad.Free.liftF;
-import static com.tgac.functional.recursion.Fiber.done;
-import static com.tgac.functional.recursion.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
+import static com.tgac.functional.fibers.Fiber.defer;
 
 import com.tgac.functional.category.Functor;
 import com.tgac.functional.category.Monad;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;

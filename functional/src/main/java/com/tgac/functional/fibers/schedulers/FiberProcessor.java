@@ -1,6 +1,7 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Fiber;
 import java.util.List;
 
 /**
@@ -11,9 +12,9 @@ import java.util.List;
  */
 class FiberProcessor<A> {
 
-	private final ExecutorServiceEngine<A> engine;
+	private final ExecutorServiceScheduler<A> engine;
 
-	FiberProcessor(ExecutorServiceEngine<A> engine) {
+	FiberProcessor(ExecutorServiceScheduler<A> engine) {
 		this.engine = engine;
 	}
 
@@ -23,7 +24,7 @@ class FiberProcessor<A> {
 	 * @param stack The current computation stack.
 	 * @return The next stack to be processed, or null if the computation is paused or finished.
 	 */
-	ExecutorServiceEngine.EngineStack process(ExecutorServiceEngine.EngineStack stack) {
+	ExecutorServiceScheduler.EngineStack process(ExecutorServiceScheduler.EngineStack stack) {
 		Fiber<Object> computation = stack.computation;
 
 		if (computation instanceof Fiber.More) {
@@ -46,14 +47,14 @@ class FiberProcessor<A> {
 	/**
 	 * Handles a More node by unwrapping the next computation.
 	 */
-	private void handleMore(ExecutorServiceEngine.EngineStack stack, Fiber.More<Object> more) {
+	private void handleMore(ExecutorServiceScheduler.EngineStack stack, Fiber.More<Object> more) {
 		stack.computation = more.getRec().get();
 	}
 
 	/**
 	 * Handles a FlatMap node by pushing the function onto the continuation stack and setting the next computation to the argument.
 	 */
-	private void handleFlatMap(ExecutorServiceEngine.EngineStack stack, Fiber.FlatMap<Object, Object> flatMap) {
+	private void handleFlatMap(ExecutorServiceScheduler.EngineStack stack, Fiber.FlatMap<Object, Object> flatMap) {
 		stack.continuationStack.addLast(flatMap.getF());
 		stack.computation = flatMap.getArg();
 	}
@@ -63,7 +64,7 @@ class FiberProcessor<A> {
 	 *
 	 * @return The next stack to process, or null to pause/finish.
 	 */
-	private ExecutorServiceEngine.EngineStack handleDone(ExecutorServiceEngine.EngineStack stack, Fiber.Done<Object> done) {
+	private ExecutorServiceScheduler.EngineStack handleDone(ExecutorServiceScheduler.EngineStack stack, Fiber.Done<Object> done) {
 		Object result = done.getValue();
 		if (!stack.continuationStack.isEmpty()) {
 			stack.computation = stack.continuationStack.pollLast().apply(result);
@@ -84,7 +85,7 @@ class FiberProcessor<A> {
 	 *
 	 * @return The next stack to process, or null to pause.
 	 */
-	private ExecutorServiceEngine.EngineStack handleForEach(ExecutorServiceEngine.EngineStack stack, Fiber.ForEach<Object> forEachNode) {
+	private ExecutorServiceScheduler.EngineStack handleForEach(ExecutorServiceScheduler.EngineStack stack, Fiber.ForEach<Object> forEachNode) {
 		List<Fiber<Object>> options = forEachNode.getOptions();
 
 		if (options == null || options.isEmpty()) {
@@ -93,7 +94,7 @@ class FiberProcessor<A> {
 		}
 
 		// Convert the current stack to a parent stack that will wait for children.
-		ExecutorServiceEngine.ForEachParentStack parentStack = new ExecutorServiceEngine.ForEachParentStack(forEachNode, stack);
+		ExecutorServiceScheduler.ForEachParentStack parentStack = new ExecutorServiceScheduler.ForEachParentStack(forEachNode, stack);
 
 		if (parentStack.forEachChildrenPendingCount.get() == 0) {
 			stack.computation = Fiber.done(Nothing.nothing());
@@ -109,13 +110,13 @@ class FiberProcessor<A> {
 	 *
 	 * @return null to pause this stack - it will be resumed when the future completes.
 	 */
-	private <W> ExecutorServiceEngine.EngineStack handleSuspended(
-			ExecutorServiceEngine.EngineStack stack,
+	private <W> ExecutorServiceScheduler.EngineStack handleSuspended(
+			ExecutorServiceScheduler.EngineStack stack,
 			Fiber.Suspended<W, Object> suspended) {
 
 		engine.incrementParkedCount();
 
-		ExecutorServiceEngine.EngineStack capturedStack = stack;
+		ExecutorServiceScheduler.EngineStack capturedStack = stack;
 		suspended.getFuture().thenAccept(value -> {
 			if (engine.isCancelled()) {
 				engine.decrementParkedCount();
@@ -138,7 +139,7 @@ class FiberProcessor<A> {
 	/**
 	 * Spawns child tasks for each option in a ForEach node.
 	 */
-	private void spawnChildrenTasks(ExecutorServiceEngine.ForEachParentStack parentStack, List<Fiber<Object>> options) {
+	private void spawnChildrenTasks(ExecutorServiceScheduler.ForEachParentStack parentStack, List<Fiber<Object>> options) {
 		int submittedChildCount = 0;
 		for (Fiber<Object> branchFiber : options) {
 			if (engine.isCancelled()) {
@@ -147,7 +148,7 @@ class FiberProcessor<A> {
 				break;
 			}
 			// Each option becomes a new computation stack.
-			ExecutorServiceEngine.ComputationStack childStack = new ExecutorServiceEngine.ComputationStack(branchFiber, false, parentStack);
+			ExecutorServiceScheduler.ComputationStack childStack = new ExecutorServiceScheduler.ComputationStack(branchFiber, false, parentStack);
 			engine.submitEngineTask(childStack);
 			submittedChildCount++;
 		}

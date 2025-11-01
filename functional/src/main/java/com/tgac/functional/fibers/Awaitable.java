@@ -1,4 +1,4 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;

@@ -1,10 +1,13 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
-import static com.tgac.functional.recursion.Fiber.done;
-import static com.tgac.functional.recursion.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
+import static com.tgac.functional.fibers.Fiber.defer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.schedulers.BredthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.ExecutorServiceScheduler;
+import com.tgac.functional.fibers.schedulers.RoundRobin;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -57,8 +60,8 @@ public class SuspendedTest {
 		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
 		// Execute with SimpleEngine
-		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = RoundRobin.of(program)) {
+			scheduler.get();
 		}
 
 		// Verify consumer received all values
@@ -76,8 +79,8 @@ public class SuspendedTest {
 			return done(Nothing.nothing());
 		});
 
-		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = RoundRobin.of(program)) {
+			scheduler.get();
 		}
 
 		assertThat(results).containsExactly("hello");
@@ -106,8 +109,8 @@ public class SuspendedTest {
 
 		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(waiter1, waiter2, completer), r -> {});
 
-		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = RoundRobin.of(program)) {
+			scheduler.get();
 		}
 
 		assertThat(results).containsExactlyInAnyOrder(20, 30);
@@ -151,8 +154,8 @@ public class SuspendedTest {
 
 		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
-		try (Engine<Nothing> engine = SimpleEngine.of(program)) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = RoundRobin.of(program)) {
+			scheduler.get();
 		}
 
 		assertThat(results).containsExactly("first", "second");
@@ -192,8 +195,8 @@ public class SuspendedTest {
 
 		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
-		try (Engine<Nothing> engine = new BFSEngine<>(program)) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = new BredthFirstScheduler<>(program)) {
+			scheduler.get();
 		}
 
 		assertThat(consumed).containsExactly(1, 2, 3);
@@ -233,8 +236,8 @@ public class SuspendedTest {
 
 		Fiber<Nothing> program = Fiber.forEach(Arrays.asList(producer, consumer), r -> {});
 
-		try (Engine<Nothing> engine = new ExecutorServiceEngine<>(program, new java.util.concurrent.ForkJoinPool())) {
-			engine.get();
+		try (Scheduler<Nothing> scheduler = new ExecutorServiceScheduler<>(program, new java.util.concurrent.ForkJoinPool())) {
+			scheduler.get();
 		}
 
 		assertThat(consumed).containsExactly(1, 2, 3);

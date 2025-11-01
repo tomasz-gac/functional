@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.Exceptions;
 import com.tgac.functional.Reference;
-import com.tgac.functional.recursion.Fiber;
+import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.List;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;

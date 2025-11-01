@@ -1,10 +1,10 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public interface Engine<A> extends Supplier<A>, AutoCloseable {
+public interface Scheduler<A> extends Supplier<A>, AutoCloseable {
 	boolean step(Consumer<? super A> sink);
 
 	boolean run(int iterations, Consumer<? super A> sink);

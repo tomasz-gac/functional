@@ -1,10 +1,11 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers;
 
-import static com.tgac.functional.recursion.Fiber.done;
-import static com.tgac.functional.recursion.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
+import static com.tgac.functional.fibers.Fiber.defer;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.schedulers.BredthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple3;
 import io.vavr.collection.Stream;
@@ -123,7 +124,7 @@ public class FiberTest {
 
 	@Test
 	public void shouldTerminateAtOne11WithEngine() {
-		Engine<Long> e = collatz(11).toEngine();
+		Scheduler<Long> e = collatz(11).toEngine();
 		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
 		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
 		Assertions.assertThat(e.run(5))
@@ -275,7 +276,7 @@ public class FiberTest {
 		List<String> ns = new CopyOnWriteArrayList<>();
 		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Fiber.forEach(Arrays.asList(n, n1), ns::add),
 		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
-		Engine<Nothing> e = new BFSEngine(Fiber.forEach(Arrays.asList(n, n1), ns::add));
+		Scheduler<Nothing> e = new BredthFirstScheduler(Fiber.forEach(Arrays.asList(n, n1), ns::add));
 		System.out.println(e.get());
 		System.out.println(results);
 		System.out.println(ns);

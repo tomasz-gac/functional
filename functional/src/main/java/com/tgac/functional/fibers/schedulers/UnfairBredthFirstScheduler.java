@@ -1,6 +1,8 @@
-package com.tgac.functional.recursion;
+package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Deque;
@@ -18,13 +20,13 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class UnfairBFSEngine<A> implements Engine<A> {
+public final class UnfairBredthFirstScheduler<A> implements Scheduler<A> {
 	private final PriorityQueue<Stack> stacks;
 
-	public static <A> UnfairBFSEngine<A> of(Fiber<A> recur) {
+	public static <A> UnfairBredthFirstScheduler<A> of(Fiber<A> recur) {
 		PriorityQueue<Stack> table = new PriorityQueue<>(Comparator.comparingInt(Stack::getDepth));
 		table.add(Stack.of(recur, null, 0));
-		return new UnfairBFSEngine<>(table);
+		return new UnfairBredthFirstScheduler<>(table);
 	}
 
 	@Override
