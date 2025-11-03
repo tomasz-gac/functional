@@ -163,7 +163,7 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 			capturedStack.computation = work;
 
 			synchronized(stacksPerDepth) {
-				addAll(capturedDepth, Collections.singletonList(capturedStack));
+				addAll(capturedDepth, new ArrayList<>(Collections.singletonList(capturedStack)));
 			}
 
 			parkedCount.decrementAndGet();

@@ -118,9 +118,28 @@ public final class UnfairBredthFirstScheduler<A> implements Scheduler<A> {
 					.collect(Collectors.toList()));
 
 			return false;
+
+		} else if (computation instanceof Fiber.Suspended) {
+			handleSuspended(stack);
+			return false;
+
 		} else {
 			throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
 		}
+	}
+
+	private <W> void handleSuspended(Stack stack) {
+		Fiber.Suspended<W, Object> suspended = (Fiber.Suspended<W, Object>) stack.computation;
+
+		// Remove from active (parking)
+		stacks.poll();
+
+		Stack capturedStack = stack;
+		suspended.getFuture().thenAccept(value -> {
+			Fiber<Object> work = suspended.getResume().apply(value);
+			capturedStack.computation = work;
+			stacks.offer(capturedStack);
+		});
 	}
 
 	@Override

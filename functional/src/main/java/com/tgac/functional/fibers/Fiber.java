@@ -101,6 +101,43 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 				.map(_0 -> Nothing.nothing());
 	}
 
+	/**
+	 * Check if this fiber is idle (Done or Suspended, not actively computing).
+	 * Returns Fiber<Boolean> to avoid stack overflow on deep nesting.
+	 *
+	 * @return Fiber that yields true if this fiber is idle, false otherwise
+	 */
+	default Fiber<Boolean> isIdle() {
+		return done(false);  // Default: not idle (actively computing)
+	}
+
+	/**
+	 * Check if all fibers in list are idle.
+	 * Uses trampolining to avoid stack overflow.
+	 *
+	 * @param fibers List of fibers to check
+	 * @return Fiber that yields true if all are idle, false otherwise
+	 */
+	static Fiber<Boolean> allIdle(List<? extends Fiber<?>> fibers) {
+		return checkAllIdle(fibers, 0);
+	}
+
+	static Fiber<Boolean> checkAllIdle(List<? extends Fiber<?>> fibers, int index) {
+		if (index >= fibers.size()) {
+			return done(true);  // All checked, all idle
+		}
+
+		return defer(() ->
+			fibers.get(index).isIdle()
+				.flatMap(result -> {
+					if (!result) {
+						return done(false);  // Found non-idle, short circuit
+					}
+					return checkAllIdle(fibers, index + 1);  // Check next
+				})
+		);
+	}
+
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Fiber<A> {
@@ -125,6 +162,11 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		public boolean isDone() {
 			return true;
 		}
+
+		@Override
+		public Fiber<Boolean> isIdle() {
+			return done(true);  // Done is idle
+		}
 	}
 
 	@Value
@@ -138,6 +180,11 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Forked<A> implements Fiber<A> {
 		private final List<Fiber<A>> options;
 		private final Consumer<A> sink;
+
+		@Override
+		public Fiber<Boolean> isIdle() {
+			return allIdle(options);
+		}
 	}
 
 	/**
@@ -149,6 +196,11 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Suspended<W, A> implements Fiber<A> {
 		private final CompletableFuture<W> future;
 		private final Function<W, Fiber<A>> resume;
+
+		@Override
+		public Fiber<Boolean> isIdle() {
+			return done(true);  // Suspended is idle (waiting for external event)
+		}
 	}
 
 	@Getter
