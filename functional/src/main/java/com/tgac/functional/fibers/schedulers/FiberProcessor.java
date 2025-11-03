@@ -37,6 +37,10 @@ class FiberProcessor<A> {
 			return handleDone(stack, (Fiber.Done<Object>) computation);
 		} else if (computation instanceof Fiber.Suspended) {
 			return handleSuspended(stack, (Fiber.Suspended<?, Object>) computation);
+		} else if (computation instanceof Fiber.Detached) {
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Fiber.Detached detached = (Fiber.Detached) computation;
+			return handleDetached(stack, detached);
 		} else if (computation instanceof Fiber.Forked) {
 			return handleForEach(stack, (Fiber.Forked<Object>) computation);
 		} else {
@@ -134,6 +138,27 @@ class FiberProcessor<A> {
 
 		// Pause this stack - it will be resumed via the callback
 		return null;
+	}
+
+	/**
+	 * Handles a Detached node by scheduling the detached fiber independently
+	 * and immediately completing the parent with Done.
+	 *
+	 * @return The stack with Done computation to continue immediately.
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private ExecutorServiceScheduler.EngineStack handleDetached(
+			ExecutorServiceScheduler.EngineStack stack,
+			Fiber.Detached detached) {
+
+		// Schedule the detached fiber as an independent root task
+		ExecutorServiceScheduler.ComputationStack detachedStack =
+			new ExecutorServiceScheduler.ComputationStack(detached.getFiber(), true, null);
+		engine.submitEngineTask(detachedStack);
+
+		// Parent continues immediately with Done
+		stack.computation = Fiber.done(com.tgac.functional.category.Nothing.nothing());
+		return stack;
 	}
 
 	/**

@@ -104,6 +104,15 @@ public final class RoundRobin<A> implements Scheduler<A> {
 			handleSuspended(stack, index);
 			return stacks.isEmpty() && parkedCount.get() == 0;
 
+		} else if (computation instanceof Fiber.Detached) {
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Fiber.Detached detached = (Fiber.Detached) computation;
+			// Schedule the detached fiber independently
+			stacks.add(Stack.of(detached.getFiber(), null));
+			// Parent continues immediately with Done
+			stack.computation = Fiber.done(Nothing.nothing());
+			return false;
+
 		} else if (computation instanceof Fiber.Forked) {
 			Fiber.Forked<Object> forked = (Fiber.Forked<Object>) computation;
 

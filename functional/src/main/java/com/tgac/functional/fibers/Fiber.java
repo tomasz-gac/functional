@@ -102,6 +102,17 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
+	 * Detach a fiber to run independently without blocking the caller's completion.
+	 * The detached fiber runs in the background and the caller continues immediately.
+	 *
+	 * @param fiber The fiber to detach
+	 * @return A fiber that completes immediately while the detached fiber runs independently
+	 */
+	static <A> Fiber<Nothing> detach(Fiber<A> fiber) {
+		return new Detached<>(fiber);
+	}
+
+	/**
 	 * Check if this fiber is idle (Done or Suspended, not actively computing).
 	 * Returns Fiber<Boolean> to avoid stack overflow on deep nesting.
 	 *
@@ -200,6 +211,21 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		@Override
 		public Fiber<Boolean> isIdle() {
 			return done(true);  // Suspended is idle (waiting for external event)
+		}
+	}
+
+	/**
+	 * ABOUTME: Represents a detached fiber that runs independently in the background.
+	 * ABOUTME: The parent fiber completes immediately while the detached fiber continues execution.
+	 */
+	@Value
+	@RequiredArgsConstructor
+	class Detached<A> implements Fiber<Nothing> {
+		private final Fiber<A> fiber;
+
+		@Override
+		public Fiber<Boolean> isIdle() {
+			return done(true);  // Detached fiber doesn't block parent, so parent sees it as idle
 		}
 	}
 
