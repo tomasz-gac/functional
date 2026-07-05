@@ -29,7 +29,6 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 	@NonNull
 	private PriorityQueue<Stacks> stacksPerDepth;
 	private final int iterationsForPromotion;
-	private final AtomicInteger parkedCount = new AtomicInteger(0);
 
 	public BredthFirstScheduler(Fiber<A> recur) {
 		this(recur, 10_000);
@@ -49,7 +48,7 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 			if (step(sink))
 				return true;
 		}
-		return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
+		return stacksPerDepth.isEmpty();
 	}
 
 	@Override
@@ -79,7 +78,7 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 	@Override
 	public boolean step(Consumer<? super A> sink) {
 		if (stacksPerDepth.isEmpty()) {
-			return parkedCount.get() == 0;
+			return true;
 		}
 
 		Stacks stacks = stacksPerDepth.peek();
@@ -109,23 +108,17 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 				} else {
 					sink.accept((A) value);
 				}
-				return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
+				return stacksPerDepth.isEmpty();
 			}
 
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
 
-		} else if (computation instanceof Fiber.Suspended) {
-			handleSuspended(stack, stacks);
-			return stacksPerDepth.isEmpty() && parkedCount.get() == 0;
-
 		} else if (computation instanceof Fiber.Detached) {
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			Fiber.Detached detached = (Fiber.Detached) computation;
 			// Schedule the detached fiber independently; its result is discarded
-			synchronized(stacksPerDepth) {
-				addAll(stacks.depth, new ArrayList<>(Collections.singletonList(Stack.of(detached.getFiber(), value -> {}))));
-			}
+			addAll(stacks.depth, new ArrayList<>(Collections.singletonList(Stack.of(detached.getFiber(), value -> {}))));
 			// Parent continues immediately with Done
 			stack.computation = Fiber.done(Nothing.nothing());
 			return false;
@@ -160,28 +153,6 @@ public final class BredthFirstScheduler<A> implements Scheduler<A> {
 	@Override
 	public void close() throws Exception {
 		// empty by design
-	}
-
-	private <W> void handleSuspended(Stack stack, Stacks stacks) {
-		Fiber.Suspended<W, Object> suspended = (Fiber.Suspended<W, Object>) stack.computation;
-
-		parkedCount.incrementAndGet();
-
-		Stack capturedStack = stack;
-		int capturedDepth = stacks.depth;
-		suspended.getFuture().thenAccept(value -> {
-			Fiber<Object> work = suspended.getResume().apply(value);
-			capturedStack.computation = work;
-
-			synchronized(stacksPerDepth) {
-				addAll(capturedDepth, new ArrayList<>(Collections.singletonList(capturedStack)));
-			}
-
-			parkedCount.decrementAndGet();
-		});
-
-		// Remove from active (parking)
-		removeCurrentStackItem(stacks);
 	}
 
 	private void tryPromote() {

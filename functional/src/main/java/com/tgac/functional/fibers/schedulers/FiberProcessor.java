@@ -35,8 +35,6 @@ class FiberProcessor<A> {
 			return stack;
 		} else if (computation instanceof Fiber.Done) {
 			return handleDone(stack, (Fiber.Done<Object>) computation);
-		} else if (computation instanceof Fiber.Suspended) {
-			return handleSuspended(stack, (Fiber.Suspended<?, Object>) computation);
 		} else if (computation instanceof Fiber.Detached) {
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			Fiber.Detached detached = (Fiber.Detached) computation;
@@ -107,37 +105,6 @@ class FiberProcessor<A> {
 
 		spawnChildrenTasks(parentStack, options);
 		return null; // Pause this stack; it's now waiting for children to complete.
-	}
-
-	/**
-	 * Handles a Suspended node by parking it and registering a callback for resumption.
-	 *
-	 * @return null to pause this stack - it will be resumed when the future completes.
-	 */
-	private <W> ExecutorServiceScheduler.EngineStack handleSuspended(
-			ExecutorServiceScheduler.EngineStack stack,
-			Fiber.Suspended<W, Object> suspended) {
-
-		engine.incrementParkedCount();
-
-		ExecutorServiceScheduler.EngineStack capturedStack = stack;
-		suspended.getFuture().thenAccept(value -> {
-			if (engine.isCancelled()) {
-				engine.decrementParkedCount();
-				return;
-			}
-
-			Fiber<Object> work = suspended.getResume().apply(value);
-			capturedStack.computation = work;
-
-			engine.decrementParkedCount();
-
-			// Re-submit the stack with the resumed computation
-			engine.submitEngineTask(capturedStack);
-		});
-
-		// Pause this stack - it will be resumed via the callback
-		return null;
 	}
 
 	/**

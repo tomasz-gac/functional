@@ -23,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 public final class RoundRobin<A> implements Scheduler<A> {
 	int index = -1;
 	private final List<Stack> stacks;
-	private final AtomicInteger parkedCount = new AtomicInteger(0);
 
 	public static <A> RoundRobin<A> of(Fiber<A> recur) {
 		ArrayList<Stack> table = new ArrayList<>();
@@ -66,7 +65,7 @@ public final class RoundRobin<A> implements Scheduler<A> {
 
 	public boolean step(Consumer<? super A> sink) {
 		if (stacks.isEmpty())
-			return parkedCount.get() == 0;
+			return true;
 
 		index = (index + 1) % stacks.size();
 		Stack stack = stacks.get(index);
@@ -94,15 +93,11 @@ public final class RoundRobin<A> implements Scheduler<A> {
 				} else {
 					sink.accept((A) value);
 				}
-				return stacks.isEmpty() && parkedCount.get() == 0;
+				return stacks.isEmpty();
 			}
 
 			stack.computation = stack.fs.pollLast().apply(value);
 			return false;
-
-		} else if (computation instanceof Fiber.Suspended) {
-			handleSuspended(stack, index);
-			return stacks.isEmpty() && parkedCount.get() == 0;
 
 		} else if (computation instanceof Fiber.Detached) {
 			@SuppressWarnings({"unchecked", "rawtypes"})
@@ -145,30 +140,6 @@ public final class RoundRobin<A> implements Scheduler<A> {
 	@Override
 	public void close() throws Exception {
 		// empty by design
-	}
-
-	@SuppressWarnings("unchecked")
-	private <W> void handleSuspended(Stack stack, int idx) {
-		Fiber.Suspended<W, Object> suspended = (Fiber.Suspended<W, Object>) stack.computation;
-
-		parkedCount.incrementAndGet();
-
-		Stack capturedStack = stack;
-		suspended.getFuture().thenAccept(value -> {
-			Fiber<Object> work = suspended.getResume().apply(value);
-			capturedStack.computation = work;
-
-			synchronized(stacks) {
-				stacks.add(capturedStack);
-			}
-
-			parkedCount.decrementAndGet();
-		});
-
-		// Remove from active (parking)
-		Collections.swap(stacks, idx, stacks.size() - 1);
-		stacks.remove(stacks.size() - 1);
-		index = Math.max(-1, index - 1);
 	}
 
 	@AllArgsConstructor

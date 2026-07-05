@@ -33,7 +33,6 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 	private final CompletableFuture<A> finalResultFuture; // Future that completes with the final result or an exception.
 
 	private final AtomicInteger activeTasksCount = new AtomicInteger(0); // Tracks the number of tasks currently running.
-	private final AtomicInteger parkedCount = new AtomicInteger(0); // Tracks the number of suspended (parked) computations.
 	private final Object cancellationLock = new Object(); // Lock for waiting on tasks to complete after cancellation.
 
 	/**
@@ -53,7 +52,7 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 	}
 
 	/**
-	 * An EngineStack for standard sequential computations (Done, Deferred, FlatMap, Suspended).
+	 * An EngineStack for standard sequential computations (Done, Deferred, FlatMap).
 	 */
 	static final class ComputationStack extends EngineStack {
 		ComputationStack(Fiber<Object> computation, boolean isRootStack, ForEachParentStack parent) {
@@ -91,18 +90,6 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 
 	boolean isCancelled() {
 		return cancelled;
-	}
-
-	int getParkedCount() {
-		return parkedCount.get();
-	}
-
-	void incrementParkedCount() {
-		parkedCount.incrementAndGet();
-	}
-
-	void decrementParkedCount() {
-		parkedCount.decrementAndGet();
 	}
 
 	@Override
@@ -246,8 +233,7 @@ public final class ExecutorServiceScheduler<A> implements Scheduler<A> {
 				return;
 			}
 		}
-		// Only complete if there are no parked computations waiting
-		if (!finalResultFuture.isDone() && parkedCount.get() == 0) {
+		if (!finalResultFuture.isDone()) {
 			finalResultFuture.complete((A) value);
 		}
 	}

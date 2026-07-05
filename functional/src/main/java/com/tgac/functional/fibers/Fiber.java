@@ -10,7 +10,6 @@ import io.vavr.collection.Stream;
 import io.vavr.control.Option;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -36,10 +35,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	static <A> Fiber<A> defer(Supplier<Fiber<A>> rec) {
 		return Deferred.of(rec);
-	}
-
-	static <W, A> Fiber<A> suspend(CompletableFuture<W> future, Function<W, Fiber<A>> resume) {
-		return new Suspended<>(future, resume);
 	}
 
 	@Override
@@ -112,43 +107,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		return new Detached<>(fiber);
 	}
 
-	/**
-	 * Check if this fiber is idle (Done or Suspended, not actively computing).
-	 * Returns Fiber<Boolean> to avoid stack overflow on deep nesting.
-	 *
-	 * @return Fiber that yields true if this fiber is idle, false otherwise
-	 */
-	default Fiber<Boolean> isIdle() {
-		return done(false);  // Default: not idle (actively computing)
-	}
-
-	/**
-	 * Check if all fibers in list are idle.
-	 * Uses trampolining to avoid stack overflow.
-	 *
-	 * @param fibers List of fibers to check
-	 * @return Fiber that yields true if all are idle, false otherwise
-	 */
-	static Fiber<Boolean> allIdle(List<? extends Fiber<?>> fibers) {
-		return checkAllIdle(fibers, 0);
-	}
-
-	static Fiber<Boolean> checkAllIdle(List<? extends Fiber<?>> fibers, int index) {
-		if (index >= fibers.size()) {
-			return done(true);  // All checked, all idle
-		}
-
-		return defer(() ->
-			fibers.get(index).isIdle()
-				.flatMap(result -> {
-					if (!result) {
-						return done(false);  // Found non-idle, short circuit
-					}
-					return checkAllIdle(fibers, index + 1);  // Check next
-				})
-		);
-	}
-
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Fiber<A> {
@@ -173,11 +131,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		public boolean isDone() {
 			return true;
 		}
-
-		@Override
-		public Fiber<Boolean> isIdle() {
-			return done(true);  // Done is idle
-		}
 	}
 
 	@Value
@@ -191,27 +144,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Forked<A> implements Fiber<A> {
 		private final List<Fiber<A>> options;
 		private final Consumer<A> sink;
-
-		@Override
-		public Fiber<Boolean> isIdle() {
-			return allIdle(options);
-		}
-	}
-
-	/**
-	 * ABOUTME: Represents a suspended computation awaiting external completion via CompletableFuture.
-	 * ABOUTME: When the future completes with a value, the resume function is called to produce the next computation.
-	 */
-	@Getter
-	@RequiredArgsConstructor
-	class Suspended<W, A> implements Fiber<A> {
-		private final CompletableFuture<W> future;
-		private final Function<W, Fiber<A>> resume;
-
-		@Override
-		public Fiber<Boolean> isIdle() {
-			return done(true);  // Suspended is idle (waiting for external event)
-		}
 	}
 
 	/**
@@ -222,11 +154,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor
 	class Detached<A> implements Fiber<Nothing> {
 		private final Fiber<A> fiber;
-
-		@Override
-		public Fiber<Boolean> isIdle() {
-			return done(true);  // Detached fiber doesn't block parent, so parent sees it as idle
-		}
 	}
 
 	@Getter
