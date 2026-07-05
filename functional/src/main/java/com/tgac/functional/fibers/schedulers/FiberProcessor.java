@@ -151,9 +151,9 @@ class FiberProcessor<A> {
 			ExecutorServiceScheduler.EngineStack stack,
 			Fiber.Detached detached) {
 
-		// Schedule the detached fiber as an independent root task
+		// Schedule the detached fiber as an independent task; its result is discarded
 		ExecutorServiceScheduler.ComputationStack detachedStack =
-			new ExecutorServiceScheduler.ComputationStack(detached.getFiber(), true, null);
+			new ExecutorServiceScheduler.ComputationStack(detached.getFiber(), false, null);
 		engine.submitEngineTask(detachedStack);
 
 		// Parent continues immediately with Done
