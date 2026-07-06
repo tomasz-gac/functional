@@ -1,14 +1,11 @@
 package com.tgac.functional;
 
-import static com.tgac.functional.Tuples.tuple;
-
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -41,11 +38,6 @@ public class Streams {
 							}
 						}, characteristics),
 				false);
-	}
-
-	public static <A> Function<A, Tuples._2<Long, A>> enumerateLong() {
-		AtomicLong i = new AtomicLong(0);
-		return v -> tuple(i.getAndIncrement(), v);
 	}
 
 	public static <A> Function<A, Tuple2<Integer, A>> enumerate() {
