@@ -6,9 +6,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.ExecutorServiceScheduler;
 import com.tgac.functional.fibers.schedulers.RoundRobin;
 import com.tgac.functional.fibers.schedulers.UnfairBreadthFirstScheduler;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -25,10 +25,28 @@ public class SchedulerEquivalenceTest {
 	private final List<Function<Fiber<Nothing>, Scheduler<Nothing>>> schedulers = Arrays.asList(
 			BreadthFirstScheduler::new,
 			RoundRobin::of,
+			UnfairBreadthFirstScheduler::of,
+			f -> new ExecutorServiceScheduler<>(f, java.util.concurrent.ForkJoinPool.commonPool()));
+
+	/**
+	 * The sequential schedulers drain everything before finishing; the
+	 * executor scheduler completes when the root completes and may abandon
+	 * still-running detached fibers — a known divergence its replacement
+	 * must close.
+	 */
+	private final List<Function<Fiber<Nothing>, Scheduler<Nothing>>> schedulersThatAwaitDetached = Arrays.asList(
+			BreadthFirstScheduler::new,
+			RoundRobin::of,
 			UnfairBreadthFirstScheduler::of);
 
 	private void onEachScheduler(Function<Function<Fiber<Nothing>, Scheduler<Nothing>>, Runnable> scenario) {
-		for (Function<Fiber<Nothing>, Scheduler<Nothing>> factory : schedulers) {
+		onEach(schedulers, scenario);
+	}
+
+	private void onEach(
+			List<Function<Fiber<Nothing>, Scheduler<Nothing>>> factories,
+			Function<Function<Fiber<Nothing>, Scheduler<Nothing>>, Runnable> scenario) {
+		for (Function<Fiber<Nothing>, Scheduler<Nothing>> factory : factories) {
 			scenario.apply(factory).run();
 		}
 	}
@@ -88,7 +106,7 @@ public class SchedulerEquivalenceTest {
 
 	@Test
 	public void shouldRunDetachedFibersToCompletionAndDiscardTheirResults() {
-		onEachScheduler(factory -> () -> {
+		onEach(schedulersThatAwaitDetached, factory -> () -> {
 			List<Integer> sideEffects = new CopyOnWriteArrayList<>();
 			List<Integer> results = new CopyOnWriteArrayList<>();
 
@@ -110,12 +128,29 @@ public class SchedulerEquivalenceTest {
 	@Test
 	public void shouldHandleEmptyForks() {
 		onEachScheduler(factory -> () -> {
-			List<Object> results = new ArrayList<>();
+			List<Object> results = new CopyOnWriteArrayList<>();
 			Fiber<Nothing> program = Fiber.fork(Arrays.asList(), results::add);
 
 			factory.apply(program).get();
 
 			assertThat(results).isEmpty();
+		});
+	}
+
+	@Test
+	public void shouldContinueAfterAnEmptyFork() {
+		// forking zero tasks is vacuously complete — the continuation must run
+		onEachScheduler(factory -> () -> {
+			List<Integer> results = new CopyOnWriteArrayList<>();
+			Fiber<Nothing> program = Fiber.<Integer> fork(Arrays.asList(), v -> {})
+					.flatMap(__ -> {
+						results.add(42);
+						return done(Nothing.nothing());
+					});
+
+			factory.apply(program).get();
+
+			assertThat(results).containsExactly(42);
 		});
 	}
 

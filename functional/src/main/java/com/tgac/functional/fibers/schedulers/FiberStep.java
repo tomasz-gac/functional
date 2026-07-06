@@ -38,6 +38,10 @@ final class FiberStep {
 	interface Effects {
 		void completed(Object value);
 
+		/**
+		 * The fork always carries at least one option: empty forks are
+		 * vacuously complete and never reach the scheduler.
+		 */
 		void forked(Fiber.Forked<Object> fork);
 
 		void detached(Fiber<?> child);
@@ -80,7 +84,13 @@ final class FiberStep {
 			return true;
 		}
 		if (computation instanceof Fiber.Forked) {
-			effects.forked((Fiber.Forked<Object>) computation);
+			Fiber.Forked<Object> fork = (Fiber.Forked<Object>) computation;
+			if (fork.getOptions() == null || fork.getOptions().isEmpty()) {
+				// forking zero tasks is vacuously complete; the frame continues
+				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+				return true;
+			}
+			effects.forked(fork);
 			return false;
 		}
 		throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
