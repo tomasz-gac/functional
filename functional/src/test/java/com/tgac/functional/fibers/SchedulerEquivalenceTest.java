@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.DepthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import com.tgac.functional.fibers.schedulers.RoundRobin;
 import com.tgac.functional.fibers.schedulers.UnfairBreadthFirstScheduler;
@@ -26,6 +27,7 @@ public class SchedulerEquivalenceTest {
 			BreadthFirstScheduler::new,
 			RoundRobin::of,
 			UnfairBreadthFirstScheduler::of,
+			DepthFirstScheduler::of,
 			ForkJoinScheduler::new);
 
 	private void onEachScheduler(Function<Function<Fiber<Nothing>, Scheduler<Nothing>>, Runnable> scenario) {
