@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects {
+public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final PriorityQueue<Entry> entries;
 	private StepListener stepListener = StepListener.NO_OP;
@@ -126,6 +126,15 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	private static Fiber<Object> doneNothing() {
 		return (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+	}
+
+	@Override
+	public SearchSnapshot snapshot() {
+		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
+		for (Entry entry : entries) {
+			b.add(entry.getDepth(), entry.frame.computation);
+		}
+		return b.build();
 	}
 
 	@Override

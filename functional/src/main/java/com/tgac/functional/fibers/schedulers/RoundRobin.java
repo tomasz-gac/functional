@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
+public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final List<Entry> entries;
 	private int index = -1;
@@ -131,6 +131,15 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 
 	private static Fiber<Object> doneNothing() {
 		return (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+	}
+
+	@Override
+	public SearchSnapshot snapshot() {
+		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
+		for (Entry entry : entries) {
+			b.add(0, entry.frame.computation);
+		}
+		return b.build();
 	}
 
 	@Override

@@ -22,7 +22,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
-public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects {
+public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final PriorityQueue<Bucket> buckets;
 	private final int iterationsForPromotion;
@@ -188,6 +188,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	private static Fiber<Object> doneNothing() {
 		return (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+	}
+
+	@Override
+	public SearchSnapshot snapshot() {
+		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
+		for (Bucket bucket : buckets) {
+			for (Entry entry : bucket.entries) {
+				b.add(bucket.depth, entry.frame.computation);
+			}
+		}
+		return b.build();
 	}
 
 	@Override
