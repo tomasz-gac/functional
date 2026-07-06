@@ -34,10 +34,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		return this;
 	}
 
-	@Override
-	public StepListener listener() {
-		return stepListener;
-	}
 
 	// the entry being stepped and the sink of the current step() call
 	private Bucket currentBucket;
@@ -105,7 +101,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this);
+		FiberStep.step(current.frame, this, stepListener);
 
 		return currentCompleted && buckets.isEmpty();
 	}

@@ -29,10 +29,6 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		return this;
 	}
 
-	@Override
-	public StepListener listener() {
-		return stepListener;
-	}
 
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;
@@ -87,7 +83,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this);
+		FiberStep.step(current.frame, this, stepListener);
 
 		return currentCompleted && entries.isEmpty();
 	}

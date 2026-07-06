@@ -118,14 +118,9 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public StepListener listener() {
-			return stepListener;
-		}
-
-		@Override
 		protected void compute() {
 			try {
-				while (!cancelled && FiberStep.step(frame, this)) {
+				while (!cancelled && FiberStep.step(frame, this, stepListener)) {
 					// run this frame's trampoline uninterrupted
 				}
 			} catch (Throwable t) {

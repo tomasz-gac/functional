@@ -30,10 +30,6 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 		return this;
 	}
 
-	@Override
-	public StepListener listener() {
-		return stepListener;
-	}
 
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;
@@ -89,7 +85,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this);
+		FiberStep.step(current.frame, this, stepListener);
 
 		return currentCompleted && entries.isEmpty();
 	}

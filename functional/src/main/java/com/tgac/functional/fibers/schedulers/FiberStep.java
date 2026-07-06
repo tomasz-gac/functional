@@ -45,11 +45,6 @@ final class FiberStep {
 		void forked(Fiber.Forked<Object> fork);
 
 		void detached(Fiber<?> child);
-
-		/** The observer of this driver's steps; {@link StepListener#NO_OP} by default. */
-		default StepListener listener() {
-			return StepListener.NO_OP;
-		}
 	}
 
 	private FiberStep() {
@@ -60,8 +55,7 @@ final class FiberStep {
 	 * 		control through {@link Effects#completed} or {@link Effects#forked}
 	 */
 	@SuppressWarnings("unchecked")
-	static boolean step(Frame frame, Effects effects) {
-		StepListener listener = effects.listener();
+	static boolean step(Frame frame, Effects effects, StepListener listener) {
 		Fiber<Object> computation = frame.computation;
 		listener.onStep(computation);
 
