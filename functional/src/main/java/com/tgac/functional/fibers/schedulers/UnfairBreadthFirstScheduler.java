@@ -23,6 +23,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	private final PriorityQueue<Entry> entries;
 	private StepListener stepListener = StepListener.NO_OP;
 
+	@Override
 	public UnfairBreadthFirstScheduler<A> withListener(StepListener listener) {
 		this.stepListener = listener == null ? StepListener.NO_OP : listener;
 		return this;

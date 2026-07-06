@@ -28,6 +28,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	private final int iterationsForPromotion;
 	private StepListener stepListener = StepListener.NO_OP;
 
+	@Override
 	public BreadthFirstScheduler<A> withListener(StepListener listener) {
 		this.stepListener = listener == null ? StepListener.NO_OP : listener;
 		return this;

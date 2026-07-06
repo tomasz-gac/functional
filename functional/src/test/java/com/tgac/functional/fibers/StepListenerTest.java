@@ -83,6 +83,20 @@ public class StepListenerTest {
 	}
 
 	@Test
+	public void shouldInstallThroughTheSchedulerInterface() {
+		// withListener is on Scheduler, so it works without the concrete type
+		Recorder recorder = new Recorder();
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), done(2)), v -> {})
+				.map(_0 -> Nothing.nothing());
+
+		Scheduler<Nothing> scheduler = new BreadthFirstScheduler<>(program);
+		scheduler.withListener(recorder).get();
+
+		assertThat(recorder.forks.get()).isEqualTo(1);
+		assertThat(recorder.completed).contains(1, 2);
+	}
+
+	@Test
 	public void shouldCostNothingWhenAbsent() {
 		// the default listener is NO_OP — programs run unchanged without one
 		AtomicReference<Long> result = new AtomicReference<>();

@@ -24,6 +24,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 	private int index = -1;
 	private StepListener stepListener = StepListener.NO_OP;
 
+	@Override
 	public RoundRobin<A> withListener(StepListener listener) {
 		this.stepListener = listener == null ? StepListener.NO_OP : listener;
 		return this;

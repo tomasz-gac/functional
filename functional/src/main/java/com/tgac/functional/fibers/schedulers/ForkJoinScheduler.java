@@ -51,6 +51,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		this(initialFiber, ForkJoinPool.commonPool());
 	}
 
+	@Override
 	public ForkJoinScheduler<A> withListener(StepListener listener) {
 		this.stepListener = listener == null ? StepListener.NO_OP : listener;
 		return this;
