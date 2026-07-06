@@ -43,11 +43,17 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 	private volatile boolean started = false;
 	private volatile boolean cancelled = false;
+	private volatile StepListener stepListener = StepListener.NO_OP;
 	private volatile A rootValue;
 	private Consumer<? super A> rootSink;
 
 	public ForkJoinScheduler(Fiber<A> initialFiber) {
 		this(initialFiber, ForkJoinPool.commonPool());
+	}
+
+	public ForkJoinScheduler<A> withListener(StepListener listener) {
+		this.stepListener = listener == null ? StepListener.NO_OP : listener;
+		return this;
 	}
 
 	public ForkJoinScheduler(Fiber<A> initialFiber, ForkJoinPool pool) {
@@ -108,6 +114,11 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			this.frame = frame;
 			this.valueSink = valueSink;
 			this.joinCallback = joinCallback;
+		}
+
+		@Override
+		public StepListener listener() {
+			return stepListener;
 		}
 
 		@Override

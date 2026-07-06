@@ -21,6 +21,17 @@ import lombok.RequiredArgsConstructor;
 public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects {
 
 	private final PriorityQueue<Entry> entries;
+	private StepListener stepListener = StepListener.NO_OP;
+
+	public UnfairBreadthFirstScheduler<A> withListener(StepListener listener) {
+		this.stepListener = listener == null ? StepListener.NO_OP : listener;
+		return this;
+	}
+
+	@Override
+	public StepListener listener() {
+		return stepListener;
+	}
 
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;

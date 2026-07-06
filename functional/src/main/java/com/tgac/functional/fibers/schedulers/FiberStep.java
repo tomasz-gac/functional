@@ -45,6 +45,11 @@ final class FiberStep {
 		void forked(Fiber.Forked<Object> fork);
 
 		void detached(Fiber<?> child);
+
+		/** The observer of this driver's steps; {@link StepListener#NO_OP} by default. */
+		default StepListener listener() {
+			return StepListener.NO_OP;
+		}
 	}
 
 	private FiberStep() {
@@ -56,7 +61,9 @@ final class FiberStep {
 	 */
 	@SuppressWarnings("unchecked")
 	static boolean step(Frame frame, Effects effects) {
+		StepListener listener = effects.listener();
 		Fiber<Object> computation = frame.computation;
+		listener.onStep(computation);
 
 		if (computation instanceof Fiber.Deferred) {
 			frame.computation = ((Fiber.Deferred<Object>) computation).getRec().get();
@@ -71,6 +78,7 @@ final class FiberStep {
 		if (computation instanceof Fiber.Done) {
 			Object value = ((Fiber.Done<Object>) computation).getValue();
 			if (frame.ks.isEmpty()) {
+				listener.onCompleted(value);
 				effects.completed(value);
 				return false;
 			}
@@ -80,6 +88,7 @@ final class FiberStep {
 		if (computation instanceof Fiber.Detached) {
 			Fiber<?> child = ((Fiber.Detached<?>) (Fiber<?>) computation).getFiber();
 			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+			listener.onDetached(child);
 			effects.detached(child);
 			return true;
 		}
@@ -90,6 +99,7 @@ final class FiberStep {
 				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
 				return true;
 			}
+			listener.onForked(fork);
 			effects.forked(fork);
 			return false;
 		}

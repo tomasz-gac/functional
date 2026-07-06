@@ -26,6 +26,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	private final PriorityQueue<Bucket> buckets;
 	private final int iterationsForPromotion;
+	private StepListener stepListener = StepListener.NO_OP;
+
+	public BreadthFirstScheduler<A> withListener(StepListener listener) {
+		this.stepListener = listener == null ? StepListener.NO_OP : listener;
+		return this;
+	}
+
+	@Override
+	public StepListener listener() {
+		return stepListener;
+	}
 
 	// the entry being stepped and the sink of the current step() call
 	private Bucket currentBucket;
