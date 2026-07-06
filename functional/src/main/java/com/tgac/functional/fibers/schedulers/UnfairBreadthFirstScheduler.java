@@ -1,37 +1,36 @@
 package com.tgac.functional.fibers.schedulers;
 
-// ABOUTME: The simplest scheduler: a flat list of frames stepped in rotation.
-// ABOUTME: A driver over FiberStep — all it owns is the queue and the fork join.
+// ABOUTME: Depth-ordered scheduler that always steps the shallowest frame.
+// ABOUTME: A driver over FiberStep — unfair because a shallow frame can starve deeper ones.
 
+import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
-import com.tgac.functional.category.Nothing;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Comparator;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
+public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects {
 
-	private final List<Entry> entries;
-	private int index = -1;
+	private final PriorityQueue<Entry> entries;
 
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
-	public static <A> RoundRobin<A> of(Fiber<A> fiber) {
-		ArrayList<Entry> entries = new ArrayList<>();
-		entries.add(new Entry(new FiberStep.Frame(fiber), null));
-		return new RoundRobin<>(entries);
+	public static <A> UnfairBreadthFirstScheduler<A> of(Fiber<A> fiber) {
+		PriorityQueue<Entry> entries = new PriorityQueue<>(Comparator.comparingInt(Entry::getDepth));
+		entries.add(new Entry(new FiberStep.Frame(fiber), null, 0));
+		return new UnfairBreadthFirstScheduler<>(entries);
 	}
 
 	@Override
@@ -72,8 +71,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 		if (entries.isEmpty())
 			return true;
 
-		index = (index + 1) % entries.size();
-		current = entries.get(index);
+		current = entries.peek();
 		rootSink = sink;
 		currentCompleted = false;
 
@@ -84,8 +82,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 
 	@Override
 	public void completed(Object value) {
-		Collections.swap(entries, index, entries.size() - 1); // avoids shuffling
-		entries.remove(entries.size() - 1);
+		entries.poll();
 		if (current.sink != null) {
 			current.sink.accept(value);
 		} else {
@@ -96,29 +93,27 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 
 	@Override
 	public void forked(Fiber.Forked<Object> fork) {
-		entries.remove(index);
+		entries.poll();
 
 		Entry parent = current;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
-				entries.add(parent);
-				index = entries.size() - 1;
+				entries.offer(parent); // re-introduce the parent node
 			}
 			fork.getSink().accept(result);
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option), notifyParent));
+			entries.offer(new Entry(new FiberStep.Frame(option), notifyParent, current.depth + 1));
 		}
-		index = -1;
 	}
 
 	@Override
 	public void detached(Fiber<?> child) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child), value -> {}));
+		entries.offer(new Entry(new FiberStep.Frame(child), value -> {}, current.depth));
 	}
 
 	private static Fiber<Object> doneNothing() {
@@ -134,5 +129,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects {
 	private static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
+		@Getter
+		final int depth;
 	}
 }

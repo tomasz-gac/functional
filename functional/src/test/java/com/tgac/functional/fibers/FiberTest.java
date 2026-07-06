@@ -5,7 +5,7 @@ import static com.tgac.functional.fibers.Fiber.defer;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.schedulers.BredthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple3;
 import io.vavr.collection.Stream;
@@ -276,7 +276,7 @@ public class FiberTest {
 		List<String> ns = new CopyOnWriteArrayList<>();
 		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Fiber.forEach(Arrays.asList(n, n1), ns::add),
 		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
-		Scheduler<Nothing> e = new BredthFirstScheduler(Fiber.fork(Arrays.asList(n, n1), ns::add));
+		Scheduler<Nothing> e = new BreadthFirstScheduler(Fiber.fork(Arrays.asList(n, n1), ns::add));
 		System.out.println(e.get());
 		System.out.println(results);
 		System.out.println(ns);

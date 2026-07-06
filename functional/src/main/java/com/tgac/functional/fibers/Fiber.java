@@ -3,7 +3,7 @@ package com.tgac.functional.fibers;
 import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.schedulers.BredthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
@@ -65,7 +65,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	default Scheduler<A> toEngine() {
-		return new BredthFirstScheduler<>(this);
+		return new BreadthFirstScheduler<>(this);
 	}
 
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {
