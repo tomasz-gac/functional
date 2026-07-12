@@ -21,12 +21,21 @@ public class MonoidWitnessLawsTest {
 	}
 
 	private static final java.util.List<Long> SMALL = Arrays.asList(0L, 1L, 2L, 3L, 7L);
+	private static final java.util.List<Integer> SMALL_INTS =
+			Arrays.asList(Integer.MIN_VALUE, -1, 0, 1, 7, Integer.MAX_VALUE);
 
 	@Test
 	public void commutativeWitnesses() {
 		CommutativeMonoidLaws.check(Monoids.LONG_SUM, SMALL);
 		CommutativeMonoidLaws.check(Monoids.LONG_MIN, SMALL);
 		CommutativeMonoidLaws.check(Monoids.LONG_MAX, SMALL);
+	}
+
+	@Test
+	public void intWitnesses() {
+		CommutativeMonoidLaws.check(Monoids.INT_SUM, Arrays.asList(-1, 0, 1, 2, 7));
+		CommutativeMonoidLaws.check(Monoids.INT_MIN, SMALL_INTS);
+		CommutativeMonoidLaws.check(Monoids.INT_MAX, SMALL_INTS);
 	}
 
 	@Test

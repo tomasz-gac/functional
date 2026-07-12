@@ -46,6 +46,42 @@ public final class Monoids {
 		}
 	};
 
+	public static final CommutativeMonoid<Integer> INT_SUM = new CommutativeMonoid<Integer>() {
+		@Override
+		public Integer empty() {
+			return 0;
+		}
+
+		@Override
+		public Integer combine(Integer a, Integer b) {
+			return a + b;
+		}
+	};
+
+	public static final CommutativeMonoid<Integer> INT_MIN = new CommutativeMonoid<Integer>() {
+		@Override
+		public Integer empty() {
+			return Integer.MAX_VALUE;
+		}
+
+		@Override
+		public Integer combine(Integer a, Integer b) {
+			return Math.min(a, b);
+		}
+	};
+
+	public static final CommutativeMonoid<Integer> INT_MAX = new CommutativeMonoid<Integer>() {
+		@Override
+		public Integer empty() {
+			return Integer.MIN_VALUE;
+		}
+
+		@Override
+		public Integer combine(Integer a, Integer b) {
+			return Math.max(a, b);
+		}
+	};
+
 	public static <T> Monoid<List<T>> list() {
 		return new Monoid<List<T>>() {
 			@Override
