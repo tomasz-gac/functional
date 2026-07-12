@@ -20,6 +20,15 @@ public class FoldsTest {
 	}
 
 	@Test
+	public void forkAllJoinsAllChildrenAndPreservesProducerOrder() {
+		assertThat(Folds.forkAll(Arrays.asList(
+				Fiber.defer(() -> Fiber.done("a")),
+				Fiber.done("b"),
+				Fiber.defer(() -> Fiber.defer(() -> Fiber.done("c"))))).get())
+				.containsExactly("a", "b", "c");
+	}
+
+	@Test
 	public void foldZipMergesThroughTheMonoid() {
 		assertThat(Folds.foldZip(Monoids.LONG_SUM, Arrays.asList(
 				Fiber.done(1L), Fiber.done(2L), Fiber.done(4L))).get())
