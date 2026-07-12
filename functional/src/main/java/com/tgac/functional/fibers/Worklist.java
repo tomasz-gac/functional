@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import com.tgac.functional.algebra.Bottomed;
 import com.tgac.functional.algebra.MeetSemilattice;
+import com.tgac.functional.algebra.MonotoneDrain;
 import io.vavr.Tuple2;
 import io.vavr.collection.Queue;
 import java.util.Collections;
@@ -93,14 +94,7 @@ public final class Worklist {
 		Tuple2<W, Queue<W>> popped = queue.dequeue();
 		Step<W, S> outcome = step.apply(state, popped._1);
 		if (checked) {
-			if (!outcome.state.leq(state)) {
-				throw new IllegalStateException(
-						"monotone worklist step must contract: " + outcome.state + " ⋢ " + state);
-			}
-			if (outcome.more.iterator().hasNext() && outcome.state.equals(state)) {
-				throw new IllegalStateException(
-						"monotone worklist step emitted work without strict descent at " + state);
-			}
+			MonotoneDrain.check(state, outcome.state, outcome.more.iterator().hasNext());
 		}
 		if (outcome.stopped) {
 			return Fiber.done(outcome.state);
