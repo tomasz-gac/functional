@@ -16,6 +16,7 @@ package com.tgac.functional.algebra;
  * lack a bottom value (substitutions: unification failure is CPS absence,
  * not an element) — the hierarchy must not force one on them.
  */
+@CheckedBy({"bottomed"})
 public interface Bottomed {
 	boolean isBottom();
 }

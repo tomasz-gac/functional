@@ -26,6 +26,7 @@ package com.tgac.functional.algebra;
  * sound where data shrinks and lie where it grows. A growing structure wants
  * {@link JoinSemilattice}, never this with a flipped convention.
  */
+@CheckedBy({"meet", "lattice", "lattice-inflationary"})
 public interface MeetSemilattice<L extends MeetSemilattice<L>> {
 	L meet(L other);
 

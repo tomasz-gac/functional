@@ -25,7 +25,7 @@ public final class LawCoverage {
 	 * class (anonymous witnesses). The claimed tests themselves run as
 	 * ordinary test classes; this verifies only that the mapping is total.
 	 */
-	public static void verify(Path mainClasses, Path testClasses, Class<?>... algebras) throws IOException {
+	public static void verify(Path mainClasses, Path testClasses) throws IOException {
 		Set<Class<?>> claims = new HashSet<>();
 		for (Class<?> testClass : loadAll(testClasses)) {
 			LawsFor claim = testClass.getAnnotation(LawsFor.class);
@@ -47,7 +47,7 @@ public final class LawCoverage {
 		}
 		List<String> unclaimed = new ArrayList<>();
 		for (Class<?> c : loadAll(mainClasses)) {
-			if (c.isInterface() || Modifier.isAbstract(c.getModifiers()) || !isAlgebraic(c, algebras)) {
+			if (c.isInterface() || Modifier.isAbstract(c.getModifiers()) || checkedAlgebrasOf(c).isEmpty()) {
 				continue;
 			}
 			if (!isClaimed(c, claims)) {
@@ -86,64 +86,45 @@ public final class LawCoverage {
 		}
 		for (Class<?> exercised : LawRegistry.exercisedClasses()) {
 			Set<String> kits = LawRegistry.kitsFor(exercised);
-			requireKit(problems, exercised, "com.tgac.functional.algebra.MeetSemilattice",
-					kits, "meet", "lattice", "lattice-inflationary");
-			requireKit(problems, exercised, "com.tgac.functional.algebra.JoinSemilattice",
-					kits, "join", "lattice", "join-inflationary");
-			requireKit(problems, exercised, "com.tgac.functional.algebra.Bottomed",
-					kits, "bottomed");
-			requireKit(problems, exercised, "com.tgac.functional.algebra.Semiring",
-					kits, "semiring");
-			requireKit(problems, exercised, "com.tgac.functional.algebra.CommutativeMonoid",
-					kits, "commutative");
-			requireKit(problems, exercised, "com.tgac.functional.algebra.Monoid",
-					kits, "monoid", "commutative");
+			for (Class<?> algebra : checkedAlgebrasOf(exercised)) {
+				String[] accepted = algebra.getAnnotation(com.tgac.functional.algebra.CheckedBy.class).value();
+				boolean matched = false;
+				for (String kit : accepted) {
+					if (kits.contains(kit)) {
+						matched = true;
+					}
+				}
+				if (!matched) {
+					problems.add(exercised.getName() + " implements " + algebra.getSimpleName()
+							+ " but no matching kit ran (needs one of "
+							+ java.util.Arrays.toString(accepted) + ", has: " + kits + ")");
+				}
+			}
 		}
 		if (!problems.isEmpty()) {
 			throw new AssertionError(testClass.getName() + ": " + problems);
 		}
 	}
 
-	private static void requireKit(
-			List<String> problems, Class<?> exercised, String algebraName,
-			Set<String> kits, String... accepted) {
-		if (!implementsAlgebra(exercised, algebraName)) {
+
+	/** Every @CheckedBy-annotated interface in c's hierarchy — c's algebras. */
+	private static List<Class<?>> checkedAlgebrasOf(Class<?> c) {
+		List<Class<?>> algebras = new ArrayList<>();
+		collectAlgebras(c, algebras);
+		return algebras;
+	}
+
+	private static void collectAlgebras(Class<?> c, List<Class<?>> out) {
+		if (c == null) {
 			return;
 		}
-		for (String kit : accepted) {
-			if (kits.contains(kit)) {
-				return;
-			}
-		}
-		problems.add(exercised.getName() + " implements " + algebraName
-				+ " but no matching kit ran (has: " + kits + ")");
-	}
-
-	private static boolean implementsAlgebra(Class<?> c, String algebraName) {
-		for (Class<?> at = c; at != null; at = at.getSuperclass()) {
-			if (interfacesOf(at, algebraName)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static boolean interfacesOf(Class<?> c, String algebraName) {
 		for (Class<?> i : c.getInterfaces()) {
-			if (i.getName().equals(algebraName) || interfacesOf(i, algebraName)) {
-				return true;
+			if (i.getAnnotation(com.tgac.functional.algebra.CheckedBy.class) != null && !out.contains(i)) {
+				out.add(i);
 			}
+			collectAlgebras(i, out);
 		}
-		return false;
-	}
-
-	private static boolean isAlgebraic(Class<?> c, Class<?>[] algebras) {
-		for (Class<?> algebra : algebras) {
-			if (algebra.isAssignableFrom(c)) {
-				return true;
-			}
-		}
-		return false;
+		collectAlgebras(c.getSuperclass(), out);
 	}
 
 	private static boolean isClaimed(Class<?> c, Set<Class<?>> claims) {

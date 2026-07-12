@@ -15,5 +15,6 @@ package com.tgac.functional.algebra;
  * plain {@link Monoid} (list concatenation) does not have it, which is why
  * answer ORDER is scheduler-dependent while answer COUNTS are not.
  */
+@CheckedBy({"commutative"})
 public interface CommutativeMonoid<M> extends Monoid<M> {
 }

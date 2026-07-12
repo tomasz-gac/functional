@@ -15,6 +15,7 @@ package com.tgac.functional.algebra;
  * answer, which is the foldEarly == foldLate certificate's foundation
  * ({@code FoldLaws}).
  */
+@CheckedBy({"monoid", "commutative"})
 public interface Monoid<M> {
 	M empty();
 

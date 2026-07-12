@@ -14,6 +14,7 @@ package com.tgac.functional.algebra;
  * alternatives agree on" (a join over hypothetical outcomes) sound
  * knowledge.
  */
+@CheckedBy({"join", "lattice", "join-inflationary"})
 public interface JoinSemilattice<L extends JoinSemilattice<L>> {
 	L join(L other);
 

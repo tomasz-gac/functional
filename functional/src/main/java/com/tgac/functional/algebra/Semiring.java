@@ -39,6 +39,7 @@ package com.tgac.functional.algebra;
  * fails, hence the interlock.</li>
  * </ul>
  */
+@CheckedBy({"semiring"})
 public interface Semiring<S> {
 	S zero();
 
