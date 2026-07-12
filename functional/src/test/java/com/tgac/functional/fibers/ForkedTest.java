@@ -32,8 +32,8 @@ public class ForkedTest {
 		List<Integer> results = new ArrayList<>();
 
 		Fiber.fork(
-			Arrays.asList(done(10), done(20), done(30)),
-			results::add
+				Arrays.asList(done(10), done(20), done(30)),
+				results::add
 		).get();
 
 		assertThat(results).containsExactlyInAnyOrder(10, 20, 30);
@@ -92,8 +92,8 @@ public class ForkedTest {
 		List<Integer> results = new ArrayList<>();
 
 		String finalResult = Fiber.fork(
-			Arrays.asList(done(1), done(2), done(3)),
-			results::add
+				Arrays.asList(done(1), done(2), done(3)),
+				results::add
 		).flatMap(_0 -> done("completed")).get();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 2, 3);
@@ -105,13 +105,13 @@ public class ForkedTest {
 		List<String> results = new CopyOnWriteArrayList<>();
 
 		Fiber<String> fork1 = Fiber.fork(
-			Arrays.asList(done(1), done(2)),
-			i -> results.add("fork1-" + i)
+				Arrays.asList(done(1), done(2)),
+				i -> results.add("fork1-" + i)
 		).flatMap(_0 -> done("fork1-done"));
 
 		Fiber<String> fork2 = Fiber.fork(
-			Arrays.asList(done(3), done(4)),
-			i -> results.add("fork2-" + i)
+				Arrays.asList(done(3), done(4)),
+				i -> results.add("fork2-" + i)
 		).flatMap(_0 -> done("fork2-done"));
 
 		List<String> outerResults = new ArrayList<>();
@@ -137,7 +137,7 @@ public class ForkedTest {
 	public void shouldHandleEmptyForkList() {
 		List<Integer> results = new ArrayList<>();
 
-		Fiber.fork(Collections.<Fiber<Integer>>emptyList(), results::add).get();
+		Fiber.fork(Collections.<Fiber<Integer>> emptyList(), results::add).get();
 
 		assertThat(results).isEmpty();
 	}
@@ -156,7 +156,7 @@ public class ForkedTest {
 
 		assertThat(results).hasSize(100);
 		assertThat(results).containsExactlyInAnyOrderElementsOf(
-			Arrays.asList(java.util.stream.IntStream.range(0, 100).boxed().toArray(Integer[]::new))
+				Arrays.asList(java.util.stream.IntStream.range(0, 100).boxed().toArray(Integer[]::new))
 		);
 	}
 
@@ -179,8 +179,10 @@ public class ForkedTest {
 	}
 
 	private Fiber<Integer> fibonacciImpl(int n, int a, int b) {
-		if (n == 0) return done(a);
-		if (n == 1) return done(b);
+		if (n == 0)
+			return done(a);
+		if (n == 1)
+			return done(b);
 		return defer(() -> fibonacciImpl(n - 1, b, a + b));
 	}
 
@@ -191,13 +193,13 @@ public class ForkedTest {
 		List<Integer> results = new CopyOnWriteArrayList<>();
 
 		Fiber.fork(
-			Arrays.asList(
-				done(1),
-				defer(() -> done(2)),
-				done(3),
-				defer(() -> defer(() -> done(4)))
-			),
-			results::add
+				Arrays.asList(
+						done(1),
+						defer(() -> done(2)),
+						done(3),
+						defer(() -> defer(() -> done(4)))
+				),
+				results::add
 		).get();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 2, 3, 4);
@@ -221,8 +223,8 @@ public class ForkedTest {
 		List<String> sinkCalls = new ArrayList<>();
 
 		Fiber.fork(
-			Arrays.asList(done("a"), done("b"), done("c")),
-			value -> sinkCalls.add("sink-" + value)
+				Arrays.asList(done("a"), done("b"), done("c")),
+				value -> sinkCalls.add("sink-" + value)
 		).get();
 
 		assertThat(sinkCalls).hasSize(3);
@@ -234,8 +236,8 @@ public class ForkedTest {
 		List<Integer> results = new ArrayList<>();
 
 		Nothing result = Fiber.fork(
-			Arrays.asList(done(1), done(2)),
-			results::add
+				Arrays.asList(done(1), done(2)),
+				results::add
 		).get();
 
 		assertThat(result).isEqualTo(Nothing.nothing());

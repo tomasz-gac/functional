@@ -133,9 +133,9 @@ public class DeferredTest {
 	@Test
 	public void shouldHandleNestedDefers() {
 		Fiber<Integer> nested = defer(() ->
-			defer(() ->
-				defer(() -> done(123))
-			)
+				defer(() ->
+						defer(() -> done(123))
+				)
 		);
 		assertThat(nested.get()).isEqualTo(123);
 	}
@@ -143,7 +143,7 @@ public class DeferredTest {
 	@Test
 	public void shouldHandleDeferReturningFlatMap() {
 		Integer result = defer(() ->
-			done(10).flatMap(x -> done(x * 2))
+				done(10).flatMap(x -> done(x * 2))
 		).get();
 		assertThat(result).isEqualTo(20);
 	}

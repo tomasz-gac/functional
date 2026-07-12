@@ -4,13 +4,12 @@ package com.tgac.functional.fibers;
 // ABOUTME: short-circuits, deep queues are stack-safe, and stepping is fair.
 
 import static org.assertj.core.api.Assertions.assertThat;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.algebra.laws.Lattices;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 public class WorklistTest {

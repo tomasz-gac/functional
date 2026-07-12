@@ -3,9 +3,9 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: The simplest scheduler: a flat list of frames stepped in rotation.
 // ABOUTME: A driver over FiberStep — all it owns is the queue and the fork join.
 
+import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
-import com.tgac.functional.category.Nothing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,7 +29,6 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		this.stepListener = listener == null ? StepListener.NO_OP : listener;
 		return this;
 	}
-
 
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;
@@ -126,7 +125,8 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 	@Override
 	public void detached(Fiber<?> child) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child), value -> {}));
+		entries.add(new Entry(new FiberStep.Frame(child), value -> {
+		}));
 	}
 
 	private static Fiber<Object> doneNothing() {

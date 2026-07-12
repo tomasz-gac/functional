@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers;
 
-import static com.tgac.functional.fibers.Fiber.done;
 import static com.tgac.functional.fibers.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.category.Nothing;

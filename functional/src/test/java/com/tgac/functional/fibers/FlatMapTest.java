@@ -113,6 +113,7 @@ public class FlatMapTest {
 		class Result {
 			final int value;
 			final String label;
+
 			Result(int value, String label) {
 				this.value = value;
 				this.label = label;
@@ -245,6 +246,7 @@ public class FlatMapTest {
 		class Person {
 			final String name;
 			final int age;
+
 			Person(String name, int age) {
 				this.name = name;
 				this.age = age;

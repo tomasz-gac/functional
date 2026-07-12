@@ -3,6 +3,8 @@ package com.tgac.functional.fibers;
 // ABOUTME: A worklist drained as a fiber: one item per deferred step, each step may
 // ABOUTME: add work and advance state, a stop short-circuits. Fairness via the scheduler.
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import com.tgac.functional.algebra.Bottomed;
 import com.tgac.functional.algebra.MeetSemilattice;
 import io.vavr.Tuple2;
@@ -28,10 +30,9 @@ import java.util.function.BiFunction;
  * strictly or stop). The UNSAFE variant keeps the ⊥ short-circuit and skips the
  * law checks — the hot-path twin, same contract by convention.
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Worklist {
 
-	private Worklist() {
-	}
 
 	/** A step's outcome: continue with more work, or stop draining early. */
 	public static final class Step<W, S> {

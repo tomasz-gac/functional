@@ -33,8 +33,10 @@ import java.util.function.Consumer;
 @SuppressWarnings("unchecked")
 public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
-	private static final Runnable NO_JOIN = () -> {};
-	private static final Consumer<Object> DISCARD = value -> {};
+	private static final Runnable NO_JOIN = () -> {
+	};
+	private static final Consumer<Object> DISCARD = value -> {
+	};
 
 	private final Fiber<A> initialFiber;
 	private final ForkJoinPool pool;

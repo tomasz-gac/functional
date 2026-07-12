@@ -1,8 +1,8 @@
 package com.tgac.functional.monad;
 
-import static com.tgac.functional.monad.Free.liftF;
-import static com.tgac.functional.fibers.Fiber.done;
 import static com.tgac.functional.fibers.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
+import static com.tgac.functional.monad.Free.liftF;
 
 import com.tgac.functional.category.Functor;
 import com.tgac.functional.category.Monad;

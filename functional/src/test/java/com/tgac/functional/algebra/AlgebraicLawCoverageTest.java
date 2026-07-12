@@ -118,8 +118,10 @@ public class AlgebraicLawCoverageTest {
 		}
 	}
 
-	/** Walks this module's compiled classes — main scope only, so test-local
-	 *  deliberately-broken witnesses never trip the gate. */
+	/**
+	 * Walks this module's compiled classes — main scope only, so test-local
+	 * deliberately-broken witnesses never trip the gate.
+	 */
 	private static java.util.List<Class<?>> discoverImplementors() throws IOException {
 		Path root = Paths.get("target", "classes");
 		java.util.List<Class<?>> found = new ArrayList<>();

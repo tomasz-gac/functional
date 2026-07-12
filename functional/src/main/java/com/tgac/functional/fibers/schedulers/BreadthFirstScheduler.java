@@ -34,7 +34,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		return this;
 	}
 
-
 	// the entry being stepped and the sink of the current step() call
 	private Bucket currentBucket;
 	private Entry current;
@@ -141,7 +140,8 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		// runs independently; its result is discarded
 		addAll(currentBucket.depth,
 				new ArrayList<>(Collections.singletonList(
-						new Entry(new FiberStep.Frame(child), value -> {}))));
+						new Entry(new FiberStep.Frame(child), value -> {
+						}))));
 	}
 
 	private void tryPromote() {

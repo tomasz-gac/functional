@@ -123,7 +123,8 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	@Override
 	public void detached(Fiber<?> child) {
 		// runs independently; its result is discarded, and it does not preempt the current branch
-		entries.addLast(new Entry(new FiberStep.Frame(child), value -> {}, current.depth));
+		entries.addLast(new Entry(new FiberStep.Frame(child), value -> {
+		}, current.depth));
 	}
 
 	private static Fiber<Object> doneNothing() {

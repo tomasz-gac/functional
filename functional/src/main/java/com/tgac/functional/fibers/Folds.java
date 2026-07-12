@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * Three shapes, honestly labeled:
@@ -28,10 +30,8 @@ import java.util.function.BiFunction;
  * ignore it — certified by the algebra law kits.</li>
  * </ul>
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Folds {
-
-	private Folds() {
-	}
 
 	/** TRUE parallel join: fork all fibers to the scheduler, resume with results in producer order. */
 	public static <A> Fiber<List<A>> forkAll(List<Fiber<A>> fibers) {

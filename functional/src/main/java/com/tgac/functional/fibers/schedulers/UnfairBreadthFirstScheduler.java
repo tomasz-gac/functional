@@ -29,7 +29,6 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		return this;
 	}
 
-
 	// the entry being stepped and the sink of the current step() call
 	private Entry current;
 	private Consumer<? super A> rootSink;
@@ -121,7 +120,8 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	@Override
 	public void detached(Fiber<?> child) {
 		// runs independently; its result is discarded
-		entries.offer(new Entry(new FiberStep.Frame(child), value -> {}, current.depth));
+		entries.offer(new Entry(new FiberStep.Frame(child), value -> {
+		}, current.depth));
 	}
 
 	private static Fiber<Object> doneNothing() {

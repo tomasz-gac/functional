@@ -3,6 +3,8 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: The single-step interpreter shared by every scheduler: one dispatch over the Fiber ADT.
 // ABOUTME: Schedulers are drivers — queues, joins and granularity live there; step semantics live here.
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
 import java.util.ArrayDeque;
@@ -18,6 +20,7 @@ import java.util.function.Function;
  * descend into a flatMap, apply a continuation) mutates the frame and
  * allocates nothing.
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class FiberStep {
 
 	static final class Frame {
@@ -47,8 +50,6 @@ final class FiberStep {
 		void detached(Fiber<?> child);
 	}
 
-	private FiberStep() {
-	}
 
 	/**
 	 * @return true when the frame is still runnable; false when it yielded

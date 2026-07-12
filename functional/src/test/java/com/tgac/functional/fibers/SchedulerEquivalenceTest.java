@@ -127,7 +127,8 @@ public class SchedulerEquivalenceTest {
 		// forking zero tasks is vacuously complete — the continuation must run
 		onEachScheduler(factory -> () -> {
 			List<Integer> results = new CopyOnWriteArrayList<>();
-			Fiber<Nothing> program = Fiber.<Integer> fork(Arrays.asList(), v -> {})
+			Fiber<Nothing> program = Fiber.<Integer> fork(Arrays.asList(), v -> {
+					})
 					.flatMap(__ -> {
 						results.add(42);
 						return done(Nothing.nothing());

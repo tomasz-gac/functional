@@ -1,7 +1,7 @@
 package com.tgac.functional.step;
 
-import static com.tgac.functional.fibers.Fiber.done;
 import static com.tgac.functional.fibers.Fiber.defer;
+import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.fibers.Fiber;

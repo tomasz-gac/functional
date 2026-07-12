@@ -18,7 +18,8 @@ import com.tgac.functional.fibers.Fiber;
  */
 public interface StepListener {
 
-	StepListener NO_OP = new StepListener() {};
+	StepListener NO_OP = new StepListener() {
+	};
 
 	/** Fired for every reduction, before the node is dispatched. */
 	default void onStep(Fiber<?> node) {

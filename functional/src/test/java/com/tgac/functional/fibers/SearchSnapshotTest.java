@@ -23,7 +23,8 @@ public class SearchSnapshotTest {
 			UnfairBreadthFirstScheduler::of);
 
 	private Fiber<Nothing> forkOfThree() {
-		return Fiber.fork(Arrays.asList(done(1), done(2), done(3)), v -> {})
+		return Fiber.fork(Arrays.asList(done(1), done(2), done(3)), v -> {
+				})
 				.map(_0 -> Nothing.nothing());
 	}
 
@@ -58,7 +59,8 @@ public class SearchSnapshotTest {
 			Scheduler<Nothing> driver = (Scheduler<Nothing>) scheduler;
 
 			int peak = 0;
-			while (!driver.run(1, v -> {})) {
+			while (!driver.run(1, v -> {
+			})) {
 				peak = Math.max(peak, scheduler.snapshot().getFrameCount());
 			}
 

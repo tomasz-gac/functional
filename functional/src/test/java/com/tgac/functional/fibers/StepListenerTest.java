@@ -9,7 +9,6 @@ import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import com.tgac.functional.fibers.schedulers.StepListener;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,8 @@ public class StepListenerTest {
 	@Test
 	public void shouldObserveStepsCompletionsAndForks() {
 		Recorder recorder = new Recorder();
-		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), defer(() -> done(2))), v -> {})
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), defer(() -> done(2))), v -> {
+				})
 				.map(_0 -> Nothing.nothing());
 
 		new BreadthFirstScheduler<>(program).withListener(recorder).get();
@@ -73,7 +73,8 @@ public class StepListenerTest {
 	@Test
 	public void shouldObserveTheSameEventsUnderTheParallelScheduler() {
 		Recorder recorder = new Recorder();
-		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), done(2)), v -> {})
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), done(2)), v -> {
+				})
 				.map(_0 -> Nothing.nothing());
 
 		new ForkJoinScheduler<>(program).withListener(recorder).get();
@@ -86,7 +87,8 @@ public class StepListenerTest {
 	public void shouldInstallThroughTheSchedulerInterface() {
 		// withListener is on Scheduler, so it works without the concrete type
 		Recorder recorder = new Recorder();
-		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), done(2)), v -> {})
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(done(1), done(2)), v -> {
+				})
 				.map(_0 -> Nothing.nothing());
 
 		Scheduler<Nothing> scheduler = new BreadthFirstScheduler<>(program);

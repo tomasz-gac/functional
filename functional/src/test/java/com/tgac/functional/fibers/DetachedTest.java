@@ -6,9 +6,9 @@ import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -71,10 +71,10 @@ public class DetachedTest {
 		AtomicInteger result = new AtomicInteger(0);
 
 		Nothing nothing = detach(
-			buildDeferChain(10_000, 0).map(x -> {
-				result.set(x);
-				return x;
-			})
+				buildDeferChain(10_000, 0).map(x -> {
+					result.set(x);
+					return x;
+				})
 		).get();
 
 		assertThat(nothing).isEqualTo(Nothing.nothing());
@@ -110,8 +110,8 @@ public class DetachedTest {
 		Fiber<Nothing> task3 = detach(done("task3").map(results::add));
 
 		Fiber.fork(
-			java.util.Arrays.asList(task1, task2, task3),
-			_0 -> results.add("fork-done")
+				java.util.Arrays.asList(task1, task2, task3),
+				_0 -> results.add("fork-done")
 		).get();
 
 		assertThat(results).contains("task1", "task2", "task3");
@@ -123,10 +123,10 @@ public class DetachedTest {
 		AtomicInteger finalValue = new AtomicInteger(0);
 
 		Nothing result = detach(
-			factorial(10).map(x -> {
-				finalValue.set(x);
-				return x;
-			})
+				factorial(10).map(x -> {
+					finalValue.set(x);
+					return x;
+				})
 		).get();
 
 		assertThat(result).isEqualTo(Nothing.nothing());
@@ -146,13 +146,13 @@ public class DetachedTest {
 		AtomicInteger result = new AtomicInteger(0);
 
 		detach(
-			done(10)
-				.map(x -> x * 2)
-				.map(x -> x + 5)
-				.map(x -> {
-					result.set(x);
-					return x;
-				})
+				done(10)
+						.map(x -> x * 2)
+						.map(x -> x + 5)
+						.map(x -> {
+							result.set(x);
+							return x;
+						})
 		).get();
 
 		assertThat(result.get()).isEqualTo(25);
@@ -163,13 +163,13 @@ public class DetachedTest {
 		AtomicInteger result = new AtomicInteger(0);
 
 		detach(
-			done(5)
-				.flatMap(x -> done(x * 2))
-				.flatMap(x -> done(x + 10))
-				.map(x -> {
-					result.set(x);
-					return x;
-				})
+				done(5)
+						.flatMap(x -> done(x * 2))
+						.flatMap(x -> done(x + 10))
+						.map(x -> {
+							result.set(x);
+							return x;
+						})
 		).get();
 
 		assertThat(result.get()).isEqualTo(20);
@@ -180,8 +180,8 @@ public class DetachedTest {
 		List<String> events = new CopyOnWriteArrayList<>();
 
 		detach(
-			detach(done("inner").map(events::add))
-				.flatMap(_0 -> done("outer").map(events::add))
+				detach(done("inner").map(events::add))
+						.flatMap(_0 -> done("outer").map(events::add))
 		).get();
 
 		assertThat(events).containsExactlyInAnyOrder("inner", "outer");
@@ -205,13 +205,13 @@ public class DetachedTest {
 		AtomicInteger sum = new AtomicInteger(0);
 
 		Nothing result = detach(
-			done(1)
-				.flatMap(a -> done(2)
-					.flatMap(b -> done(3)
-						.map(c -> {
-							sum.set(a + b + c);
-							return c;
-						})))
+				done(1)
+						.flatMap(a -> done(2)
+								.flatMap(b -> done(3)
+										.map(c -> {
+											sum.set(a + b + c);
+											return c;
+										})))
 		).get();
 
 		assertThat(result).isEqualTo(Nothing.nothing());
@@ -223,8 +223,8 @@ public class DetachedTest {
 		List<Integer> results = new CopyOnWriteArrayList<>();
 
 		detach(
-			defer(() -> defer(() -> defer(() -> done(42))))
-				.map(results::add)
+				defer(() -> defer(() -> defer(() -> done(42))))
+						.map(results::add)
 		).get();
 
 		assertThat(results).containsExactly(42);
@@ -235,13 +235,13 @@ public class DetachedTest {
 		List<String> log = new CopyOnWriteArrayList<>();
 
 		detach(
-			done(1).map(x -> {
-				log.add("step1");
-				return x + 1;
-			}).flatMap(x -> done(x * 2).map(y -> {
-				log.add("step2");
-				return y;
-			}))
+				done(1).map(x -> {
+					log.add("step1");
+					return x + 1;
+				}).flatMap(x -> done(x * 2).map(y -> {
+					log.add("step2");
+					return y;
+				}))
 		).get();
 
 		assertThat(log).containsExactly("step1", "step2");
@@ -252,8 +252,8 @@ public class DetachedTest {
 		AtomicInteger counter = new AtomicInteger(0);
 
 		detach(
-			countdown(1000)
-				.map(x -> counter.incrementAndGet())
+				countdown(1000)
+						.map(x -> counter.incrementAndGet())
 		).get();
 
 		assertThat(counter.get()).isEqualTo(1);
