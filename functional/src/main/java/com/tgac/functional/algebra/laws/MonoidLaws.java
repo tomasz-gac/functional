@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class MonoidLaws {
 	public static <M> void check(Monoid<M> m, List<M> xs) {
+		LawRegistry.record("monoid", m.getClass());
 		for (M a : xs) {
 			Laws.require(m.combine(m.empty(), a).equals(a), "left identity", a);
 			Laws.require(m.combine(a, m.empty()).equals(a), "right identity", a);

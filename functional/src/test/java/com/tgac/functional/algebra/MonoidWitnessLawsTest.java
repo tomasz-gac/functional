@@ -9,10 +9,17 @@ import com.tgac.functional.algebra.laws.MonoidLaws;
 import com.tgac.functional.algebra.laws.Monoids;
 import io.vavr.collection.List;
 import java.util.Arrays;
+import com.tgac.functional.algebra.laws.LawCoverage;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 @LawsFor(Monoids.class)
 public class MonoidWitnessLawsTest {
+
+	@AfterAll
+	static void lawClaimsExercised() {
+		LawCoverage.verifyClaimsExercised(MonoidWitnessLawsTest.class);
+	}
 
 	private static final java.util.List<Long> SMALL = Arrays.asList(0L, 1L, 2L, 3L, 7L);
 

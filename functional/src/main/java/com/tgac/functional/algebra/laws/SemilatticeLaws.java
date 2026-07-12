@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SemilatticeLaws {
 	public static <L extends MeetSemilattice<L>> void checkMeet(List<L> xs) {
+		LawRegistry.recordSamples("meet", xs);
 		for (L a : xs) {
 			Laws.require(a.meet(a).equals(a), "meet idempotence", a);
 			Laws.require(a.leq(a), "leq reflexivity", a);
@@ -26,6 +27,7 @@ public final class SemilatticeLaws {
 	}
 
 	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs) {
+		LawRegistry.recordSamples("join", xs);
 		for (L a : xs) {
 			Laws.require(a.join(a).equals(a), "join idempotence", a);
 			for (L b : xs) {

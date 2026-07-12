@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tgac.functional.algebra.laws.BottomedLaws;
 import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
 import com.tgac.functional.algebra.laws.LatticeLaws;
+import com.tgac.functional.algebra.laws.LawCoverage;
+import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.Lattices;
 import com.tgac.functional.algebra.laws.MonoidLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
@@ -219,6 +221,24 @@ public class LawViolationsTest {
 				Arrays.asList(new LeftBiased(0, 3), new LeftBiased(5, 9))))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("upper bound");
+	}
+
+	private static final class NeverExercised implements MeetSemilattice<NeverExercised> {
+		@Override
+		public NeverExercised meet(NeverExercised other) {
+			return this;
+		}
+	}
+
+	@LawsFor(NeverExercised.class)
+	private static final class EmptyClaim {
+	}
+
+	@Test
+	public void claimingWithoutExercisingFails() {
+		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(EmptyClaim.class))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("never exercised");
 	}
 
 	@Test

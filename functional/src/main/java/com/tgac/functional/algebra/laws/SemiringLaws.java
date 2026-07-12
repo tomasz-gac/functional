@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SemiringLaws {
 	public static <S> void check(Semiring<S> r, List<S> xs) {
+		LawRegistry.record("semiring", r.getClass());
 		CommutativeMonoidLaws.check(r.additive(), xs);
 		MonoidLaws.check(r.multiplicative(), xs);
 		for (S a : xs) {

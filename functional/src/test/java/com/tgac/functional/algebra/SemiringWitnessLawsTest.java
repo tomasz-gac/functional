@@ -12,10 +12,17 @@ import com.tgac.functional.algebra.laws.StarLaws;
 import com.tgac.functional.algebra.laws.SuperiorityLaws;
 import java.util.Arrays;
 import java.util.List;
+import com.tgac.functional.algebra.laws.LawCoverage;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 @LawsFor({Semirings.class, Semiring.class})
 public class SemiringWitnessLawsTest {
+
+	@AfterAll
+	static void lawClaimsExercised() {
+		LawCoverage.verifyClaimsExercised(SemiringWitnessLawsTest.class);
+	}
 
 	private static final List<Long> SMALL = Arrays.asList(0L, 1L, 2L, 3L, 7L);
 	private static final List<Long> BOUNDARY = Arrays.asList(

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CommutativeMonoidLaws {
 	public static <M> void check(Monoid<M> m, List<M> xs) {
+		LawRegistry.record("commutative", m.getClass());
 		MonoidLaws.check(m, xs);
 		for (M a : xs) {
 			for (M b : xs) {

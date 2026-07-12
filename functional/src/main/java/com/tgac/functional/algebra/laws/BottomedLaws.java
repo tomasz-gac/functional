@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class BottomedLaws {
 	public static <L extends MeetSemilattice<L> & Bottomed> void check(List<L> xs) {
+		LawRegistry.recordSamples("bottomed", xs);
 		boolean sawBottom = false;
 		for (L a : xs) {
 			if (a.isBottom()) {

@@ -35,6 +35,12 @@ public final class LawCoverage {
 				}
 			}
 		}
+		for (Class<?> testClass : loadAll(testClasses)) {
+			if (testClass.getAnnotation(LawsFor.class) != null && !hasAfterHook(testClass)) {
+				throw new AssertionError(testClass.getName()
+						+ " claims laws but has no @AfterClass/@AfterAll calling verifyClaimsExercised");
+			}
+		}
 		List<String> unclaimed = new ArrayList<>();
 		for (Class<?> c : loadAll(mainClasses)) {
 			if (c.isInterface() || Modifier.isAbstract(c.getModifiers()) || !isAlgebraic(c, algebras)) {
@@ -47,6 +53,84 @@ public final class LawCoverage {
 		if (!unclaimed.isEmpty()) {
 			throw new AssertionError("algebraic implementors without a @LawsFor test: " + unclaimed);
 		}
+	}
+
+	/**
+	 * Per-test-class guard (wire from @AfterClass/@AfterAll): every class
+	 * claimed by the test's {@link LawsFor} was exercised by at least one kit,
+	 * and every exercised class was exercised by the kits its ALGEBRAS demand —
+	 * a claimed MeetSemilattice touched only by BottomedLaws fails here.
+	 */
+	public static void verifyClaimsExercised(Class<?> testClass) {
+		LawsFor claim = testClass.getAnnotation(LawsFor.class);
+		if (claim == null) {
+			throw new AssertionError(testClass.getName() + " has no @LawsFor claim to verify");
+		}
+		List<String> problems = new ArrayList<>();
+		for (Class<?> claimed : claim.value()) {
+			boolean touched = false;
+			for (Class<?> exercised : LawRegistry.exercisedClasses()) {
+				for (Class<?> at = exercised; at != null; at = at.getEnclosingClass()) {
+					if (at.equals(claimed)) {
+						touched = true;
+					}
+				}
+			}
+			if (!touched) {
+				problems.add("claimed but never exercised by any kit: " + claimed.getName());
+			}
+		}
+		for (Class<?> exercised : LawRegistry.exercisedClasses()) {
+			Set<String> kits = LawRegistry.kitsFor(exercised);
+			requireKit(problems, exercised, "com.tgac.functional.algebra.MeetSemilattice",
+					kits, "meet", "lattice", "lattice-inflationary");
+			requireKit(problems, exercised, "com.tgac.functional.algebra.JoinSemilattice",
+					kits, "join", "lattice", "join-inflationary");
+			requireKit(problems, exercised, "com.tgac.functional.algebra.Bottomed",
+					kits, "bottomed");
+			requireKit(problems, exercised, "com.tgac.functional.algebra.Semiring",
+					kits, "semiring");
+			requireKit(problems, exercised, "com.tgac.functional.algebra.CommutativeMonoid",
+					kits, "commutative");
+			requireKit(problems, exercised, "com.tgac.functional.algebra.Monoid",
+					kits, "monoid", "commutative");
+		}
+		if (!problems.isEmpty()) {
+			throw new AssertionError(testClass.getName() + ": " + problems);
+		}
+	}
+
+	private static void requireKit(
+			List<String> problems, Class<?> exercised, String algebraName,
+			Set<String> kits, String... accepted) {
+		if (!implementsAlgebra(exercised, algebraName)) {
+			return;
+		}
+		for (String kit : accepted) {
+			if (kits.contains(kit)) {
+				return;
+			}
+		}
+		problems.add(exercised.getName() + " implements " + algebraName
+				+ " but no matching kit ran (has: " + kits + ")");
+	}
+
+	private static boolean implementsAlgebra(Class<?> c, String algebraName) {
+		for (Class<?> at = c; at != null; at = at.getSuperclass()) {
+			if (interfacesOf(at, algebraName)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean interfacesOf(Class<?> c, String algebraName) {
+		for (Class<?> i : c.getInterfaces()) {
+			if (i.getName().equals(algebraName) || interfacesOf(i, algebraName)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean isAlgebraic(Class<?> c, Class<?>[] algebras) {
@@ -62,6 +146,18 @@ public final class LawCoverage {
 		for (Class<?> at = c; at != null; at = at.getEnclosingClass()) {
 			if (claims.contains(at)) {
 				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean hasAfterHook(Class<?> testClass) {
+		for (java.lang.reflect.Method m : testClass.getDeclaredMethods()) {
+			for (java.lang.annotation.Annotation a : m.getAnnotations()) {
+				String name = a.annotationType().getSimpleName();
+				if (name.equals("AfterAll") || name.equals("AfterClass")) {
+					return true;
+				}
 			}
 		}
 		return false;

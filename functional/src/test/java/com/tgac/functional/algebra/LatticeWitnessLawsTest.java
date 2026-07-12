@@ -10,10 +10,17 @@ import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.SemilatticeLaws;
 import java.util.Arrays;
 import java.util.List;
+import com.tgac.functional.algebra.laws.LawCoverage;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 @LawsFor(Lattices.class)
 public class LatticeWitnessLawsTest {
+
+	@AfterAll
+	static void lawClaimsExercised() {
+		LawCoverage.verifyClaimsExercised(LatticeWitnessLawsTest.class);
+	}
 
 	@Test
 	public void maskIsAnExactLatticeBothDirections() {
