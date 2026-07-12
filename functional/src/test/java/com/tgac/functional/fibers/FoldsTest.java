@@ -5,7 +5,7 @@ package com.tgac.functional.fibers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.tgac.functional.algebra.laws.Monoids;
+import com.tgac.functional.algebra.Monoids;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;

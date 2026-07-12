@@ -6,7 +6,7 @@ package com.tgac.functional.fibers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.tgac.functional.algebra.laws.Lattices;
+import com.tgac.functional.algebra.Lattices;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;

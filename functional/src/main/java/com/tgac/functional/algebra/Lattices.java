@@ -1,10 +1,8 @@
-package com.tgac.functional.algebra.laws;
+package com.tgac.functional.algebra;
 
 // ABOUTME: Lattice witnesses: Mask, the exact finite-subset lattice (the adornment
 // ABOUTME: prototype), and Range, the inflationary-join exemplar (interval hulls).
 
-import com.tgac.functional.algebra.Bottomed;
-import com.tgac.functional.algebra.Lattice;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.Value;

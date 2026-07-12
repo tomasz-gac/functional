@@ -5,7 +5,6 @@ package com.tgac.functional.algebra;
 
 import com.tgac.functional.algebra.laws.BottomedLaws;
 import com.tgac.functional.algebra.laws.LatticeLaws;
-import com.tgac.functional.algebra.laws.Lattices;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.SemilatticeLaws;
 import java.util.Arrays;

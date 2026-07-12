@@ -1,10 +1,8 @@
-package com.tgac.functional.algebra.laws;
+package com.tgac.functional.algebra;
 
 // ABOUTME: The aggregate folds as monoid witnesses: sum, min, max (commutative)
 // ABOUTME: and list concatenation (associative only — answer order matters).
 
-import com.tgac.functional.algebra.CommutativeMonoid;
-import com.tgac.functional.algebra.Monoid;
 import io.vavr.collection.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

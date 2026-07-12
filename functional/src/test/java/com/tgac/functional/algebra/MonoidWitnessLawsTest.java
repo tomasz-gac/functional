@@ -6,7 +6,6 @@ import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
 import com.tgac.functional.algebra.laws.FoldLaws;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.MonoidLaws;
-import com.tgac.functional.algebra.laws.Monoids;
 import io.vavr.collection.List;
 import java.util.Arrays;
 import com.tgac.functional.algebra.laws.LawCoverage;

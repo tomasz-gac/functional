@@ -1,9 +1,8 @@
-package com.tgac.functional.algebra.laws;
+package com.tgac.functional.algebra;
 
 // ABOUTME: The standard plugs: counting, boolean, tropical (min,+) and the
 // ABOUTME: saturating price arithmetic — each a lawful Semiring witness.
 
-import com.tgac.functional.algebra.Semiring;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

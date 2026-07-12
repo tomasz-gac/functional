@@ -7,7 +7,6 @@ import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.MonoidLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
-import com.tgac.functional.algebra.laws.Semirings;
 import com.tgac.functional.algebra.laws.StarLaws;
 import com.tgac.functional.algebra.laws.SuperiorityLaws;
 import java.util.Arrays;

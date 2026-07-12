@@ -25,7 +25,9 @@ public final class LawCoverage {
 	 * class (anonymous witnesses). The claimed tests themselves run as
 	 * ordinary test classes; this verifies only that the mapping is total.
 	 */
-	public static void verify(Path mainClasses, Path testClasses) throws IOException {
+	@SafeVarargs
+	public static void verify(Path mainClasses, Path testClasses,
+			Class<? extends java.lang.annotation.Annotation>... afterHooks) throws IOException {
 		Set<Class<?>> claims = new HashSet<>();
 		for (Class<?> testClass : loadAll(testClasses)) {
 			LawsFor claim = testClass.getAnnotation(LawsFor.class);
@@ -40,7 +42,7 @@ public final class LawCoverage {
 			if (testClass.getEnclosingClass() != null) {
 				continue;
 			}
-			if (testClass.getAnnotation(LawsFor.class) != null && !hasAfterHook(testClass)) {
+			if (testClass.getAnnotation(LawsFor.class) != null && !hasAfterHook(testClass, afterHooks)) {
 				throw new AssertionError(testClass.getName()
 						+ " claims laws but has no @AfterClass/@AfterAll calling verifyClaimsExercised");
 			}
@@ -136,11 +138,11 @@ public final class LawCoverage {
 		return false;
 	}
 
-	private static boolean hasAfterHook(Class<?> testClass) {
+	private static boolean hasAfterHook(Class<?> testClass,
+			Class<? extends java.lang.annotation.Annotation>[] afterHooks) {
 		for (java.lang.reflect.Method m : testClass.getDeclaredMethods()) {
-			for (java.lang.annotation.Annotation a : m.getAnnotations()) {
-				String name = a.annotationType().getSimpleName();
-				if (name.equals("AfterAll") || name.equals("AfterClass")) {
+			for (Class<? extends java.lang.annotation.Annotation> hook : afterHooks) {
+				if (m.isAnnotationPresent(hook)) {
 					return true;
 				}
 			}
