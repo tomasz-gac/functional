@@ -36,6 +36,10 @@ public final class LawCoverage {
 			}
 		}
 		for (Class<?> testClass : loadAll(testClasses)) {
+			// nested classes are fixtures, not law tests — enforcement is top-level
+			if (testClass.getEnclosingClass() != null) {
+				continue;
+			}
 			if (testClass.getAnnotation(LawsFor.class) != null && !hasAfterHook(testClass)) {
 				throw new AssertionError(testClass.getName()
 						+ " claims laws but has no @AfterClass/@AfterAll calling verifyClaimsExercised");
