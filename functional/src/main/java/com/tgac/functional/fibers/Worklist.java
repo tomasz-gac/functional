@@ -3,6 +3,8 @@ package com.tgac.functional.fibers;
 // ABOUTME: A worklist drained as a fiber: one item per deferred step, each step may
 // ABOUTME: add work and advance state, a stop short-circuits. Fairness via the scheduler.
 
+import com.tgac.functional.algebra.Bottomed;
+import com.tgac.functional.algebra.MeetSemilattice;
 import io.vavr.Tuple2;
 import io.vavr.collection.Queue;
 import java.util.Collections;
@@ -14,10 +16,17 @@ import java.util.function.BiFunction;
  * or a step stops early. Each item is one {@link Fiber} step, so whatever scheduler
  * drives the enclosing computation interleaves fairly between items.
  *
- * <p>Termination is the CALLER'S obligation: a step that keeps discovering
- * genuinely new work loops forever (fairly). The standard argument is
- * monotonicity — steps that only ever shrink a finite state can only add finitely
- * much work.
+ * <p>For plain {@link #drain}, termination is the CALLER'S obligation: a step that
+ * keeps discovering genuinely new work loops forever (fairly). The standard
+ * argument is monotonicity — steps that only ever shrink a finite state can only
+ * add finitely much work. The MONOTONE variants make that argument part of the
+ * API: the state is a {@link MeetSemilattice} with a {@link Bottomed} failure
+ * value, the drain short-circuits at ⊥, and the SAFE variant enforces the two
+ * contraction laws per step — the new state must entail the old
+ * ({@code new ⊑ old}), and emitting new work requires STRICT descent (the
+ * equal-domain termination guard, generalized: wake-on-narrowing must descend
+ * strictly or stop). The UNSAFE variant keeps the ⊥ short-circuit and skips the
+ * law checks — the hot-path twin, same contract by convention.
  */
 public final class Worklist {
 
@@ -54,6 +63,49 @@ public final class Worklist {
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step) {
 		return go(initial, Queue.ofAll(work), step);
+	}
+
+	/** The checked monotone drain: contraction laws enforced per step, ⊥ short-circuits. */
+	public static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> drainMonotone(
+			S initial,
+			Iterable<W> work,
+			BiFunction<S, W, Step<W, S>> step) {
+		return goMonotone(initial, Queue.ofAll(work), step, true);
+	}
+
+	/** The unchecked twin: same contract by convention, ⊥ short-circuit kept, no law checks. */
+	public static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> drainMonotoneUnsafe(
+			S initial,
+			Iterable<W> work,
+			BiFunction<S, W, Step<W, S>> step) {
+		return goMonotone(initial, Queue.ofAll(work), step, false);
+	}
+
+	private static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> goMonotone(
+			S state,
+			Queue<W> queue,
+			BiFunction<S, W, Step<W, S>> step,
+			boolean checked) {
+		if (state.isBottom() || queue.isEmpty()) {
+			return Fiber.done(state);
+		}
+		Tuple2<W, Queue<W>> popped = queue.dequeue();
+		Step<W, S> outcome = step.apply(state, popped._1);
+		if (checked) {
+			if (!outcome.state.leq(state)) {
+				throw new IllegalStateException(
+						"monotone worklist step must contract: " + outcome.state + " ⋢ " + state);
+			}
+			if (outcome.more.iterator().hasNext() && outcome.state.equals(state)) {
+				throw new IllegalStateException(
+						"monotone worklist step emitted work without strict descent at " + state);
+			}
+		}
+		if (outcome.stopped) {
+			return Fiber.done(outcome.state);
+		}
+		Queue<W> remaining = popped._2.appendAll(outcome.more);
+		return Fiber.defer(() -> goMonotone(outcome.state, remaining, step, checked));
 	}
 
 	private static <W, S> Fiber<S> go(S state, Queue<W> queue, BiFunction<S, W, Step<W, S>> step) {

@@ -5,7 +5,11 @@ package com.tgac.functional.fibers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.tgac.functional.algebra.laws.Lattices;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +59,63 @@ public class WorklistTest {
 								Worklist.Step.proceed(acc + 1))
 				.get();
 		assertThat(count).isEqualTo(100_001);
+	}
+
+	@Test
+	public void monotoneDrainComputesTheMeetAndFollowsNarrowing() {
+		// state narrows by meeting each mask; a strict narrowing may emit follow-up work
+		Lattices.Mask top = Lattices.Mask.of(0b1111L);
+		Lattices.Mask result = Worklist.drainMonotone(top,
+						Arrays.asList(Lattices.Mask.of(0b0111L), Lattices.Mask.of(0b1110L)),
+						(state, w) -> Worklist.Step.proceed(state.meet(w)))
+				.get();
+		assertThat(result).isEqualTo(Lattices.Mask.of(0b0110L));
+	}
+
+	@Test
+	public void monotoneDrainShortCircuitsAtBottom() {
+		AtomicInteger processed = new AtomicInteger();
+		Lattices.Mask result = Worklist.drainMonotone(Lattices.Mask.of(0b0011L),
+						Arrays.asList(Lattices.Mask.of(0b1100L), Lattices.Mask.of(0b0001L)),
+						(state, w) -> {
+							processed.incrementAndGet();
+							return Worklist.Step.proceed(state.meet(w));
+						})
+				.get();
+		assertThat(result.isBottom()).isTrue();
+		// the second item is never processed: ⊥ stops the drain
+		assertThat(processed.get()).isEqualTo(1);
+	}
+
+	@Test
+	public void checkedDrainRejectsExpansion() {
+		assertThatThrownBy(() -> Worklist.drainMonotone(Lattices.Mask.of(0b0001L),
+						Collections.singletonList(Lattices.Mask.of(0b0110L)),
+						(state, w) -> Worklist.Step.proceed(state.join(w)))
+				.get())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("contract");
+	}
+
+	@Test
+	public void checkedDrainRejectsWorkEmittedWithoutStrictDescent() {
+		assertThatThrownBy(() -> Worklist.drainMonotone(Lattices.Mask.of(0b0011L),
+						Collections.singletonList(Lattices.Mask.of(0b1111L)),
+						(state, w) -> Worklist.Step.proceed(state.meet(w),
+								Collections.singletonList(Lattices.Mask.of(0b0001L))))
+				.get())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("strict descent");
+	}
+
+	@Test
+	public void unsafeDrainSkipsTheChecksButKeepsTheBottomShortCircuit() {
+		// the same expanding step the checked drain rejects: tolerated here
+		Lattices.Mask result = Worklist.drainMonotoneUnsafe(Lattices.Mask.of(0b0001L),
+						Arrays.asList(Lattices.Mask.of(0b0110L)),
+						(state, w) -> Worklist.Step.proceed(state.join(w)))
+				.get();
+		assertThat(result).isEqualTo(Lattices.Mask.of(0b0111L));
 	}
 
 	@Test
