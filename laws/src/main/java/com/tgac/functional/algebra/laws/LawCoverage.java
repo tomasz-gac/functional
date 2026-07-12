@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -150,7 +151,26 @@ public final class LawCoverage {
 		return false;
 	}
 
+	/** The code source of a class — target/classes in a reactor build, the jar otherwise. */
+	public static Path codeSource(Class<?> anchor) {
+		try {
+			return Path.class.cast(Paths.get(
+					anchor.getProtectionDomain().getCodeSource().getLocation().toURI()));
+		} catch (java.net.URISyntaxException e) {
+			throw new IllegalStateException("cannot locate code source of " + anchor, e);
+		}
+	}
+
 	private static List<Class<?>> loadAll(Path root) throws IOException {
+		if (root.toString().endsWith(".jar")) {
+			try (java.nio.file.FileSystem jar = java.nio.file.FileSystems.newFileSystem(root, (ClassLoader) null)) {
+				return loadAllFrom(jar.getPath("/"));
+			}
+		}
+		return loadAllFrom(root);
+	}
+
+	private static List<Class<?>> loadAllFrom(Path root) throws IOException {
 		List<Class<?>> out = new ArrayList<>();
 		try (Stream<Path> paths = Files.walk(root)) {
 			paths.filter(p -> p.toString().endsWith(".class"))
