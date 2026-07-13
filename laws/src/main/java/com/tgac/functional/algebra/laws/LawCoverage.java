@@ -88,6 +88,20 @@ public final class LawCoverage {
 			}
 		}
 		for (Class<?> exercised : LawRegistry.exercisedClasses()) {
+			// audit only the classes THIS test claims: foreign receipts are the
+			// claiming test's business, so hook verdicts cannot depend on
+			// which test classes happened to run earlier
+			boolean underClaims = false;
+			for (Class<?> at = exercised; at != null; at = at.getEnclosingClass()) {
+				for (Class<?> claimed : claim.value()) {
+					if (at.equals(claimed)) {
+						underClaims = true;
+					}
+				}
+			}
+			if (!underClaims) {
+				continue;
+			}
 			Set<String> kits = LawRegistry.kitsFor(exercised);
 			for (Class<?> algebra : checkedAlgebrasOf(exercised)) {
 				String[] accepted = algebra.getAnnotation(com.tgac.functional.algebra.CheckedBy.class).value();

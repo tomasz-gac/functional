@@ -12,6 +12,7 @@ import com.tgac.functional.algebra.laws.LawCoverage;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.IdempotentSemiringLaws;
 import com.tgac.functional.algebra.laws.MonoidLaws;
+import com.tgac.functional.algebra.laws.SemilatticeLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
 import com.tgac.functional.algebra.laws.StarLaws;
 import com.tgac.functional.algebra.laws.SuperiorityLaws;
@@ -223,6 +224,85 @@ public class LawViolationsTest {
 		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(EmptyClaim.class))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("never exercised");
+	}
+
+	/** A kit run that FAILED must leave no receipt — violations are not exercises. */
+	private static final ClosedSemiring<Boolean> BROKEN_STAR = new ClosedSemiring<Boolean>() {
+		@Override
+		public Boolean zero() {
+			return Boolean.FALSE;
+		}
+
+		@Override
+		public Boolean one() {
+			return Boolean.TRUE;
+		}
+
+		@Override
+		public Boolean plus(Boolean a, Boolean b) {
+			return a || b;
+		}
+
+		@Override
+		public Boolean times(Boolean a, Boolean b) {
+			return a && b;
+		}
+
+		@Override
+		public Boolean star(Boolean a) {
+			return Boolean.FALSE;
+		}
+	};
+
+	@LawsFor(LawViolationsTest.class)
+	private static final class ClaimsTheBrokenStar {
+	}
+
+	@Test
+	public void aFailedKitRunLeavesNoReceipt() {
+		assertThatThrownBy(() -> StarLaws.check(BROKEN_STAR, Arrays.asList(true, false)))
+				.isInstanceOf(AssertionError.class);
+		// the broken witness is enclosed in this class, so the claim covers it;
+		// with no receipt left, the hook must report never-exercised — not
+		// "no matching kit" against a poisoned record
+		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(ClaimsTheBrokenStar.class))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("never exercised");
+	}
+
+	/** Lawful but only partially exercised — its own claiming test's problem, nobody else's. */
+	private static final class PartialFixture implements CommutativeMonoid<Long> {
+		@Override
+		public Long empty() {
+			return 0L;
+		}
+
+		@Override
+		public Long combine(Long a, Long b) {
+			return a + b;
+		}
+	}
+
+	private static final class SelfContained implements MeetSemilattice<SelfContained> {
+		@Override
+		public SelfContained meet(SelfContained other) {
+			return this;
+		}
+	}
+
+	@LawsFor(SelfContained.class)
+	private static final class ClaimsOnlyItsOwn {
+	}
+
+	@Test
+	public void foreignPartialReceiptsDoNotFailAnotherTestsHook() {
+		// exercise the foreign fixture with ONLY the monoid kit: its
+		// CommutativeMonoid algebra stays unmatched — a fact for ITS
+		// claiming test, invisible to a hook that never claimed it
+		MonoidLaws.check(new PartialFixture(), Arrays.asList(0L, 1L, 2L));
+		SelfContained one = new SelfContained();
+		SemilatticeLaws.checkMeet(Arrays.asList(one, one));
+		LawCoverage.verifyClaimsExercised(ClaimsOnlyItsOwn.class);
 	}
 
 	@Test

@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 public final class SuperiorityLaws {
 	/** Requires a selective ⊕ (picks one argument); order: a ≤ b iff a ⊕ b = a. */
 	public static <S> void check(SuperiorSemiring<S> r, List<S> xs) {
-		LawRegistry.record("superiority", r.getClass());
 		for (S a : xs) {
 			for (S b : xs) {
 				S p = r.plus(a, b);
@@ -20,5 +19,6 @@ public final class SuperiorityLaws {
 				Laws.require(r.plus(a, r.times(a, b)).equals(a), "superiority a ≤ a⊗b", a, b);
 			}
 		}
+		LawRegistry.record("superiority", r.getClass());
 	}
 }

@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 public final class LatticeLaws {
 	/** Exact lattices: both semilattice kits plus absorption. */
 	public static <L extends Lattice<L>> void check(List<L> xs) {
-		LawRegistry.recordSamples("lattice", xs);
 		SemilatticeLaws.checkMeet(xs);
 		SemilatticeLaws.checkJoin(xs);
 		for (L a : xs) {
@@ -21,17 +20,18 @@ public final class LatticeLaws {
 				Laws.require(a.join(a.meet(b)).equals(a), "absorption join-meet", a, b);
 			}
 		}
+		LawRegistry.recordSamples("lattice", xs);
 	}
 
 	/** Approximate joins: sound to generalize over, not exact — skip absorption. */
 	public static <L extends Lattice<L>> void checkInflationary(List<L> xs) {
-		LawRegistry.recordSamples("lattice-inflationary", xs);
-		LawRegistry.recordSamples("join-inflationary", xs);
 		SemilatticeLaws.checkMeet(xs);
 		for (L a : xs) {
 			for (L b : xs) {
 				Laws.require(a.leq(a.join(b)) && b.leq(a.join(b)), "inflationary join is an upper bound", a, b);
 			}
 		}
+		LawRegistry.recordSamples("lattice-inflationary", xs);
+		LawRegistry.recordSamples("join-inflationary", xs);
 	}
 }
