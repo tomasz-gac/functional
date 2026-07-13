@@ -12,10 +12,10 @@ import lombok.NoArgsConstructor;
 /**
  * The endo special case of {@link MonotoneLaws} plus the deflationary axiom:
  * {@code f(x) ⊑ x} and {@code x ⊑ y ⇒ f(x) ⊑ f(y)} — together, the
- * termination-relevant projection of a propagator body
- * (docs/design/lattice.md §3a): a family of such steps drained in any fair
- * order reaches the same greatest fixpoint. Law-test a body here at the desk
- * before wiring it into a store.
+ * step contract of chaotic iteration: a family of such steps drained in any
+ * fair order reaches the same greatest fixpoint. Law-test a step at the desk
+ * before wiring it into its loop — a constraint propagator's body (as in
+ * the logic engine's FD store) is the canonical example.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ReductorLaws {
