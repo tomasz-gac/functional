@@ -22,22 +22,12 @@ package com.tgac.functional.algebra;
  * runs on. ANNIHILATION is failure propagation: a derivation through a dead
  * subgoal is dead, so failure needs no bookkeeping — absence does the work.
  *
- * <p>OPTIONAL CAPABILITIES, each with its own kit when claimed:
- * <ul>
- * <li>{@link #isIdempotentPlus()} — {@code a ⊕ a = a}: re-deriving a known
- * answer adds nothing, so fixpoints over CYCLIC programs terminate (tabling's
- * termination argument) and at-least-once delivery is safe (duplicated work
- * merges harmlessly). Counting and probability lack it: cycles diverge and
- * duplicates double-count.</li>
- * <li>{@link #isClosed()} / {@link #star(Object)} — {@code a* = 1 ⊕ a⊗a*}:
- * a cycle's contribution computed analytically (geometric series,
- * Floyd–Warshall) instead of iterated; the escape hatch for non-idempotent
- * plugs on cyclic queries.</li>
- * <li>{@link #isSuperior()} — selective ⊕ with {@code a ⊕ (a ⊗ b) = a}:
- * extending a derivation never improves it, so BEST-FIRST agendas (Dijkstra)
- * are correct. The rare tuning knob that CORRUPTS ANSWERS when the law
- * fails, hence the interlock.</li>
- * </ul>
+ * <p>OPTIONAL CAPABILITIES are TYPES, not flags — each a subinterface whose
+ * implementors the coverage gate audits: {@link IdempotentSemiring}
+ * (⊕-idempotence — the dedup license), {@link ClosedSemiring} (Kleene star —
+ * cycles solved analytically), {@link SuperiorSemiring} (Sobrinho — best-first
+ * commitment). Call sites demand the capability in their signature, so an
+ * illegal plug is a compile error, not a runtime surprise.
  */
 @CheckedBy({"semiring"})
 public interface Semiring<S> {
@@ -48,22 +38,6 @@ public interface Semiring<S> {
 	S plus(S a, S b);
 
 	S times(S a, S b);
-
-	default boolean isIdempotentPlus() {
-		return false;
-	}
-
-	default boolean isClosed() {
-		return false;
-	}
-
-	default S star(S a) {
-		throw new UnsupportedOperationException("not a closed semiring");
-	}
-
-	default boolean isSuperior() {
-		return false;
-	}
 
 	default CommutativeMonoid<S> additive() {
 		return new CommutativeMonoid<S>() {

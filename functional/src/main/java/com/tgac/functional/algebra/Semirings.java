@@ -32,8 +32,12 @@ public final class Semirings {
 		}
 	};
 
-	/** Exists at all: (∨, ∧). Idempotent, closed (a* = true). */
-	public static final Semiring<Boolean> BOOLEAN = new Semiring<Boolean>() {
+	/**
+	 * Exists at all: (∨, ∧). A named class because it holds two capabilities —
+	 * closed (a* = true) and superior (absorption a ∨ (a ∧ b) = a).
+	 */
+	public static final class BooleanSemiring
+			implements ClosedSemiring<Boolean>, SuperiorSemiring<Boolean> {
 		@Override
 		public Boolean zero() {
 			return Boolean.FALSE;
@@ -55,32 +59,20 @@ public final class Semirings {
 		}
 
 		@Override
-		public boolean isIdempotentPlus() {
-			return true;
-		}
-
-		@Override
-		public boolean isClosed() {
-			return true;
-		}
-
-		@Override
 		public Boolean star(Boolean a) {
 			return Boolean.TRUE;
 		}
+	}
 
-		@Override
-		public boolean isSuperior() {
-			return true;
-		}
-	};
+	public static final BooleanSemiring BOOLEAN = new BooleanSemiring();
 
 	/**
 	 * Cheapest: (min, +) over nonnegative costs; 0 is +∞ ("cheapest of no
 	 * routes"), 1 is cost 0. Idempotent, superior (Dijkstra-legal), closed for
 	 * nonnegatives (a* = 0-cost).
 	 */
-	public static final Semiring<Long> MIN_PLUS = new Semiring<Long>() {
+	public static final class MinPlusSemiring
+			implements ClosedSemiring<Long>, SuperiorSemiring<Long> {
 		@Override
 		public Long zero() {
 			return Long.MAX_VALUE;
@@ -102,25 +94,12 @@ public final class Semirings {
 		}
 
 		@Override
-		public boolean isIdempotentPlus() {
-			return true;
-		}
-
-		@Override
-		public boolean isClosed() {
-			return true;
-		}
-
-		@Override
 		public Long star(Long a) {
 			return 0L;
 		}
+	}
 
-		@Override
-		public boolean isSuperior() {
-			return true;
-		}
-	};
+	public static final MinPlusSemiring MIN_PLUS = new MinPlusSemiring();
 
 	/**
 	 * The optimizer's price arithmetic as the semiring it always was:

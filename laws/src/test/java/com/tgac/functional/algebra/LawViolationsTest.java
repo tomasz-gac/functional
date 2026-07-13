@@ -10,6 +10,7 @@ import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
 import com.tgac.functional.algebra.laws.LatticeLaws;
 import com.tgac.functional.algebra.laws.LawCoverage;
 import com.tgac.functional.algebra.laws.LawsFor;
+import com.tgac.functional.algebra.laws.IdempotentSemiringLaws;
 import com.tgac.functional.algebra.laws.MonoidLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
 import com.tgac.functional.algebra.laws.StarLaws;
@@ -87,8 +88,8 @@ public class LawViolationsTest {
 	}
 
 	@Test
-	public void semiringLawsRejectAClaimedIdempotenceLie() {
-		Semiring<Long> liar = new Semiring<Long>() {
+	public void idempotentSemiringLawsRejectAClaimedIdempotenceLie() {
+		IdempotentSemiring<Long> liar = new IdempotentSemiring<Long>() {
 			@Override
 			public Long zero() {
 				return Semirings.COUNTING.zero();
@@ -108,20 +109,15 @@ public class LawViolationsTest {
 			public Long times(Long a, Long b) {
 				return Semirings.COUNTING.times(a, b);
 			}
-
-			@Override
-			public boolean isIdempotentPlus() {
-				return true;
-			}
 		};
-		assertThatThrownBy(() -> SemiringLaws.check(liar, SAMPLES))
+		assertThatThrownBy(() -> IdempotentSemiringLaws.check(liar, SAMPLES))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("idempotence");
 	}
 
 	@Test
 	public void superiorityLawsRejectNonSelectivePlus() {
-		Semiring<Long> counting = new Semiring<Long>() {
+		SuperiorSemiring<Long> counting = new SuperiorSemiring<Long>() {
 			@Override
 			public Long zero() {
 				return 0L;
@@ -141,11 +137,6 @@ public class LawViolationsTest {
 			public Long times(Long a, Long b) {
 				return a * b;
 			}
-
-			@Override
-			public boolean isSuperior() {
-				return true;
-			}
 		};
 		assertThatThrownBy(() -> SuperiorityLaws.check(counting, Arrays.asList(1L, 2L)))
 				.isInstanceOf(AssertionError.class)
@@ -154,7 +145,7 @@ public class LawViolationsTest {
 
 	@Test
 	public void starLawsRejectABrokenStar() {
-		Semiring<Boolean> brokenStar = new Semiring<Boolean>() {
+		ClosedSemiring<Boolean> brokenStar = new ClosedSemiring<Boolean>() {
 			@Override
 			public Boolean zero() {
 				return Boolean.FALSE;
@@ -173,11 +164,6 @@ public class LawViolationsTest {
 			@Override
 			public Boolean times(Boolean a, Boolean b) {
 				return a && b;
-			}
-
-			@Override
-			public boolean isClosed() {
-				return true;
 			}
 
 			@Override

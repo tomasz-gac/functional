@@ -4,6 +4,7 @@ package com.tgac.functional.algebra;
 // ABOUTME: Semiring interface declares) — claimed via @LawsFor for the gate.
 
 import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
+import com.tgac.functional.algebra.laws.IdempotentSemiringLaws;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.MonoidLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
@@ -37,6 +38,7 @@ public class SemiringWitnessLawsTest {
 	@Test
 	public void booleanClosedIdempotentSuperior() {
 		SemiringLaws.check(Semirings.BOOLEAN, BOOLS);
+		IdempotentSemiringLaws.check(Semirings.BOOLEAN, BOOLS);
 		StarLaws.check(Semirings.BOOLEAN, BOOLS);
 		SuperiorityLaws.check(Semirings.BOOLEAN, BOOLS);
 	}
@@ -44,6 +46,7 @@ public class SemiringWitnessLawsTest {
 	@Test
 	public void minPlusClosedSuperior() {
 		SemiringLaws.check(Semirings.MIN_PLUS, COSTS);
+		IdempotentSemiringLaws.check(Semirings.MIN_PLUS, COSTS);
 		StarLaws.check(Semirings.MIN_PLUS, COSTS);
 		SuperiorityLaws.check(Semirings.MIN_PLUS, COSTS);
 	}

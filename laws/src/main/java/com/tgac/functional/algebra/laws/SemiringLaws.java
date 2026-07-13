@@ -18,9 +18,6 @@ public final class SemiringLaws {
 			Laws.require(r.times(r.zero(), a).equals(r.zero()), "left annihilation", a);
 			Laws.require(r.times(a, r.zero()).equals(r.zero()), "right annihilation", a);
 			for (S b : xs) {
-				if (r.isIdempotentPlus()) {
-					Laws.require(r.plus(a, a).equals(a), "claimed ⊕-idempotence", a);
-				}
 				for (S c : xs) {
 					Laws.require(r.times(a, r.plus(b, c)).equals(r.plus(r.times(a, b), r.times(a, c))),
 							"left distributivity", a, b, c);
