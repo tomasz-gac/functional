@@ -6,6 +6,7 @@ package com.tgac.functional.algebra.laws;
 import com.tgac.functional.algebra.JoinSemilattice;
 import com.tgac.functional.algebra.MeetSemilattice;
 import java.util.List;
+import java.util.function.BiPredicate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -27,13 +28,20 @@ public final class SemilatticeLaws {
 	}
 
 	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs) {
+		checkJoin(xs, Object::equals);
+	}
+
+	/** @param eq the quotient the laws are claimed up to (solved form for substitutions) */
+	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs, BiPredicate<L, L> eq) {
 		for (L a : xs) {
-			Laws.require(a.join(a).equals(a), "join idempotence", a);
+			Laws.require(eq.test(a.join(a), a), "join idempotence", a);
 			for (L b : xs) {
-				Laws.require(a.join(b).equals(b.join(a)), "join commutativity", a, b);
-				Laws.require(a.leq(a.join(b)) && b.leq(a.join(b)), "join is an upper bound", a, b);
+				L ab = a.join(b);
+				Laws.require(eq.test(ab, b.join(a)), "join commutativity", a, b);
+				Laws.require(eq.test(a.join(ab), ab) && eq.test(b.join(ab), ab),
+						"join is an upper bound", a, b);
 				for (L c : xs) {
-					Laws.require(a.join(b).join(c).equals(a.join(b.join(c))), "join associativity", a, b, c);
+					Laws.require(eq.test(a.join(b).join(c), a.join(b.join(c))), "join associativity", a, b, c);
 				}
 			}
 		}

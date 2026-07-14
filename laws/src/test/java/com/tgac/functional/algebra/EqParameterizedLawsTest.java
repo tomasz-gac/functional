@@ -6,6 +6,7 @@ package com.tgac.functional.algebra;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.algebra.laws.IdempotentSemiringLaws;
+import com.tgac.functional.algebra.laws.SemilatticeLaws;
 import com.tgac.functional.algebra.laws.SemiringLaws;
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +14,37 @@ import java.util.function.BiPredicate;
 import org.junit.jupiter.api.Test;
 
 public class EqParameterizedLawsTest {
+
+	// a join-semilattice (join = max) with NO equals override, so its laws
+	// hold only up to the value quotient — the substitution-lattice case
+	static final class Boxed implements JoinSemilattice<Boxed> {
+		final long v;
+
+		Boxed(long v) {
+			this.v = v;
+		}
+
+		@Override
+		public Boxed join(Boxed other) {
+			return new Boxed(Math.max(v, other.v));
+		}
+	}
+
+	private static final BiPredicate<Boxed, Boxed> BY_VALUE = (a, b) -> a.v == b.v;
+
+	private static final List<Boxed> BOXED_JOINS = Arrays.asList(
+			new Boxed(0), new Boxed(1), new Boxed(2), new Boxed(3));
+
+	@Test
+	public void joinLawsHoldThroughTheSuppliedQuotient() {
+		SemilatticeLaws.checkJoin(BOXED_JOINS, BY_VALUE);
+	}
+
+	@Test
+	public void joinEqualsEntryPointCannotExpressTheQuotient() {
+		assertThatThrownBy(() -> SemilatticeLaws.checkJoin(BOXED_JOINS))
+				.isInstanceOf(AssertionError.class);
+	}
 
 	// counting over length-1 arrays: equals is reference identity, so the
 	// laws hold only up to the contents quotient
