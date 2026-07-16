@@ -34,10 +34,11 @@ public final class Semirings {
 
 	/**
 	 * Exists at all: (∨, ∧). A named class because it holds two capabilities —
-	 * closed (a* = true) and superior (absorption a ∨ (a ∧ b) = a).
+	 * bounded (1 = true is the top, so a* = true) and superior (absorption
+	 * a ∨ (a ∧ b) = a).
 	 */
 	public static final class BooleanSemiring
-			implements ClosedSemiring<Boolean>, SuperiorSemiring<Boolean> {
+			implements BoundedSemiring<Boolean>, SuperiorSemiring<Boolean> {
 		@Override
 		public Boolean zero() {
 			return Boolean.FALSE;
@@ -68,11 +69,11 @@ public final class Semirings {
 
 	/**
 	 * Cheapest: (min, +) over nonnegative costs; 0 is +∞ ("cheapest of no
-	 * routes"), 1 is cost 0. Idempotent, superior (Dijkstra-legal), closed for
-	 * nonnegatives (a* = 0-cost).
+	 * routes"), 1 is cost 0. Idempotent, superior (Dijkstra-legal), bounded for
+	 * nonnegatives (1 = cost 0 is the top, a* = 0-cost).
 	 */
 	public static final class MinPlusSemiring
-			implements ClosedSemiring<Long>, SuperiorSemiring<Long> {
+			implements BoundedSemiring<Long>, SuperiorSemiring<Long> {
 		@Override
 		public Long zero() {
 			return Long.MAX_VALUE;
