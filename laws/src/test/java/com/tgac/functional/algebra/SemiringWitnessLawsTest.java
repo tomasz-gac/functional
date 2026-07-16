@@ -60,6 +60,21 @@ public class SemiringWitnessLawsTest {
 	}
 
 	@Test
+	public void provenanceClosedIdempotentByLanguage() {
+		// a free (regex) semiring: laws hold up to LANGUAGE equivalence, not the
+		// structural tree equals — the quotient the eq-parameterized kits take.
+		List<Provenance> xs = Arrays.asList(
+				Provenance.empty(), Provenance.epsilon(),
+				Provenance.sym("a"), Provenance.sym("b"),
+				Provenance.alt(Provenance.sym("a"), Provenance.sym("b")),
+				Provenance.cat(Provenance.sym("a"), Provenance.sym("b")),
+				Provenance.star(Provenance.sym("a")));
+		SemiringLaws.check(Semirings.PROVENANCE, xs, (p, q) -> p.sameLanguage(q, 5));
+		IdempotentSemiringLaws.check(Semirings.PROVENANCE, xs, (p, q) -> p.sameLanguage(q, 5));
+		StarLaws.check(Semirings.PROVENANCE, xs, (p, q) -> p.sameLanguage(q, 5));
+	}
+
+	@Test
 	public void derivedMonoidViews() {
 		CommutativeMonoidLaws.check(Semirings.COUNTING.additive(), SMALL);
 		MonoidLaws.check(Semirings.COUNTING.multiplicative(), SMALL);

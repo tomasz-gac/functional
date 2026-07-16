@@ -137,4 +137,40 @@ public final class Semirings {
 			return a > Long.MAX_VALUE / b ? Long.MAX_VALUE : a * b;
 		}
 	};
+	/**
+	 * Provenance: derivations as regular expressions ({@link Provenance}). Idempotent
+	 * (union) and closed (Kleene star) but NOT bounded -- a* != 1 -- so cyclic streaming
+	 * diverges and only the star closes it. The canonical solveClosed witness; concat is
+	 * not commutative.
+	 */
+	public static final class ProvenanceSemiring
+			implements ClosedSemiring<Provenance>, IdempotentSemiring<Provenance> {
+		@Override
+		public Provenance zero() {
+			return Provenance.empty();
+		}
+
+		@Override
+		public Provenance one() {
+			return Provenance.epsilon();
+		}
+
+		@Override
+		public Provenance plus(Provenance a, Provenance b) {
+			return Provenance.alt(a, b);
+		}
+
+		@Override
+		public Provenance times(Provenance a, Provenance b) {
+			return Provenance.cat(a, b);
+		}
+
+		@Override
+		public Provenance star(Provenance a) {
+			return Provenance.star(a);
+		}
+	}
+
+	public static final ProvenanceSemiring PROVENANCE = new ProvenanceSemiring();
+
 }
