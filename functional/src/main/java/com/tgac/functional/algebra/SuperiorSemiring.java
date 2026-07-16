@@ -8,8 +8,11 @@ package com.tgac.functional.algebra;
  * ({@code a ⊕ b ∈ {a, b}}) and SUPERIOR ({@code a ⊕ (a ⊗ b) = a} —
  * extending a derivation never improves it).
  *
- * <p>{@code extends IdempotentSemiring} is a theorem, not a convenience:
- * set {@code b = 1} in superiority and {@code a ⊕ a = a} falls out.
+ * <p>{@code extends BoundedSemiring} is a theorem, not a convenience: superiority
+ * at {@code b = 1} gives {@code a ⊕ a = a} (idempotence), and at {@code a = 1}
+ * gives {@code 1 ⊕ b = 1} (boundedness) — so a superior semiring is bounded and
+ * inherits its degenerate {@code a* = 1}. Superiority adds a TOTAL order
+ * (selectivity) on top: the strongest rung of the capability ladder.
  *
  * <p>What it buys: best-first agendas may COMMIT — Dijkstra's pop, greedy
  * search, committed choice over weighted goals. The rare capability that
@@ -18,5 +21,5 @@ package com.tgac.functional.algebra;
  * type, and the gate demands the law exercise from every implementor.
  */
 @CheckedBy({"superiority"})
-public interface SuperiorSemiring<S> extends IdempotentSemiring<S> {
+public interface SuperiorSemiring<S> extends BoundedSemiring<S> {
 }

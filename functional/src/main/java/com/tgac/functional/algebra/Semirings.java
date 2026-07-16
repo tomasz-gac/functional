@@ -33,12 +33,12 @@ public final class Semirings {
 	};
 
 	/**
-	 * Exists at all: (∨, ∧). A named class because it holds two capabilities —
-	 * bounded (1 = true is the top, so a* = true) and superior (absorption
-	 * a ∨ (a ∧ b) = a).
+	 * Exists at all: (∨, ∧). A named class for the SUPERIOR capability —
+	 * selective + Sobrinho's absorption a ∨ (a ∧ b) = a — which carries bounded
+	 * (1 = true is the top, a* = true) and idempotent with it.
 	 */
 	public static final class BooleanSemiring
-			implements BoundedSemiring<Boolean>, SuperiorSemiring<Boolean> {
+			implements SuperiorSemiring<Boolean> {
 		@Override
 		public Boolean zero() {
 			return Boolean.FALSE;
@@ -73,7 +73,7 @@ public final class Semirings {
 	 * nonnegatives (1 = cost 0 is the top, a* = 0-cost).
 	 */
 	public static final class MinPlusSemiring
-			implements BoundedSemiring<Long>, SuperiorSemiring<Long> {
+			implements SuperiorSemiring<Long> {
 		@Override
 		public Long zero() {
 			return Long.MAX_VALUE;
