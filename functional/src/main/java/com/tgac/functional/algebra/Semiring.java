@@ -24,10 +24,11 @@ package com.tgac.functional.algebra;
  *
  * <p>OPTIONAL CAPABILITIES are TYPES, not flags — each a subinterface whose
  * implementors the coverage gate audits: {@link IdempotentSemiring}
- * (⊕-idempotence — the dedup license), {@link ClosedSemiring} (Kleene star —
- * cycles solved analytically), {@link SuperiorSemiring} (Sobrinho — best-first
- * commitment). Call sites demand the capability in their signature, so an
- * illegal plug is a compile error, not a runtime surprise.
+ * (⊕-idempotence — the dedup license), {@link BoundedSemiring} (1 is the ⊕-top,
+ * so {@code a* = 1} — cyclic streaming terminates), {@link ClosedSemiring}
+ * (Kleene star — cycles solved analytically), {@link SuperiorSemiring}
+ * (Sobrinho — best-first commitment). Call sites demand the capability in their
+ * signature, so an illegal plug is a compile error, not a runtime surprise.
  */
 @CheckedBy({"semiring"})
 public interface Semiring<S> {
