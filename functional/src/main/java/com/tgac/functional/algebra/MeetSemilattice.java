@@ -31,7 +31,6 @@ public interface MeetSemilattice<L extends MeetSemilattice<L>> extends PartialOr
 	L meet(L other);
 
 	@Override
-	@SuppressWarnings("unchecked")
 	default boolean leq(L other) {
 		return meet(other).equals(this);
 	}
