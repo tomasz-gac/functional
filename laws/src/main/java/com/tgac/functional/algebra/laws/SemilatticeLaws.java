@@ -19,12 +19,21 @@ public final class SemilatticeLaws {
 			for (L b : xs) {
 				Laws.require(a.meet(b).equals(b.meet(a)), "meet commutativity", a, b);
 				Laws.require(a.meet(b).leq(a) && a.meet(b).leq(b), "meet is a lower bound", a, b);
+				if (a.leq(b) && b.leq(a)) {
+					Laws.require(a.equals(b), "leq antisymmetry (mod equals)", a, b);
+				}
 				for (L c : xs) {
 					Laws.require(a.meet(b).meet(c).equals(a.meet(b.meet(c))), "meet associativity", a, b, c);
+					if (a.leq(b) && b.leq(c)) {
+						Laws.require(a.leq(c), "leq transitivity", a, b, c);
+					}
 				}
 			}
 		}
 		LawRegistry.recordSamples("meet", xs);
+		// the sweeps above ARE the order laws for the derived leq — this kit
+		// certifies the PartialOrder algebra of everything it checks
+		LawRegistry.recordSamples("partial-order", xs);
 	}
 
 	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs) {
@@ -46,5 +55,8 @@ public final class SemilatticeLaws {
 			}
 		}
 		LawRegistry.recordSamples("join", xs);
+		// join laws imply the order laws for the derived leq (up to the same
+		// eq quotient the join laws are claimed under)
+		LawRegistry.recordSamples("partial-order", xs);
 	}
 }

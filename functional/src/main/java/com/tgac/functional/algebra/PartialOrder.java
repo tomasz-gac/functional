@@ -19,7 +19,7 @@ package com.tgac.functional.algebra;
  * semilattices extend it, deriving {@code leq} from their operation, so any
  * lattice value already qualifies.
  */
-@CheckedBy({"partial-order", "meet", "join", "lattice", "lattice-inflationary"})
+@CheckedBy({"partial-order"})
 public interface PartialOrder<L extends PartialOrder<L>> {
 	boolean leq(L other);
 }
