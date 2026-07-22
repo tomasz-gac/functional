@@ -2,10 +2,10 @@
 // ABOUTME: counted fibers with parked subscribers, sealed at quiescence.
 
 /**
- * Termination detection as a value: a {@link com.tgac.functional.region.Region}
- * pairs a monotonically growing {@link com.tgac.functional.region.MonotoneCell}
+ * Termination detection as a value: a {@link com.tgac.functional.fibers.primitives.Region}
+ * pairs a monotonically growing {@link com.tgac.functional.fibers.primitives.MonotoneCell}
  * (whose growth wakes parked subscribers) with a
- * {@link com.tgac.functional.region.WorkLedger} (running work counted
+ * {@link com.tgac.functional.fibers.primitives.WorkLedger} (running work counted
  * Dijkstra–Scholten style; sleeping work recorded with WHERE it sleeps), and a
  * seal — the CAS'd-once declaration that the value is final. The sleeper
  * places form a wait-for graph; the seal cascade and the group seal are cycle
@@ -38,4 +38,4 @@
  * parked data (a subscriber in a cell, a sleeper in a ledger) or an external
  * completion — never thread state.
  */
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;

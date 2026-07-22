@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A persistent map into a join-semilattice value, joined pointwise: keys
 // ABOUTME: keep arrival order for indexed reads, values fold by the semiring's ⊕.

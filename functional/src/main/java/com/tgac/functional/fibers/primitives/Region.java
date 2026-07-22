@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A sealable region of work: a growing value, the work producing it,
 // ABOUTME: the seal, and the cascade — termination detection as one value.

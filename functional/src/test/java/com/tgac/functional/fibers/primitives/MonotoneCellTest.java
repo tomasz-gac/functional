@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: Pins the monotone cell's contract: grow swaps and drains all parked,
 // ABOUTME: a refused step changes nothing, park races grow toward reading.

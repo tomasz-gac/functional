@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: Join-semilattice laws for JoinMap — a map into a join-semilattice
 // ABOUTME: value; the min-plus value-fold is exercised alongside key dedup.

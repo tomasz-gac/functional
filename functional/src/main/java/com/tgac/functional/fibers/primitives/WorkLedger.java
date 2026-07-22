@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A production's work ledger: the running half as two monotone counters,
 // ABOUTME: the sleeping half as who-sleeps-where — quiescence is both halves empty.

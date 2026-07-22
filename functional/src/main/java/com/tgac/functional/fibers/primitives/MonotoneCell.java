@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A cell whose value only grows, waking parked subscribers on growth —
 // ABOUTME: monotone writes, threshold reads: the LVars shape, park-as-data style.

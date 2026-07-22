@@ -1,4 +1,4 @@
-package com.tgac.functional.region;
+package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: Region seal-cascade tests: the group seal marks every member sealed
 // ABOUTME: before any member's onSealed hook fires (SEALED implies SOLVABLE).
