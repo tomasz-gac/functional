@@ -15,9 +15,10 @@ package com.tgac.functional.algebra;
  * knowledge.
  */
 @CheckedBy({"join", "lattice", "join-inflationary"})
-public interface JoinSemilattice<L extends JoinSemilattice<L>> {
+public interface JoinSemilattice<L extends JoinSemilattice<L>> extends PartialOrder<L> {
 	L join(L other);
 
+	@Override
 	default boolean leq(L other) {
 		return join(other).equals(other);
 	}

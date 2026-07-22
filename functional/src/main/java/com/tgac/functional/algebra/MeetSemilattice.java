@@ -27,9 +27,10 @@ package com.tgac.functional.algebra;
  * {@link JoinSemilattice}, never this with a flipped convention.
  */
 @CheckedBy({"meet", "lattice", "lattice-inflationary"})
-public interface MeetSemilattice<L extends MeetSemilattice<L>> {
+public interface MeetSemilattice<L extends MeetSemilattice<L>> extends PartialOrder<L> {
 	L meet(L other);
 
+	@Override
 	@SuppressWarnings("unchecked")
 	default boolean leq(L other) {
 		return meet(other).equals(this);
