@@ -87,6 +87,29 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 		return cell.park(subscriber, caughtUp);
 	}
 
+	/**
+	 * Park a subscriber with its OWNER's ledger kept honest: the sleeping
+	 * record lands BEFORE the park (a respawn can only drain a parked
+	 * subscriber, so the record is always there to remove), and a refused
+	 * park — the value moved past the subscriber — removes it again. A
+	 * successful park may have completed the owner's region: the caller
+	 * should attempt the owner's seal.
+	 *
+	 * @return false if the value moved past the subscriber — keep reading
+	 */
+	public boolean parkFrom(Fixpoint<?, S> owner, S subscriber, Predicate<V> caughtUp) {
+		if (owner != null) {
+			owner.scope.sleeping(subscriber, scope);
+		}
+		if (cell.park(subscriber, caughtUp)) {
+			return true;
+		}
+		if (owner != null) {
+			owner.scope.awake(subscriber);
+		}
+		return false;
+	}
+
 	public int parkedCount() {
 		return cell.parkedCount();
 	}
@@ -108,6 +131,14 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	public void awake(S sleeper) {
 		scope.awake(sleeper);
+	}
+
+	/**
+	 * Respawn a woken sleeper's continuation, billed-before-awoken — see
+	 * {@link Scope#respawn} for the ordering this encapsulates.
+	 */
+	public Fiber<Nothing> respawn(S sleeper, Fiber<Nothing> work) {
+		return scope.respawn(sleeper, work);
 	}
 
 	// ---- the seal ----

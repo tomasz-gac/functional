@@ -142,6 +142,22 @@ public final class Scope<S> implements WorkScope {
 		ledger.awake(sleeper);
 	}
 
+	/**
+	 * Respawn a woken sleeper's continuation: bill it as RUNNING before
+	 * removing the SLEEPING record — the transition must never leave a
+	 * window where the sleeper is gone but the running count has not risen,
+	 * or a racing seal (parallel schedulers) reads this scope as quiescent
+	 * and seals it out from under the consumer. The eager tick is why this
+	 * lives here and not on the ambient path, whose tick lands at frame
+	 * creation — after the awake. Over-counting for the instant between
+	 * only delays a seal, which is always sound.
+	 */
+	public Fiber<Nothing> respawn(S sleeper, Fiber<Nothing> work) {
+		Fiber<Nothing> tracked = ledger.counted(work, this::sealCascade);
+		awake(sleeper);
+		return Fiber.detach(tracked);
+	}
+
 	// ---- the seal ----
 
 	public boolean isSealed() {
