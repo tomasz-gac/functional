@@ -1,0 +1,255 @@
+package com.tgac.functional.fibers.primitives;
+
+// ABOUTME: A sealable scope of work: the billing ledger, the seal, and the cascade —
+// ABOUTME: termination detection without a published value; Region adds the cell.
+
+import static com.tgac.functional.category.Nothing.nothing;
+import static com.tgac.functional.fibers.Fiber.done;
+
+import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Fiber;
+import io.vavr.collection.List;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+/**
+ * The termination-detection half of a {@link Region}: a {@link WorkLedger}
+ * (everything working for the scope — running fibers and sleeping
+ * subscribers, each recorded with the scope it sleeps at) and a SEAL — the
+ * upward-closed, CAS'd-once declaration that the scope's work is finished.
+ * Racy seal reads are sound: a stale false only defers.
+ *
+ * <p>A scope needs no published value to be sealable: subscribers that wait
+ * only for the seal {@link #park} here and are drained when it fires. A
+ * {@link Region} composes a scope with a {@link MonotoneCell} and redirects
+ * the drain to the cell's parked subscribers.
+ *
+ * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
+ * which scope's work is it (null = unowned top-level work, unbilled, gating
+ * nothing). Everything else is the theorem:
+ *
+ * <p>{@link #track} is the billing door — every unit of the scope's work
+ * passes through exactly once (start ticks at wrap time, no gap for a
+ * racing seal; finish at fiber end, then a cascade attempt).
+ *
+ * <p>The SEAL RULE (internal): counters drained and every sleeper parked
+ * HOME (waking needs new growth here, which needs running work here — just
+ * ruled out) or at an already-sealed scope (never grows again). Then flag
+ * CAS, then the parked subscribers are provably dead.
+ *
+ * <p>{@link #sealCascade} propagates seals backwards along sleeper edges:
+ * sealing kills the sleepers parked here; each dead sleeper's owner loses
+ * an obstruction and is rechecked. Monitors never nest — each scope's
+ * rule runs under its own locks, the walk happens outside them.
+ */
+public final class Scope<S> {
+
+	private final WorkLedger<S, Scope<S>> ledger = new WorkLedger<>();
+	private final AtomicBoolean sealed = new AtomicBoolean(false);
+	private final Function<S, Scope<S>> ownerOf;
+	private final ArrayList<S> parked = new ArrayList<>();
+
+	/**
+	 * Work to spawn the moment this scope seals, given the drained
+	 * subscribers — dead branches for plain tabling, EMIT targets for closed
+	 * tabling, the fold for aggregation. Inert by default.
+	 */
+	private Function<List<S>, Fiber<Nothing>> onSealed = drained -> done(nothing());
+
+	/**
+	 * Where dead subscribers are harvested at seal time: this scope's own
+	 * {@link #park}ed list by default; a {@link Region} redirects to its
+	 * cell's parked subscribers.
+	 */
+	private Supplier<List<S>> drainOnSeal = this::drainParked;
+
+	public Scope(Function<S, Scope<S>> ownerOf) {
+		this.ownerOf = ownerOf;
+	}
+
+	/** Register the fiber to spawn when this scope seals. */
+	public void onSealed(Function<List<S>, Fiber<Nothing>> work) {
+		this.onSealed = work;
+	}
+
+	void drainOnSeal(Supplier<List<S>> drain) {
+		this.drainOnSeal = drain;
+	}
+
+	// ---- seal-only subscribers ----
+
+	/** Park a subscriber that waits only for the seal — drained when it fires. */
+	public synchronized void park(S subscriber) {
+		parked.add(subscriber);
+	}
+
+	private synchronized List<S> drainParked() {
+		List<S> dead = List.ofAll(parked);
+		parked.clear();
+		return dead;
+	}
+
+	// ---- the work half ----
+
+	/**
+	 * Bill {@code work} as one unit of this scope's running work, with a
+	 * cascade attempt on finish. Null-tolerant statically: unowned work
+	 * runs unbilled.
+	 */
+	public static <S> Fiber<Nothing> track(Scope<S> scope, Fiber<Nothing> work) {
+		if (scope == null) {
+			return work;
+		}
+		return scope.ledger.counted(work, scope::sealCascade);
+	}
+
+	public void sleeping(S sleeper, Scope<S> at) {
+		ledger.sleeping(sleeper, at);
+	}
+
+	public void awake(S sleeper) {
+		ledger.awake(sleeper);
+	}
+
+	// ---- the seal ----
+
+	public boolean isSealed() {
+		return sealed.get();
+	}
+
+	/** Manual seal — tests and external certificates. */
+	public void seal() {
+		sealed.set(true);
+	}
+
+	/**
+	 * Seal this scope if quiescent and propagate along sleeper edges.
+	 *
+	 * @return the fiber composing every newly sealed scope's {@link #onSealed}
+	 * 		work (the star emit) — inert for plain tabling
+	 */
+	public Fiber<Nothing> sealCascade() {
+		ArrayList<Fiber<Nothing>> emits = new ArrayList<>();
+		ArrayDeque<Scope<S>> queue = new ArrayDeque<>();
+		queue.add(this);
+		while (!queue.isEmpty()) {
+			Scope<S> scope = queue.poll();
+			List<S> dead = scope.sealIfQuiescent(emits);
+			if (dead == null) {
+				// the singleton rule refused; if the scope is drained and
+				// unsealed, the obstruction is a foreign-unsealed sleeper —
+				// try sealing its sleeper-closure as a group
+				if (!scope.isSealed() && scope.ledger.drained()) {
+					dead = groupSeal(scope, emits);
+				}
+				if (dead == null) {
+					continue;
+				}
+			}
+			for (S sleeper : dead) {
+				Scope<S> owner = ownerOf.apply(sleeper);
+				if (owner != null) {
+					owner.awake(sleeper);
+					queue.add(owner);
+				}
+			}
+		}
+		Fiber<Nothing> result = done(nothing());
+		for (Fiber<Nothing> emit : emits) {
+			Fiber<Nothing> tail = emit;
+			result = result.flatMap(__ -> tail);
+		}
+		return result;
+	}
+
+	private List<S> sealIfQuiescent(ArrayList<Fiber<Nothing>> emits) {
+		if (!ledger.quiescent(at -> at == this || at.isSealed())) {
+			return null;
+		}
+		if (!sealed.compareAndSet(false, true)) {
+			return null;
+		}
+		List<S> drained = drainOnSeal.get();
+		emits.add(onSealed.apply(drained));
+		return drained;
+	}
+
+	/**
+	 * THE GROUP SEAL (Tier 2) — the singleton rule applied to a VIRTUAL
+	 * MERGE (docs/design/group-seal.md). Define the merge of a set S of
+	 * scopes: ledger = sum of the members', sleepers = union, HOME =
+	 * membership in S. The group condition is then the ordinary seal rule
+	 * on merge(S), verbatim — merged ledger drained, every merged sleeper
+	 * home or at a sealed scope — and its soundness argument transfers
+	 * with it: growth inside S needs running S-work (none), and nothing
+	 * outside injects, because growth is billed to the grower's own scope.
+	 *
+	 * <p>WHICH merge: the smallest one that makes all sleepers home — the
+	 * walk below is a fixpoint ascent in the finite join-semilattice of
+	 * scope sets, closing {start} under sleeper-targets (a closure
+	 * operator; running members abort the ascent, and their own finish
+	 * events retry it).
+	 *
+	 * <p>The two-phase read is the price of evaluating the merged rule
+	 * WITHOUT materializing a merged ledger: constituents keep their own
+	 * monitors, and atomicity across them is reconstructed from the
+	 * MONOTONE started counters — two equal reads bracket a spawn-free
+	 * interval, a consistent snapshot with no nested monitors. Racing
+	 * group seals are arbitrated per member by the flag CAS — a lost CAS
+	 * just skips that member's drain. The merge exists for the duration of
+	 * one rule-evaluation and is then discarded; eager permanent merging
+	 * (SLG's ASCC) is the same algorithm with a different merge lifetime.
+	 *
+	 * @return the dead sleepers drained from every sealed member, or null
+	 * 		when the group cannot seal yet
+	 */
+	private List<S> groupSeal(Scope<S> start, ArrayList<Fiber<Nothing>> emits) {
+		LinkedHashMap<Scope<S>, Long> members = new LinkedHashMap<>();
+		ArrayDeque<Scope<S>> frontier = new ArrayDeque<>();
+		frontier.add(start);
+		while (!frontier.isEmpty()) {
+			Scope<S> scope = frontier.poll();
+			if (members.containsKey(scope) || scope.isSealed()) {
+				continue;
+			}
+			// ONE atomic read per member: drained + counter + sleepers together —
+			// a racing respawn otherwise slips between the reads (see
+			// WorkLedger.drainedSnapshot) and the re-verify below cannot see it
+			WorkLedger.Snapshot<Scope<S>> snapshot = scope.ledger.drainedSnapshot();
+			if (snapshot == null) {
+				return null;
+			}
+			members.put(scope, snapshot.started);
+			for (Scope<S> at : snapshot.sleepingAt) {
+				if (at != scope && !at.isSealed()) {
+					frontier.add(at);
+				}
+			}
+		}
+		for (Map.Entry<Scope<S>, Long> m : members.entrySet()) {
+			if (m.getKey().ledger.startedCount() != m.getValue()) {
+				return null;
+			}
+		}
+		// mark and drain EVERY member before announcing any: at each onSealed
+		// hook the whole group must already read as sealed (SEALED ⟹ SOLVABLE),
+		// so the first-announced hook can act on the full closure
+		LinkedHashMap<Scope<S>, List<S>> won = new LinkedHashMap<>();
+		for (Scope<S> member : members.keySet()) {
+			if (member.sealed.compareAndSet(false, true)) {
+				won.put(member, member.drainOnSeal.get());
+			}
+		}
+		List<S> dead = List.empty();
+		for (Map.Entry<Scope<S>, List<S>> m : won.entrySet()) {
+			emits.add(m.getKey().onSealed.apply(m.getValue()));
+			dead = dead.appendAll(m.getValue());
+		}
+		return dead;
+	}
+}

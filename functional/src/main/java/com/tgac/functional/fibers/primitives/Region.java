@@ -1,72 +1,46 @@
 package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A sealable region of work: a growing value, the work producing it,
-// ABOUTME: the seal, and the cascade — termination detection as one value.
-
-import static com.tgac.functional.category.Nothing.nothing;
-import static com.tgac.functional.fibers.Fiber.done;
+// ABOUTME: the seal, and the cascade — a Scope composed with a MonotoneCell.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.List;
 import io.vavr.control.Option;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * The termination-detection unit: a {@link MonotoneCell} (the region's
- * published value, growing monotonically, waking parked subscribers) paired
- * with a {@link WorkLedger} (everything working for the region — running
- * fibers and sleeping subscribers, each recorded with the region it sleeps
- * at) and a SEAL — the upward-closed, CAS'd-once declaration that the value
- * is final. Racy seal reads are sound: a stale false only defers.
- *
- * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
- * which region's work is it (null = unowned top-level work, unbilled,
- * gating nothing). Everything else is the theorem:
- *
- * <p>{@link #track} is the billing door — every unit of the region's work
- * passes through exactly once (start ticks at wrap time, no gap for a
- * racing seal; finish at fiber end, then a cascade attempt).
- *
- * <p>The SEAL RULE (internal): counters drained and every sleeper parked
- * HOME (waking needs new growth here, which needs running work here — just
- * ruled out) or at an already-sealed region (never grows again). Then flag
- * CAS, then the parked subscribers are provably dead.
- *
- * <p>{@link #sealCascade} propagates seals backwards along sleeper edges:
- * sealing kills the sleepers parked here; each dead sleeper's owner loses
- * an obstruction and is rechecked. Monitors never nest — each region's
- * rule runs under its own locks, the walk happens outside them.
+ * The termination-detection unit for work that PUBLISHES: a {@link Scope}
+ * (billing ledger, seal, cascade) composed with a {@link MonotoneCell} (the
+ * region's published value, growing monotonically, waking parked
+ * subscribers). The seal rule and the cascade live wholly on the scope; the
+ * cell's contribution is what the seal drains — subscribers parked on the
+ * value are the dead-at-seal harvest, so {@code ownerOf} can awaken their
+ * owners along the sleeper edges.
  */
 public final class Region<V, S> {
 
 	private final MonotoneCell<V, S> cell;
-	private final WorkLedger<S, Region<V, S>> ledger = new WorkLedger<>();
-	private final AtomicBoolean sealed = new AtomicBoolean(false);
-	private final Function<S, Region<V, S>> ownerOf;
-
-	/**
-	 * Work to spawn the moment this region seals, given the subscribers drained
-	 * from the cell — dead branches for plain tabling, EMIT targets for closed
-	 * tabling. Inert by default.
-	 */
-	private Function<List<S>, Fiber<Nothing>> onSealed = drained -> done(nothing());
+	private final Scope<S> scope;
 
 	public Region(V initial, Function<S, Region<V, S>> ownerOf) {
 		this.cell = new MonotoneCell<>(initial);
-		this.ownerOf = ownerOf;
+		this.scope = new Scope<>(s -> {
+			Region<V, S> owner = ownerOf.apply(s);
+			return owner == null ? null : owner.scope;
+		});
+		this.scope.drainOnSeal(cell::drainParked);
 	}
 
+	/** The termination-detection half — the graph face scope-only consumers share. */
+	public Scope<S> scope() {
+		return scope;
+	}
 
-	/** Register the fiber to spawn when this region seals (closed tabling's solve-and-emit). */
+	/** Register the fiber to spawn when this region seals, given the drained subscribers. */
 	public void onSealed(Function<List<S>, Fiber<Nothing>> work) {
-		this.onSealed = work;
+		scope.onSealed(work);
 	}
 
 	// ---- the value half ----
@@ -89,7 +63,7 @@ public final class Region<V, S> {
 		return cell.parkedCount();
 	}
 
-	// ---- the work half ----
+	// ---- the work half, delegated to the scope ----
 
 	/**
 	 * Bill {@code work} as one unit of this region's running work, with a
@@ -97,29 +71,26 @@ public final class Region<V, S> {
 	 * runs unbilled.
 	 */
 	public static <V, S> Fiber<Nothing> track(Region<V, S> region, Fiber<Nothing> work) {
-		if (region == null) {
-			return work;
-		}
-		return region.ledger.counted(work, region::sealCascade);
+		return Scope.track(region == null ? null : region.scope, work);
 	}
 
 	public void sleeping(S sleeper, Region<V, S> at) {
-		ledger.sleeping(sleeper, at);
+		scope.sleeping(sleeper, at.scope);
 	}
 
 	public void awake(S sleeper) {
-		ledger.awake(sleeper);
+		scope.awake(sleeper);
 	}
 
 	// ---- the seal ----
 
 	public boolean isSealed() {
-		return sealed.get();
+		return scope.isSealed();
 	}
 
 	/** Manual seal — tests and external certificates. */
 	public void seal() {
-		sealed.set(true);
+		scope.seal();
 	}
 
 	/**
@@ -129,122 +100,6 @@ public final class Region<V, S> {
 	 * 		work (the star emit) — inert for plain tabling
 	 */
 	public Fiber<Nothing> sealCascade() {
-		ArrayList<Fiber<Nothing>> emits = new ArrayList<>();
-		ArrayDeque<Region<V, S>> queue = new ArrayDeque<>();
-		queue.add(this);
-		while (!queue.isEmpty()) {
-			Region<V, S> region = queue.poll();
-			List<S> dead = region.sealIfQuiescent(emits);
-			if (dead == null) {
-				// the singleton rule refused; if the region is drained and
-				// unsealed, the obstruction is a foreign-unsealed sleeper —
-				// try sealing its sleeper-closure as a group
-				if (!region.isSealed() && region.ledger.drained()) {
-					dead = groupSeal(region, emits);
-				}
-				if (dead == null) {
-					continue;
-				}
-			}
-			for (S sleeper : dead) {
-				Region<V, S> owner = ownerOf.apply(sleeper);
-				if (owner != null) {
-					owner.awake(sleeper);
-					queue.add(owner);
-				}
-			}
-		}
-		Fiber<Nothing> result = done(nothing());
-		for (Fiber<Nothing> emit : emits) {
-			Fiber<Nothing> tail = emit;
-			result = result.flatMap(__ -> tail);
-		}
-		return result;
-	}
-
-	private List<S> sealIfQuiescent(ArrayList<Fiber<Nothing>> emits) {
-		if (!ledger.quiescent(at -> at == this || at.isSealed())) {
-			return null;
-		}
-		if (!sealed.compareAndSet(false, true)) {
-			return null;
-		}
-		List<S> drained = cell.drainParked();
-		emits.add(onSealed.apply(drained));
-		return drained;
-	}
-
-	/**
-	 * THE GROUP SEAL (Tier 2) — the singleton rule applied to a VIRTUAL
-	 * MERGE (docs/design/group-seal.md). Define the merge of a set S of
-	 * regions: ledger = sum of the members', sleepers = union, HOME =
-	 * membership in S. The group condition is then the ordinary seal rule
-	 * on merge(S), verbatim — merged ledger drained, every merged sleeper
-	 * home or at a sealed region — and its soundness argument transfers
-	 * with it: growth inside S needs running S-work (none), and nothing
-	 * outside injects, because growth is billed to the grower's own region.
-	 *
-	 * <p>WHICH merge: the smallest one that makes all sleepers home — the
-	 * walk below is a fixpoint ascent in the finite join-semilattice of
-	 * region sets, closing {start} under sleeper-targets (a closure
-	 * operator; running members abort the ascent, and their own finish
-	 * events retry it).
-	 *
-	 * <p>The two-phase read is the price of evaluating the merged rule
-	 * WITHOUT materializing a merged ledger: constituents keep their own
-	 * monitors, and atomicity across them is reconstructed from the
-	 * MONOTONE started counters — two equal reads bracket a spawn-free
-	 * interval, a consistent snapshot with no nested monitors. Racing
-	 * group seals are arbitrated per member by the flag CAS — a lost CAS
-	 * just skips that member's drain. The merge exists for the duration of
-	 * one rule-evaluation and is then discarded; eager permanent merging
-	 * (SLG's ASCC) is the same algorithm with a different merge lifetime.
-	 *
-	 * @return the dead sleepers drained from every sealed member, or null
-	 * 		when the group cannot seal yet
-	 */
-	private List<S> groupSeal(Region<V, S> start, ArrayList<Fiber<Nothing>> emits) {
-		LinkedHashMap<Region<V, S>, Long> members = new LinkedHashMap<>();
-		ArrayDeque<Region<V, S>> frontier = new ArrayDeque<>();
-		frontier.add(start);
-		while (!frontier.isEmpty()) {
-			Region<V, S> region = frontier.poll();
-			if (members.containsKey(region) || region.isSealed()) {
-				continue;
-			}
-			// ONE atomic read per member: drained + counter + sleepers together —
-			// a racing respawn otherwise slips between the reads (see
-			// WorkLedger.drainedSnapshot) and the re-verify below cannot see it
-			WorkLedger.Snapshot<Region<V, S>> snapshot = region.ledger.drainedSnapshot();
-			if (snapshot == null) {
-				return null;
-			}
-			members.put(region, snapshot.started);
-			for (Region<V, S> at : snapshot.sleepingAt) {
-				if (at != region && !at.isSealed()) {
-					frontier.add(at);
-				}
-			}
-		}
-		for (Map.Entry<Region<V, S>, Long> m : members.entrySet()) {
-			if (m.getKey().ledger.startedCount() != m.getValue()) {
-				return null;
-			}
-		}
-		// mark and drain EVERY member before announcing any: at each onSealed
-		// hook the whole group must already read as sealed (SEALED ⟹ SOLVABLE),
-		// so the first-announced hook can act on the full closure
-		LinkedHashMap<Region<V, S>, List<S>> won = new LinkedHashMap<>();
-		for (Region<V, S> member : members.keySet()) {
-			if (member.sealed.compareAndSet(false, true)) {
-				won.put(member, member.cell.drainParked());
-			}
-		}
-		List<S> dead = List.empty();
-		for (Map.Entry<Region<V, S>, List<S>> m : won.entrySet()) {
-			emits.add(m.getKey().onSealed.apply(m.getValue()));
-			dead = dead.appendAll(m.getValue());
-		}
-		return dead;
+		return scope.sealCascade();
 	}
 }
