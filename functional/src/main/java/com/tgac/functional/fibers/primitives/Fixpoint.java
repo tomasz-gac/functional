@@ -26,7 +26,7 @@ import java.util.function.Predicate;
  * grow(delta)                  join the value; every subscriber the growth
  *                              drains is FED the grown value - billed-before-
  *                              awoken - as a detached fiber riding the tail
- * parkFrom(s, caughtUp)        a subscriber out of value parks, its owner's
+ * park(s, caughtUp)            a subscriber out of value parks, its owner's
  *                              ledger kept honest; right(sealAttempt) when
  *                              parked, left(freshValue) when the value moved -
  *                              keep reading what you were handed
@@ -119,7 +119,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	 * 		completed the owner's region, the emit rides the tail; left(the
 	 * 		fresh value) when the value moved past the subscriber
 	 */
-	public Either<V, Fiber<Nothing>> parkFrom(S subscriber, Predicate<V> caughtUp) {
+	public Either<V, Fiber<Nothing>> park(S subscriber, Predicate<V> caughtUp) {
 		Scope<S> ownerScope = ownerOf.apply(subscriber);
 		if (ownerScope != null) {
 			ownerScope.sleeping(subscriber, scope);
