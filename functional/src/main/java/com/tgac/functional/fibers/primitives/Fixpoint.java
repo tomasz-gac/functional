@@ -26,7 +26,7 @@ import java.util.function.Predicate;
  * grow(delta)                  join the value; every subscriber the growth
  *                              drains is FED the grown value - billed-before-
  *                              awoken - as a detached fiber riding the tail
- * parkFrom(owner, s, caughtUp) a subscriber out of value parks, its owner's
+ * parkFrom(s, caughtUp)        a subscriber out of value parks, its owner's
  *                              ledger kept honest; right(sealAttempt) when
  *                              parked, left(freshValue) when the value moved -
  *                              keep reading what you were handed
@@ -111,14 +111,16 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	 * honest: the sleeping record lands BEFORE the park (a feed can only
 	 * drain a parked subscriber, so the record is always there to remove),
 	 * and a refused park - the value moved past the subscriber - removes it
-	 * again and hands the FRESH VALUE back: keep reading, never poll.
+	 * again and hands the FRESH VALUE back: keep reading, never poll. The
+	 * owner is {@link #ownerOf}'s answer - the same authority {@link #grow}
+	 * bills respawns to, so sleep and respawn can never split ledgers.
 	 *
 	 * @return right(the owner's seal attempt) when parked - parking may have
 	 * 		completed the owner's region, the emit rides the tail; left(the
 	 * 		fresh value) when the value moved past the subscriber
 	 */
-	public Either<V, Fiber<Nothing>> parkFrom(Fixpoint<?, S> owner, S subscriber, Predicate<V> caughtUp) {
-		Scope<S> ownerScope = owner == null ? null : owner.scope;
+	public Either<V, Fiber<Nothing>> parkFrom(S subscriber, Predicate<V> caughtUp) {
+		Scope<S> ownerScope = ownerOf.apply(subscriber);
 		if (ownerScope != null) {
 			ownerScope.sleeping(subscriber, scope);
 		}

@@ -26,7 +26,7 @@ public class FixpointTest {
 					return done(nothing());
 				});
 
-		assertThat(f.parkFrom(null, "sub", v -> v.value == 0).isRight()).isTrue();
+		assertThat(f.parkFrom("sub", v -> v.value == 0).isRight()).isTrue();
 		f.grow(MaxInt.of(1)).get();
 		assertThat(fed).containsExactly("sub@1");
 
@@ -43,7 +43,7 @@ public class FixpointTest {
 
 		// the subscriber believes the value is still 0 — the fresh value is
 		// handed back: keep reading, never poll
-		assertThat(f.parkFrom(null, "stale", v -> v.value == 0).getLeft()).isEqualTo(MaxInt.of(1));
+		assertThat(f.parkFrom("stale", v -> v.value == 0).getLeft()).isEqualTo(MaxInt.of(1));
 		assertThat(f.parkedCount()).isEqualTo(0);
 	}
 
@@ -73,9 +73,9 @@ public class FixpointTest {
 		// the ring: a's subscriber waits at b, b's subscriber waits at a —
 		// each park through the safe door, the owner's ledger kept honest
 		owners.put("a-reader", a);
-		assertThat(b.parkFrom(a, "a-reader", v -> true).isRight()).isTrue();
+		assertThat(b.parkFrom("a-reader", v -> true).isRight()).isTrue();
 		owners.put("b-reader", b);
-		assertThat(a.parkFrom(b, "b-reader", v -> true).isRight()).isTrue();
+		assertThat(a.parkFrom("b-reader", v -> true).isRight()).isTrue();
 
 		// each fixpoint runs one master; the last finish's cascade attempt
 		// finds the drained ring and group-seals it
