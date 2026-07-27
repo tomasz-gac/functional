@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -117,15 +118,15 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option), notifyParent));
+			entries.add(new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent));
 		}
 		index = -1;
 	}
 
 	@Override
-	public void detached(Fiber<?> child) {
+	public void detached(Fiber<?> child, WorkScope scope) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child), value -> {
+		entries.add(new Entry(new FiberStep.Frame(child, scope), value -> {
 		}));
 	}
 

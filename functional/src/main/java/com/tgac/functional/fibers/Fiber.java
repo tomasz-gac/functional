@@ -99,12 +99,32 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/**
 	 * Detach a fiber to run independently without blocking the caller's completion.
 	 * The detached fiber runs in the background and the caller continues immediately.
+	 * The child runs UNOWNED — no scope bills it; use {@link #detachTo} to re-parent.
 	 *
 	 * @param fiber The fiber to detach
 	 * @return A fiber that completes immediately while the detached fiber runs independently
 	 */
 	static <A> Fiber<Nothing> detach(Fiber<A> fiber) {
-		return new Detached<>(fiber);
+		return new Detached<>(fiber, null);
+	}
+
+	/**
+	 * Detach a fiber re-parented to {@code scope}: the child runs independently
+	 * but its work bills there — the one legal escape from ambient inheritance
+	 * (a tabling master belongs to its entry, not to whichever caller spawned it).
+	 */
+	static <A> Fiber<Nothing> detachTo(WorkScope scope, Fiber<A> fiber) {
+		return new Detached<>(fiber, scope);
+	}
+
+	/**
+	 * Run {@code fiber} with {@code scope} as the ambient owner: every frame
+	 * forked from it bills there automatically, and leaving the subtree ticks
+	 * the scope's finish and runs its seal attempt. The enclosed form of
+	 * billing — exactly-once by construction.
+	 */
+	static <A> Fiber<A> scoped(WorkScope scope, Fiber<A> fiber) {
+		return new Scoped<>(scope, fiber);
 	}
 
 	@Value
@@ -153,6 +173,15 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Value
 	@RequiredArgsConstructor
 	class Detached<A> implements Fiber<Nothing> {
+		private final Fiber<A> fiber;
+		private final WorkScope scope;
+	}
+
+	/** A subtree with an ambient owner: frames inside bill to {@code scope}. */
+	@Value
+	@RequiredArgsConstructor
+	class Scoped<A> implements Fiber<A> {
+		private final WorkScope scope;
 		private final Fiber<A> fiber;
 	}
 

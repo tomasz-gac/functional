@@ -7,13 +7,24 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.function.Function;
 
 /**
  * Advances one fiber frame by one step. A frame is a fiber under evaluation:
- * the current computation plus the stack of pending continuations.
+ * the current computation plus the stack of pending continuations, plus the
+ * AMBIENT SCOPE the frame's work bills to (null = unowned).
+ *
+ * <p>Billing is the interpreter's, not the schedulers': a frame born with a
+ * scope ticks its start at birth (no gap for a racing seal); on completion
+ * the finish ticks and the scope's seal attempt runs as the frame's own tail
+ * — same driver, same fairness. {@link Fiber.Scoped} re-owns a subtree
+ * within a frame via a restore marker on the continuation stack, and
+ * {@link Fiber.Detached} carries the one legal escape: an explicit
+ * re-parenting scope, or null for unowned. Exactly-once holds by
+ * construction — consumer code never touches the billing doors.
  *
  * The rare events — a frame completing, forking, or detaching a child — are
  * reported through {@link Effects}; the common path (unwrap a deferred,
@@ -25,29 +36,56 @@ final class FiberStep {
 
 	static final class Frame {
 		Fiber<Object> computation;
+		WorkScope scope;
 		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
-		@SuppressWarnings("unchecked")
 		Frame(Fiber<?> computation) {
+			this(computation, null);
+		}
+
+		@SuppressWarnings("unchecked")
+		Frame(Fiber<?> computation, WorkScope scope) {
 			this.computation = (Fiber<Object>) computation;
+			this.scope = scope;
+			if (scope != null) {
+				scope.started();
+			}
+		}
+	}
+
+	/** The continuation-stack marker that leaves a {@link Fiber.Scoped} subtree. */
+	private static final class ScopeRestore implements Function<Object, Fiber<Object>> {
+		final WorkScope inner;
+		final WorkScope outer;
+
+		ScopeRestore(WorkScope inner, WorkScope outer) {
+			this.inner = inner;
+			this.outer = outer;
+		}
+
+		@Override
+		public Fiber<Object> apply(Object value) {
+			throw new IllegalStateException("scope markers are interpreted, never applied");
 		}
 	}
 
 	/**
 	 * Scheduling policy hooks. {@code completed} and {@code forked} mean the
 	 * frame yielded control and must leave the run queue; {@code detached}
-	 * reports an independent child while the frame itself keeps running.
+	 * reports an independent child while the frame itself keeps running —
+	 * the child's frame is born with the given scope (null = unowned).
 	 */
 	interface Effects {
 		void completed(Object value);
 
 		/**
 		 * The fork always carries at least one option: empty forks are
-		 * vacuously complete and never reach the scheduler.
+		 * vacuously complete and never reach the scheduler. Child frames
+		 * inherit the forking frame's ambient scope.
 		 */
 		void forked(Fiber.Forked<Object> fork);
 
-		void detached(Fiber<?> child);
+		void detached(Fiber<?> child, WorkScope scope);
 	}
 
 
@@ -73,18 +111,41 @@ final class FiberStep {
 		if (computation instanceof Fiber.Done) {
 			Object value = ((Fiber.Done<Object>) computation).getValue();
 			if (frame.ks.isEmpty()) {
+				if (frame.scope != null) {
+					// the finish and the seal attempt run as this frame's tail —
+					// same driver steps the cascade and whatever it emits
+					WorkScope owner = frame.scope;
+					frame.scope = null;
+					frame.computation = owner.finished().map(__ -> value);
+					return true;
+				}
 				listener.onCompleted(value);
 				effects.completed(value);
 				return false;
 			}
-			frame.computation = frame.ks.pollLast().apply(value);
+			Function<Object, Fiber<Object>> k = frame.ks.pollLast();
+			if (k instanceof ScopeRestore) {
+				ScopeRestore restore = (ScopeRestore) k;
+				frame.scope = restore.outer;
+				frame.computation = restore.inner.finished().map(__ -> value);
+				return true;
+			}
+			frame.computation = k.apply(value);
+			return true;
+		}
+		if (computation instanceof Fiber.Scoped) {
+			Fiber.Scoped<Object> scoped = (Fiber.Scoped<Object>) computation;
+			scoped.getScope().started();
+			frame.ks.addLast(new ScopeRestore(scoped.getScope(), frame.scope));
+			frame.scope = scoped.getScope();
+			frame.computation = scoped.getFiber();
 			return true;
 		}
 		if (computation instanceof Fiber.Detached) {
-			Fiber<?> child = ((Fiber.Detached<?>) (Fiber<?>) computation).getFiber();
+			Fiber.Detached<?> detached = (Fiber.Detached<?>) (Fiber<?>) computation;
 			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
-			listener.onDetached(child);
-			effects.detached(child);
+			listener.onDetached(detached.getFiber());
+			effects.detached(detached.getFiber(), detached.getScope());
 			return true;
 		}
 		if (computation instanceof Fiber.Forked) {

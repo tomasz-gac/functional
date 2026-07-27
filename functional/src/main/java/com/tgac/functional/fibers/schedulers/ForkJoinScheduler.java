@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.List;
 import java.util.Optional;
@@ -158,15 +159,15 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			};
 
 			for (Fiber<Object> option : options) {
-				spawn(new Task(new FiberStep.Frame(option), childSink, childDone));
+				spawn(new Task(new FiberStep.Frame(option, frame.scope), childSink, childDone));
 			}
 		}
 
 		@Override
-		public void detached(Fiber<?> child) {
+		public void detached(Fiber<?> child, WorkScope scope) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
-			spawn(new Task(new FiberStep.Frame(child), DISCARD, NO_JOIN));
+			spawn(new Task(new FiberStep.Frame(child, scope), DISCARD, NO_JOIN));
 		}
 
 		private void spawn(Task task) {

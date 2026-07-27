@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.Comparator;
 import java.util.Optional;
@@ -113,14 +114,14 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.offer(new Entry(new FiberStep.Frame(option), notifyParent, current.depth + 1));
+			entries.offer(new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent, current.depth + 1));
 		}
 	}
 
 	@Override
-	public void detached(Fiber<?> child) {
+	public void detached(Fiber<?> child, WorkScope scope) {
 		// runs independently; its result is discarded
-		entries.offer(new Entry(new FiberStep.Frame(child), value -> {
+		entries.offer(new Entry(new FiberStep.Frame(child, scope), value -> {
 		}, current.depth));
 	}
 

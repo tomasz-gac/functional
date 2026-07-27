@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -131,16 +132,16 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		};
 
 		addAll(currentBucket.depth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option), notifyParent))
+				.map(option -> new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent))
 				.collect(Collectors.toList()));
 	}
 
 	@Override
-	public void detached(Fiber<?> child) {
+	public void detached(Fiber<?> child, WorkScope scope) {
 		// runs independently; its result is discarded
 		addAll(currentBucket.depth,
 				new ArrayList<>(Collections.singletonList(
-						new Entry(new FiberStep.Frame(child), value -> {
+						new Entry(new FiberStep.Frame(child, scope), value -> {
 						}))));
 	}
 

@@ -8,6 +8,7 @@ import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.WorkScope;
 import io.vavr.collection.List;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -47,7 +48,7 @@ import java.util.function.Supplier;
  * an obstruction and is rechecked. Monitors never nest — each scope's
  * rule runs under its own locks, the walk happens outside them.
  */
-public final class Scope<S> {
+public final class Scope<S> implements WorkScope {
 
 	private final WorkLedger<S, Scope<S>> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
@@ -78,15 +79,28 @@ public final class Scope<S> {
 	}
 
 	/**
-	 * Enclose a workforce: bill {@code seed} to this scope, and when the
-	 * seal fires — all transitively billed work exhausted, every sleeper
-	 * provably dead — run {@code atSeal}. The one-call form of the
-	 * track/onSealed pairing: consumers that only want "run this, tell me
+	 * Enclose a workforce: run {@code seed} with this scope AMBIENT — every
+	 * frame forked from it bills here automatically — and when the seal
+	 * fires (all transitively billed work exhausted, every sleeper provably
+	 * dead) run {@code atSeal}. Consumers that only want "run this, tell me
 	 * when it is truly done" never touch raw billing.
 	 */
 	public Fiber<Nothing> enclose(Fiber<Nothing> seed, Supplier<Fiber<Nothing>> atSeal) {
 		onSealed(drained -> atSeal.get());
-		return track(this, seed);
+		return Fiber.scoped(this, seed);
+	}
+
+	// ---- the interpreter's billing doors ----
+
+	@Override
+	public void started() {
+		ledger.taskStarted();
+	}
+
+	@Override
+	public Fiber<Nothing> finished() {
+		ledger.taskFinished();
+		return Fiber.defer(this::sealCascade);
 	}
 
 	void drainOnSeal(Supplier<List<S>> drain) {
