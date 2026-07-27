@@ -16,7 +16,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Termination detection for one region of work whose pieces are either
+ * Termination detection for one scope of work whose pieces are either
  * RUNNING (live fibers — counted by the Dijkstra–Scholten pair
  * {@code started}/{@code finished}, both monotone), SLEEPING (parked at
  * some place {@code P}, wakeable), or dead (silence). {@link #quiescent}
@@ -39,7 +39,7 @@ public final class WorkLedger<S, P> {
 	private long started;
 	private long finished;
 
-	/** Sleeping pieces of this region, mapped to the place each parks at. */
+	/** Sleeping pieces of this scope, mapped to the place each parks at. */
 	private final Map<S, P> sleeping = new HashMap<>();
 
 
@@ -64,12 +64,12 @@ public final class WorkLedger<S, P> {
 		return started;
 	}
 
-	/** Counters drained: the region has run and all its fibers ended. */
+	/** Counters drained: the scope has run and all its fibers ended. */
 	public synchronized boolean drained() {
 		return started > 0 && finished == started;
 	}
 
-	/** The places this region's sleepers park at — a snapshot. */
+	/** The places this scope's sleepers park at — a snapshot. */
 	public synchronized List<P> sleepingAt() {
 		return new ArrayList<>(sleeping.values());
 	}

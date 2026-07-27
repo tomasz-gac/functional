@@ -1,8 +1,8 @@
-// ABOUTME: Termination detection for cooperatively-scheduled work: regions of
+// ABOUTME: Termination detection for cooperatively-scheduled work: scopes of
 // ABOUTME: counted fibers with parked subscribers, sealed at quiescence.
 
 /**
- * Termination detection as a value: a {@link com.tgac.functional.fibers.primitives.Region}
+ * Termination detection as a value: a {@link com.tgac.functional.fibers.primitives.MonotoneGrowth}
  * pairs a monotonically growing {@link com.tgac.functional.fibers.primitives.MonotoneCell}
  * (whose growth wakes parked subscribers) with a
  * {@link com.tgac.functional.fibers.primitives.WorkLedger} (running work counted
@@ -23,13 +23,13 @@
  * waits here.</li>
  * <li><b>Internal, monotone</b> (accumulating answers, growing knowledge —
  * anything with upward-closed wake conditions over a grow-only substrate):
- * enroll in a Region. Cyclic waits are FIXPOINTS, not errors; quiescence
+ * enroll in a MonotoneGrowth. Cyclic waits are FIXPOINTS, not errors; quiescence
  * detection completes them soundly. This is the only legal way for one piece
  * of in-drive work to wait on another.</li>
  * <li><b>Internal, non-monotone</b> (a cycle through an operator whose result
  * depends on a COMPLETED sub-search — aggregation, negation): no sound
  * completion value exists; such cycles must be detected and refused
- * (stratification), never quiescence-completed. A Region's seal must not be
+ * (stratification), never quiescence-completed. A MonotoneGrowth's seal must not be
  * used to break them.</li>
  * </ul>
  *

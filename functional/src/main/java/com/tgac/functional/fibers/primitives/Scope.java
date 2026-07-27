@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A sealable scope of work: the billing ledger, the seal, and the cascade —
-// ABOUTME: termination detection without a published value; Region adds the cell.
+// ABOUTME: termination detection without a published value; MonotoneGrowth adds the cell.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -18,7 +18,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * The termination-detection half of a {@link Region}: a {@link WorkLedger}
+ * The termination-detection half of a {@link MonotoneGrowth}: a {@link WorkLedger}
  * (everything working for the scope — running fibers and sleeping
  * subscribers, each recorded with the scope it sleeps at) and a SEAL — the
  * upward-closed, CAS'd-once declaration that the scope's work is finished.
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  *
  * <p>A scope needs no published value to be sealable: subscribers that wait
  * only for the seal {@link #park} here and are drained when it fires. A
- * {@link Region} composes a scope with a {@link MonotoneCell} and redirects
+ * {@link MonotoneGrowth} composes a scope with a {@link MonotoneCell} and redirects
  * the drain to the cell's parked subscribers.
  *
  * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
@@ -63,7 +63,7 @@ public final class Scope<S> {
 
 	/**
 	 * Where dead subscribers are harvested at seal time: this scope's own
-	 * {@link #park}ed list by default; a {@link Region} redirects to its
+	 * {@link #park}ed list by default; a {@link MonotoneGrowth} redirects to its
 	 * cell's parked subscribers.
 	 */
 	private Supplier<List<S>> drainOnSeal = this::drainParked;

@@ -1,6 +1,6 @@
 package com.tgac.functional.fibers.primitives;
 
-// ABOUTME: Region seal-cascade tests: the group seal marks every member sealed
+// ABOUTME: MonotoneGrowth seal-cascade tests: the group seal marks every member sealed
 // ABOUTME: before any member's onSealed hook fires (SEALED implies SOLVABLE).
 
 import static com.tgac.functional.category.Nothing.nothing;
@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 
-public class RegionTest {
+public class MonotoneGrowthTest {
 
 	/**
 	 * A sleeper ring group-seals as one unit: at the moment any member's
@@ -25,10 +25,10 @@ public class RegionTest {
 	 */
 	@Test
 	public void groupSealMarksEveryMemberBeforeAnyHookFires() {
-		Map<String, Region<Integer, String>> owners = new HashMap<>();
-		Function<String, Region<Integer, String>> ownerOf = owners::get;
-		Region<Integer, String> a = new Region<>(0, ownerOf);
-		Region<Integer, String> b = new Region<>(0, ownerOf);
+		Map<String, MonotoneGrowth<Integer, String>> owners = new HashMap<>();
+		Function<String, MonotoneGrowth<Integer, String>> ownerOf = owners::get;
+		MonotoneGrowth<Integer, String> a = new MonotoneGrowth<>(0, ownerOf);
+		MonotoneGrowth<Integer, String> b = new MonotoneGrowth<>(0, ownerOf);
 
 		List<Boolean> groupSealedAtHook = new ArrayList<>();
 		a.onSealed(drained -> {
@@ -48,10 +48,10 @@ public class RegionTest {
 		b.sleeping("b-reader", a);
 		a.park("b-reader", v -> true);
 
-		// each region runs one unit of tracked work (its master); the last
+		// each fixpoint runs one unit of tracked work (its master); the last
 		// finish's cascade attempt finds the drained ring and group-seals it
-		Region.track(a, Fiber.defer(() -> done(nothing()))).get();
-		Region.track(b, Fiber.defer(() -> done(nothing()))).get();
+		MonotoneGrowth.track(a, Fiber.defer(() -> done(nothing()))).get();
+		MonotoneGrowth.track(b, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(a.isSealed()).isTrue();
 		assertThat(b.isSealed()).isTrue();
