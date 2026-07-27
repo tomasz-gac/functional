@@ -6,7 +6,9 @@ package com.tgac.functional.fibers.schedulers;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -86,6 +88,26 @@ final class FiberStep {
 		void forked(Fiber.Forked<Object> fork);
 
 		void detached(Fiber<?> child, WorkScope scope);
+
+		/**
+		 * The resume handle for the current frame, bound to its queue entry.
+		 * Completing it re-bills {@code owner} (billed-before-unblocked is
+		 * internal — no caller can misorder it), hands the frame its result
+		 * and re-queues it through the drive's injection boundary.
+		 */
+		default Await.Waiter<Object> resumeHandle(WorkScope owner) {
+			throw new UnsupportedOperationException(
+					"Fiber.await is not supported by this scheduler yet");
+		}
+
+		/**
+		 * The current frame suspended into {@code at} — leave the run queue
+		 * without completing; the {@link #resumeHandle} re-queues it.
+		 */
+		default void suspended(Source<?> at) {
+			throw new UnsupportedOperationException(
+					"Fiber.await is not supported by this scheduler yet");
+		}
 	}
 
 
@@ -147,6 +169,33 @@ final class FiberStep {
 			listener.onDetached(detached.getFiber());
 			effects.detached(detached.getFiber(), detached.getScope());
 			return true;
+		}
+		if (computation instanceof Fiber.Awaiting) {
+			Fiber.Awaiting<Object> awaiting = (Fiber.Awaiting<Object>) (Fiber<?>) computation;
+			Source<Object> source = awaiting.getSource();
+			WorkScope owner = frame.scope;
+			if (owner != null) {
+				// the blocked record lands BEFORE the running pair closes — a
+				// racing seal must never see drained counters with no sleeper
+				owner.blocked(frame, source.account());
+			}
+			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), effects.resumeHandle(owner));
+			if (immediate != null) {
+				if (owner != null) {
+					owner.unblocked(frame);
+				}
+				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
+				return true;
+			}
+			// held: the frame leaves the queue; the finish tick and seal attempt
+			// run as detached work — the still-open pair until it runs only
+			// delays a seal, which is always sound
+			frame.scope = null;
+			if (owner != null) {
+				effects.detached(owner.finished(), null);
+			}
+			effects.suspended(source);
+			return false;
 		}
 		if (computation instanceof Fiber.Forked) {
 			Fiber.Forked<Object> fork = (Fiber.Forked<Object>) computation;

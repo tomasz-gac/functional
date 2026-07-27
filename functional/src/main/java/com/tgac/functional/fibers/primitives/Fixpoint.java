@@ -130,7 +130,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 					: Fiber.defer(ownerScope::sealCascade));
 		}
 		if (ownerScope != null) {
-			ownerScope.awake(subscriber);
+			ownerScope.unblocked(subscriber);
 		}
 		return Either.left(cell.read());
 	}

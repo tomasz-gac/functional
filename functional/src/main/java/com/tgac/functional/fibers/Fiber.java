@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -127,6 +128,18 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		return new Scoped<>(scope, fiber);
 	}
 
+	/**
+	 * Suspend until {@code ready} holds of {@code source}'s value or the
+	 * source's account seals — the condition variable over a monotone source
+	 * (docs/design/await.md). The fiber does not end while blocked: its
+	 * account converts the running pair into a blocked record, so every
+	 * quiescence question stays answerable. Run-once: one await completes at
+	 * most once ({@code more} or {@code sealed}); re-arm with flatMap.
+	 */
+	static <V> Fiber<Await.Result<V>> await(Source<V> source, Predicate<V> ready) {
+		return new Awaiting<>(source, ready);
+	}
+
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Fiber<A> {
@@ -183,6 +196,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Scoped<A> implements Fiber<A> {
 		private final WorkScope scope;
 		private final Fiber<A> fiber;
+	}
+
+	/** A fiber suspended on a {@link Source} until ready or sealed. */
+	@Value
+	@RequiredArgsConstructor
+	class Awaiting<V> implements Fiber<Await.Result<V>> {
+		private final Source<V> source;
+		private final Predicate<V> ready;
 	}
 
 	@Getter

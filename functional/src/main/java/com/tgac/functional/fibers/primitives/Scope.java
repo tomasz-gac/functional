@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  */
 public final class Scope<S> implements WorkScope {
 
-	private final WorkLedger<S, Scope<S>> ledger = new WorkLedger<>();
+	private final WorkLedger<Object, WorkScope> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final Function<S, Scope<S>> ownerOf;
 	private final ArrayList<S> awaitingSeal = new ArrayList<>();
@@ -118,11 +118,13 @@ public final class Scope<S> implements WorkScope {
 
 	// ---- the work half ----
 
-	public void blocked(S sleeper, Scope<S> at) {
+	@Override
+	public void blocked(Object sleeper, WorkScope at) {
 		ledger.sleeping(sleeper, at);
 	}
 
-	public void awake(S sleeper) {
+	@Override
+	public void unblocked(Object sleeper) {
 		ledger.awake(sleeper);
 	}
 
@@ -133,17 +135,18 @@ public final class Scope<S> implements WorkScope {
 	 * or a racing seal (parallel schedulers) reads this scope as quiescent
 	 * and seals it out from under the consumer. The eager tick is why this
 	 * lives here and not on the ambient path, whose tick lands at frame
-	 * creation — after the awake. Over-counting for the instant between
+	 * creation — after the unblock. Over-counting for the instant between
 	 * only delays a seal, which is always sound.
 	 */
 	public Fiber<Nothing> respawn(S sleeper, Fiber<Nothing> work) {
 		Fiber<Nothing> tracked = ledger.counted(work, this::sealCascade);
-		awake(sleeper);
+		unblocked(sleeper);
 		return Fiber.detach(tracked);
 	}
 
 	// ---- the seal ----
 
+	@Override
 	public boolean isSealed() {
 		return sealed.get();
 	}
@@ -180,7 +183,7 @@ public final class Scope<S> implements WorkScope {
 			for (S sleeper : dead) {
 				Scope<S> owner = ownerOf.apply(sleeper);
 				if (owner != null) {
-					owner.awake(sleeper);
+					owner.unblocked(sleeper);
 					queue.add(owner);
 				}
 			}
@@ -234,6 +237,7 @@ public final class Scope<S> implements WorkScope {
 	 * @return the dead sleepers drained from every sealed member, or null
 	 * 		when the group cannot seal yet
 	 */
+	@SuppressWarnings("unchecked")
 	private List<S> groupSeal(Scope<S> start, ArrayList<Fiber<Nothing>> emits) {
 		LinkedHashMap<Scope<S>, Long> members = new LinkedHashMap<>();
 		ArrayDeque<Scope<S>> frontier = new ArrayDeque<>();
@@ -246,14 +250,18 @@ public final class Scope<S> implements WorkScope {
 			// ONE atomic read per member: drained + counter + sleepers together —
 			// a racing respawn otherwise slips between the reads (see
 			// WorkLedger.drainedSnapshot) and the re-verify below cannot see it
-			WorkLedger.Snapshot<Scope<S>> snapshot = scope.ledger.drainedSnapshot();
+			WorkLedger.Snapshot<WorkScope> snapshot = scope.ledger.drainedSnapshot();
 			if (snapshot == null) {
 				return null;
 			}
 			members.put(scope, snapshot.started);
-			for (Scope<S> at : snapshot.sleepingAt) {
+			for (WorkScope at : snapshot.sleepingAt) {
 				if (at != scope && !at.isSealed()) {
-					frontier.add(at);
+					if (!(at instanceof Scope)) {
+						// a foreign unsealed place cannot join the merge - defer
+						return null;
+					}
+					frontier.add((Scope<S>) at);
 				}
 			}
 		}

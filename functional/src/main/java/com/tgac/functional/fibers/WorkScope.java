@@ -19,4 +19,24 @@ public interface WorkScope {
 
 	/** Tick the matching finish and return the seal-attempt work to run as the tail. */
 	Fiber<Nothing> finished();
+
+	/**
+	 * Record that a piece of this scope's work is blocked, wakeable only by
+	 * {@code at}. The interpreter places the record BEFORE the running pair
+	 * closes, so a racing seal never sees drained counters with no sleeper.
+	 */
+	default void blocked(Object waiter, WorkScope at) {
+	}
+
+	/** The blocked piece is no longer an obstruction — resumed or proven dead. */
+	default void unblocked(Object waiter) {
+	}
+
+	/**
+	 * Whether this scope's work is provably finished — an upward-closed read
+	 * (a stale false only defers a seal, never unsounds one).
+	 */
+	default boolean isSealed() {
+		return false;
+	}
 }

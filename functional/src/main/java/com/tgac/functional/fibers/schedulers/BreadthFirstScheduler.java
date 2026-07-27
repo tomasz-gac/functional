@@ -4,13 +4,17 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: shallowest bucket, with long-running buckets promoted to keep disjunction fair.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
@@ -28,6 +32,11 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	private final PriorityQueue<Bucket> buckets;
 	private final int iterationsForPromotion;
 	private StepListener stepListener = StepListener.NO_OP;
+
+	/** Resumed waiters re-enter here; drained at the top of every step. */
+	private final ArrayDeque<Entry> injections = new ArrayDeque<>();
+	/** Frames held by a Source, for the endgame's stranded-waiter refusal. */
+	private final LinkedHashMap<Entry, Source<?>> outstanding = new LinkedHashMap<>();
 
 	@Override
 	public BreadthFirstScheduler<A> withListener(StepListener listener) {
@@ -59,7 +68,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 			if (step(sink))
 				return true;
 		}
-		return buckets.isEmpty();
+		return buckets.isEmpty() && injections.isEmpty();
 	}
 
 	@Override
@@ -88,7 +97,11 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
+		while (!injections.isEmpty()) {
+			add(injections.poll());
+		}
 		if (buckets.isEmpty()) {
+			refuseStrandedWaiters();
 			return true;
 		}
 
@@ -143,6 +156,42 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 				new ArrayList<>(Collections.singletonList(
 						new Entry(new FiberStep.Frame(child, scope), value -> {
 						}))));
+	}
+
+	@Override
+	public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+		Entry entry = current;
+		return result -> {
+			if (owner != null) {
+				// billed before the blocked record goes — a racing seal never
+				// reads quiescence in the gap
+				owner.started();
+				owner.unblocked(entry.frame);
+			}
+			entry.frame.scope = owner;
+			entry.frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
+			outstanding.remove(entry);
+			injections.add(entry);
+		};
+	}
+
+	@Override
+	public void suspended(Source<?> at) {
+		outstanding.put(current, at);
+		removeCurrentEntry(currentBucket);
+	}
+
+	/**
+	 * The endgame assert (docs/design/await.md §6): a drive out of work may
+	 * hold no live blocked frame — every source's seal completes its waiters,
+	 * so a stranded one names an account that never received work.
+	 */
+	private void refuseStrandedWaiters() {
+		if (outstanding.isEmpty()) {
+			return;
+		}
+		throw new IllegalStateException("drive exhausted with " + outstanding.size()
+				+ " frame(s) blocked at unsealed sources: " + outstanding.values());
 	}
 
 	private void tryPromote() {
