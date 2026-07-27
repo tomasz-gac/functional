@@ -3,7 +3,7 @@ package com.tgac.functional.algebra;
 // ABOUTME: Laws for the lattice witnesses: Mask exact both directions,
 // ABOUTME: Range inflationary, both bottomed.
 
-import com.tgac.functional.algebra.laws.BottomedLaws;
+import com.tgac.functional.algebra.laws.AbsorbingLaws;
 import com.tgac.functional.algebra.laws.LatticeLaws;
 import com.tgac.functional.algebra.laws.LawsFor;
 import com.tgac.functional.algebra.laws.SemilatticeLaws;
@@ -27,8 +27,7 @@ public class LatticeWitnessLawsTest {
 				Lattices.Mask.of(0b0000L), Lattices.Mask.of(0b1010L),
 				Lattices.Mask.of(0b0110L), Lattices.Mask.of(0b1111L));
 		LatticeLaws.check(xs, Lattices.Mask::join);
-		SemilatticeLaws.checkMeet(xs);
-		BottomedLaws.check(xs);
+		AbsorbingLaws.check(xs);
 	}
 
 	@Test
@@ -37,6 +36,6 @@ public class LatticeWitnessLawsTest {
 				Lattices.Range.of(0, 10), Lattices.Range.of(3, 5),
 				Lattices.Range.of(8, 12), Lattices.Range.of(1, 0));
 		LatticeLaws.checkInflationary(xs, Lattices.Range::join);
-		BottomedLaws.check(xs);
+		AbsorbingLaws.check(xs);
 	}
 }

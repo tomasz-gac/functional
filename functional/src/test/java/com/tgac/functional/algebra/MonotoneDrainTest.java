@@ -45,7 +45,7 @@ public class MonotoneDrainTest {
 					processed.incrementAndGet();
 					return MonotoneDrain.Step.proceed(state.meet(w));
 				});
-		assertThat(result.isBottom()).isTrue();
+		assertThat(result.isAbsorbing()).isTrue();
 		assertThat(processed.get()).isEqualTo(1);
 	}
 
@@ -68,7 +68,7 @@ public class MonotoneDrainTest {
 				Collections.singletonList(Lattices.Mask.of(0b0110L)),
 				(state, w) -> MonotoneDrain.Step.proceed(state.join(w))))
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("contract");
+				.hasMessageContaining("accumulate");
 	}
 
 	@Test
@@ -86,7 +86,7 @@ public class MonotoneDrainTest {
 					processed.incrementAndGet();
 					return MonotoneDrain.Step.proceed(state.meet(w));
 				});
-		assertThat(dead.isBottom()).isTrue();
+		assertThat(dead.isAbsorbing()).isTrue();
 		assertThat(processed.get()).isEqualTo(1);
 	}
 
@@ -97,6 +97,6 @@ public class MonotoneDrainTest {
 				(state, w) -> MonotoneDrain.Step.proceed(state.meet(w),
 						Collections.singletonList(Lattices.Mask.of(0b0001L)))))
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("strict descent");
+				.hasMessageContaining("strict accumulation");
 	}
 }

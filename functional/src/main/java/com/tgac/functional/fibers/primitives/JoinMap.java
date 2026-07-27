@@ -4,7 +4,7 @@ package com.tgac.functional.fibers.primitives;
 // ABOUTME: keep arrival order for indexed reads, values fold by the semiring's ⊕.
 
 import com.tgac.functional.algebra.IdempotentSemiring;
-import com.tgac.functional.algebra.JoinSemilattice;
+import com.tgac.functional.algebra.Semilattice;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.HashMap;
@@ -29,7 +29,7 @@ import io.vavr.control.Option;
  * indexed reads, the map answers value lookup and equality — invariant:
  * {@code members} holds exactly the vector's keys.
  */
-public class JoinMap<K, V> implements JoinSemilattice<JoinMap<K, V>> {
+public class JoinMap<K, V> implements Semilattice<JoinMap<K, V>> {
 	public final Vector<K> order;
 	public final HashMap<K, V> members;
 	public final IdempotentSemiring<V> semiring;
@@ -65,6 +65,10 @@ public class JoinMap<K, V> implements JoinSemilattice<JoinMap<K, V>> {
 	}
 
 	@Override
+	public JoinMap<K, V> combine(JoinMap<K, V> other) {
+		return join(other);
+	}
+
 	public JoinMap<K, V> join(JoinMap<K, V> other) {
 		Vector<K> mergedOrder = order;
 		HashMap<K, V> mergedMembers = members;

@@ -15,9 +15,9 @@ import org.junit.jupiter.api.Test;
 
 public class EqParameterizedLawsTest {
 
-	// a join-semilattice (join = max) with NO equals override, so its laws
+	// a semilattice (combine = max) with NO equals override, so its laws
 	// hold only up to the value quotient — the substitution-lattice case
-	static final class Boxed implements JoinSemilattice<Boxed> {
+	static final class Boxed implements Semilattice<Boxed> {
 		final long v;
 
 		Boxed(long v) {
@@ -25,7 +25,7 @@ public class EqParameterizedLawsTest {
 		}
 
 		@Override
-		public Boxed join(Boxed other) {
+		public Boxed combine(Boxed other) {
 			return new Boxed(Math.max(v, other.v));
 		}
 	}
@@ -37,12 +37,12 @@ public class EqParameterizedLawsTest {
 
 	@Test
 	public void joinLawsHoldThroughTheSuppliedQuotient() {
-		SemilatticeLaws.checkJoin(BOXED_JOINS, BY_VALUE);
+		SemilatticeLaws.check(BOXED_JOINS, BY_VALUE);
 	}
 
 	@Test
 	public void joinEqualsEntryPointCannotExpressTheQuotient() {
-		assertThatThrownBy(() -> SemilatticeLaws.checkJoin(BOXED_JOINS))
+		assertThatThrownBy(() -> SemilatticeLaws.check(BOXED_JOINS))
 				.isInstanceOf(AssertionError.class);
 	}
 

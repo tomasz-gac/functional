@@ -34,8 +34,8 @@ public class JoinMapLawsTest {
 	}
 
 	@Test
-	public void joinMapsFormAJoinSemilattice() {
-		SemilatticeLaws.checkJoin(Arrays.asList(
+	public void joinMapsFormASemilattice() {
+		SemilatticeLaws.check(Arrays.asList(
 				JoinMap.<Long, Long> empty(Semirings.MIN_PLUS),
 				of(Tuple.of(1L, 5L)),
 				of(Tuple.of(1L, 9L)),                       // shared key, cheaper wins in the fold

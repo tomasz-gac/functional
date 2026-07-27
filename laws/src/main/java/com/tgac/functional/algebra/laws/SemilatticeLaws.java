@@ -1,62 +1,77 @@
 package com.tgac.functional.algebra.laws;
 
-// ABOUTME: Idempotence, commutativity, associativity, and leq-coherence for
-// ABOUTME: both direction witnesses.
+// ABOUTME: The one semilattice kit — combine's algebra and the accumulation order —
+// ABOUTME: plus coherence checks tying a type's explicit leq to that order.
 
-import com.tgac.functional.algebra.JoinSemilattice;
-import com.tgac.functional.algebra.MeetSemilattice;
+import com.tgac.functional.algebra.PartialOrder;
+import com.tgac.functional.algebra.Semilattice;
 import java.util.List;
 import java.util.function.BiPredicate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+/**
+ * There is ONE semilattice algebra; "meet" and "join" are a domain's names
+ * for which way its explicit {@code leq} reads the accumulation order.
+ * {@link #check} certifies the algebra; the coherence kits certify the
+ * co-declaration: {@link #checkLeqAgreesWithAccumulation} for join-flavored
+ * types (leq IS the accumulation order), {@link #checkLeqReversesAccumulation}
+ * for meet-flavored ones (accumulating knowledge descends the extension).
+ * Either coherence plus the algebra implies the order laws (reflexivity,
+ * antisymmetry mod equals, transitivity), so both record partial-order
+ * coverage.
+ */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SemilatticeLaws {
-	public static <L extends MeetSemilattice<L>> void checkMeet(List<L> xs) {
-		for (L a : xs) {
-			Laws.require(a.meet(a).equals(a), "meet idempotence", a);
-			Laws.require(a.leq(a), "leq reflexivity", a);
-			for (L b : xs) {
-				Laws.require(a.meet(b).equals(b.meet(a)), "meet commutativity", a, b);
-				Laws.require(a.meet(b).leq(a) && a.meet(b).leq(b), "meet is a lower bound", a, b);
-				if (a.leq(b) && b.leq(a)) {
-					Laws.require(a.equals(b), "leq antisymmetry (mod equals)", a, b);
-				}
-				for (L c : xs) {
-					Laws.require(a.meet(b).meet(c).equals(a.meet(b.meet(c))), "meet associativity", a, b, c);
-					if (a.leq(b) && b.leq(c)) {
-						Laws.require(a.leq(c), "leq transitivity", a, b, c);
-					}
-				}
-			}
-		}
-		LawRegistry.recordSamples("meet", xs);
-		// the sweeps above ARE the order laws for the derived leq — this kit
-		// certifies the PartialOrder algebra of everything it checks
-		LawRegistry.recordSamples("partial-order", xs);
-	}
 
-	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs) {
-		checkJoin(xs, Object::equals);
+	public static <L extends Semilattice<L>> void check(List<L> xs) {
+		// absorbedBy is derived through equals, so its laws are only claimable
+		// at the equals quotient — quotient types get idempotence-under-eq only
+		for (L a : xs) {
+			Laws.require(a.absorbedBy(a), "absorbedBy reflexivity", a);
+		}
+		check(xs, Object::equals);
 	}
 
 	/** @param eq the quotient the laws are claimed up to (solved form for substitutions) */
-	public static <L extends JoinSemilattice<L>> void checkJoin(List<L> xs, BiPredicate<L, L> eq) {
+	public static <L extends Semilattice<L>> void check(List<L> xs, BiPredicate<L, L> eq) {
 		for (L a : xs) {
-			Laws.require(eq.test(a.join(a), a), "join idempotence", a);
+			Laws.require(eq.test(a.combine(a), a), "combine idempotence", a);
 			for (L b : xs) {
-				L ab = a.join(b);
-				Laws.require(eq.test(ab, b.join(a)), "join commutativity", a, b);
-				Laws.require(eq.test(a.join(ab), ab) && eq.test(b.join(ab), ab),
-						"join is an upper bound", a, b);
+				L ab = a.combine(b);
+				Laws.require(eq.test(ab, b.combine(a)), "combine commutativity", a, b);
+				Laws.require(eq.test(a.combine(ab), ab) && eq.test(b.combine(ab), ab),
+						"combine result absorbs both arguments", a, b);
 				for (L c : xs) {
-					Laws.require(eq.test(a.join(b).join(c), a.join(b.join(c))), "join associativity", a, b, c);
+					Laws.require(eq.test(a.combine(b).combine(c), a.combine(b.combine(c))),
+							"combine associativity", a, b, c);
 				}
 			}
 		}
-		LawRegistry.recordSamples("join", xs);
-		// join laws imply the order laws for the derived leq (up to the same
-		// eq quotient the join laws are claimed under)
+		LawRegistry.recordSamples("semilattice", xs);
+	}
+
+	/** Join-flavored co-declaration: {@code leq} IS the accumulation order. */
+	public static <L extends Semilattice<L> & PartialOrder<L>> void checkLeqAgreesWithAccumulation(List<L> xs) {
+		check(xs);
+		for (L a : xs) {
+			for (L b : xs) {
+				Laws.require(a.leq(b) == a.absorbedBy(b), "leq agrees with accumulation", a, b);
+			}
+		}
+		LawRegistry.recordSamples("order-ascending", xs);
+		LawRegistry.recordSamples("partial-order", xs);
+	}
+
+	/** Meet-flavored co-declaration: accumulating knowledge DESCENDS the extension. */
+	public static <L extends Semilattice<L> & PartialOrder<L>> void checkLeqReversesAccumulation(List<L> xs) {
+		check(xs);
+		for (L a : xs) {
+			for (L b : xs) {
+				Laws.require(a.leq(b) == b.absorbedBy(a), "leq reverses accumulation", a, b);
+			}
+		}
+		LawRegistry.recordSamples("order-descending", xs);
 		LawRegistry.recordSamples("partial-order", xs);
 	}
 }

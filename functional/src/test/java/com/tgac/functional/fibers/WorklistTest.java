@@ -81,7 +81,7 @@ public class WorklistTest {
 							return Worklist.Step.proceed(state.meet(w));
 						})
 				.get();
-		assertThat(result.isBottom()).isTrue();
+		assertThat(result.isAbsorbing()).isTrue();
 		// the second item is never processed: ⊥ stops the drain
 		assertThat(processed.get()).isEqualTo(1);
 	}
@@ -93,7 +93,7 @@ public class WorklistTest {
 						(state, w) -> Worklist.Step.proceed(state.join(w)))
 				.get())
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("contract");
+				.hasMessageContaining("accumulate");
 	}
 
 	@Test
@@ -104,7 +104,7 @@ public class WorklistTest {
 								Collections.singletonList(Lattices.Mask.of(0b0001L))))
 				.get())
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("strict descent");
+				.hasMessageContaining("strict accumulation");
 	}
 
 	@Test

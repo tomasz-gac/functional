@@ -1,7 +1,7 @@
 package com.tgac.functional.algebra;
 
-// ABOUTME: Drains a worklist synchronously over a bounded meet-semilattice state,
-// ABOUTME: enforcing per-step contraction — finite descent is the termination proof.
+// ABOUTME: Drains a worklist synchronously over a bounded semilattice state,
+// ABOUTME: enforcing per-step contraction — finite height is the termination proof.
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -11,11 +11,10 @@ import lombok.NoArgsConstructor;
 
 /**
  * The worklist algorithm as a lattice theorem: if every step contracts the
- * state ({@code outcome ⊑ state}) and only discovers work under STRICT descent,
+ * state ({@code state absorbedBy outcome — accumulation ascends}) and only discovers work under STRICT accumulation,
  * then on a finite-height lattice the drain terminates — no fuel, no external
  * fairness. Both laws are enforced per step; a violating step is a bug in the
- * step function, not a search failure, so it throws. ⊥ short-circuits: a dead
- * state processes no further work.
+ * step function, not a search failure, so it throws. The absorber short-circuits: a terminal state processes no further work.
  *
  * <p>This is the scheduling-free core; {@code fibers.Worklist.drainMonotone} is
  * the same contract drained one fiber step per item, and delegates its checks
@@ -49,22 +48,22 @@ public final class MonotoneDrain {
 		}
 	}
 
-	public static <W, S extends MeetSemilattice<S> & Bottomed> S drain(
+	public static <W, S extends Semilattice<S> & Absorbing> S drain(
 			S initial,
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step) {
 		return go(initial, work, step, true);
 	}
 
-	/** The unchecked twin: same contract by convention, ⊥ short-circuit kept, no law checks. */
-	public static <W, S extends MeetSemilattice<S> & Bottomed> S drainUnsafe(
+	/** The unchecked twin: same contract by convention, absorber short-circuit kept, no law checks. */
+	public static <W, S extends Semilattice<S> & Absorbing> S drainUnsafe(
 			S initial,
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step) {
 		return go(initial, work, step, false);
 	}
 
-	private static <W, S extends MeetSemilattice<S> & Bottomed> S go(
+	private static <W, S extends Semilattice<S> & Absorbing> S go(
 			S initial,
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step,
@@ -72,7 +71,7 @@ public final class MonotoneDrain {
 		ArrayDeque<W> queue = new ArrayDeque<>();
 		work.forEach(queue::add);
 		S state = initial;
-		while (!state.isBottom() && !queue.isEmpty()) {
+		while (!state.isAbsorbing() && !queue.isEmpty()) {
 			Step<W, S> outcome = step.apply(state, queue.poll());
 			if (checked) {
 				check(state, outcome.state, outcome.more.iterator().hasNext());
@@ -87,15 +86,15 @@ public final class MonotoneDrain {
 	}
 
 	/** The two contraction laws, shared with the fibered drain. */
-	public static <S extends MeetSemilattice<S> & Bottomed> void check(
+	public static <S extends Semilattice<S> & Absorbing> void check(
 			S before, S after, boolean emitsWork) {
-		if (!after.leq(before)) {
+		if (!before.absorbedBy(after)) {
 			throw new IllegalStateException(
-					"monotone worklist step must contract: " + after + " ⋢ " + before);
+					"monotone worklist step must accumulate: " + before + " ⋢ " + after);
 		}
 		if (emitsWork && after.equals(before)) {
 			throw new IllegalStateException(
-					"monotone worklist step emitted work without strict descent at " + before);
+					"monotone worklist step emitted work without strict accumulation at " + before);
 		}
 	}
 }

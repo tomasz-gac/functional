@@ -5,7 +5,7 @@ package com.tgac.functional.algebra;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.tgac.functional.algebra.laws.BottomedLaws;
+import com.tgac.functional.algebra.laws.AbsorbingLaws;
 import com.tgac.functional.algebra.laws.CommutativeMonoidLaws;
 import com.tgac.functional.algebra.laws.LatticeLaws;
 import com.tgac.functional.algebra.laws.LawCoverage;
@@ -179,11 +179,20 @@ public class LawViolationsTest {
 
 	/** join returns the left argument — not an upper bound. */
 	@Value
-	private static class LeftBiased implements MeetSemilattice<LeftBiased>, Bottomed {
+	private static class LeftBiased implements Semilattice<LeftBiased>, PartialOrder<LeftBiased>, Absorbing {
 		int lo;
 		int hi;
 
 		@Override
+		public LeftBiased combine(LeftBiased other) {
+			return meet(other);
+		}
+
+		@Override
+		public boolean leq(LeftBiased other) {
+			return meet(other).equals(this);
+		}
+
 		public LeftBiased meet(LeftBiased other) {
 			int l = Math.max(lo, other.lo), h = Math.min(hi, other.hi);
 			return new LeftBiased(Math.min(l, h + 1), h);
@@ -194,7 +203,7 @@ public class LawViolationsTest {
 		}
 
 		@Override
-		public boolean isBottom() {
+		public boolean isAbsorbing() {
 			return lo > hi;
 		}
 	}
@@ -207,9 +216,9 @@ public class LawViolationsTest {
 				.hasMessageContaining("upper bound");
 	}
 
-	private static final class NeverExercised implements MeetSemilattice<NeverExercised> {
+	private static final class NeverExercised implements Semilattice<NeverExercised> {
 		@Override
-		public NeverExercised meet(NeverExercised other) {
+		public NeverExercised combine(NeverExercised other) {
 			return this;
 		}
 	}
@@ -282,9 +291,9 @@ public class LawViolationsTest {
 		}
 	}
 
-	private static final class SelfContained implements MeetSemilattice<SelfContained> {
+	private static final class SelfContained implements Semilattice<SelfContained> {
 		@Override
-		public SelfContained meet(SelfContained other) {
+		public SelfContained combine(SelfContained other) {
 			return this;
 		}
 	}
@@ -300,15 +309,15 @@ public class LawViolationsTest {
 		// claiming test, invisible to a hook that never claimed it
 		MonoidLaws.check(new PartialFixture(), Arrays.asList(0L, 1L, 2L));
 		SelfContained one = new SelfContained();
-		SemilatticeLaws.checkMeet(Arrays.asList(one, one));
+		SemilatticeLaws.check(Arrays.asList(one, one));
 		LawCoverage.verifyClaimsExercised(ClaimsOnlyItsOwn.class);
 	}
 
 	@Test
-	public void bottomedLawsDemandABottomSample() {
-		assertThatThrownBy(() -> BottomedLaws.check(
+	public void absorbingLawsDemandAnAbsorbingSample() {
+		assertThatThrownBy(() -> AbsorbingLaws.check(
 				Arrays.asList(Lattices.Mask.of(0b1L), Lattices.Mask.of(0b11L))))
 				.isInstanceOf(AssertionError.class)
-				.hasMessageContaining("must include a bottom");
+				.hasMessageContaining("must include an absorbing");
 	}
 }

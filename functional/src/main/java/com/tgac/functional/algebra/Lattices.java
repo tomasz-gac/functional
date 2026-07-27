@@ -16,10 +16,19 @@ public final class Lattices {
 	 * optimizer's adornment lattice.
 	 */
 	@Value(staticConstructor = "of")
-	public static class Mask implements MeetSemilattice<Mask>, Bottomed {
+	public static class Mask implements Semilattice<Mask>, PartialOrder<Mask>, Absorbing {
 		long bits;
 
 		@Override
+		public Mask combine(Mask other) {
+			return meet(other);
+		}
+
+		@Override
+		public boolean leq(Mask other) {
+			return meet(other).equals(this);
+		}
+
 		public Mask meet(Mask other) {
 			return of(bits & other.bits);
 		}
@@ -29,7 +38,7 @@ public final class Lattices {
 		}
 
 		@Override
-		public boolean isBottom() {
+		public boolean isAbsorbing() {
 			return bits == 0L;
 		}
 	}
@@ -40,31 +49,40 @@ public final class Lattices {
 	 * which is exactly what LatticeLaws.checkInflationary permits).
 	 */
 	@Value
-	public static class Range implements MeetSemilattice<Range>, Bottomed {
+	public static class Range implements Semilattice<Range>, PartialOrder<Range>, Absorbing {
 		int lo;
 		int hi;
+
+		@Override
+		public Range combine(Range other) {
+			return meet(other);
+		}
+
+		@Override
+		public boolean leq(Range other) {
+			return meet(other).equals(this);
+		}
 
 		public static Range of(int lo, int hi) {
 			return lo > hi ? new Range(1, 0) : new Range(lo, hi);
 		}
 
-		@Override
 		public Range meet(Range other) {
 			return of(Math.max(lo, other.lo), Math.min(hi, other.hi));
 		}
 
 		public Range join(Range other) {
-			if (isBottom()) {
+			if (isAbsorbing()) {
 				return other;
 			}
-			if (other.isBottom()) {
+			if (other.isAbsorbing()) {
 				return this;
 			}
 			return of(Math.min(lo, other.lo), Math.max(hi, other.hi));
 		}
 
 		@Override
-		public boolean isBottom() {
+		public boolean isAbsorbing() {
 			return lo > hi;
 		}
 	}

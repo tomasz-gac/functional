@@ -5,8 +5,8 @@ package com.tgac.functional.fibers;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import com.tgac.functional.algebra.Bottomed;
-import com.tgac.functional.algebra.MeetSemilattice;
+import com.tgac.functional.algebra.Absorbing;
+import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.algebra.MonotoneDrain;
 import io.vavr.Tuple2;
 import io.vavr.collection.Queue;
@@ -23,7 +23,7 @@ import java.util.function.BiFunction;
  * keeps discovering genuinely new work loops forever (fairly). The standard
  * argument is monotonicity — steps that only ever shrink a finite state can only
  * add finitely much work. The MONOTONE variants make that argument part of the
- * API: the state is a {@link MeetSemilattice} with a {@link Bottomed} failure
+ * API: the state is a {@link Semilattice} with a {@link Absorbing} failure
  * value, the drain short-circuits at ⊥, and the SAFE variant enforces the two
  * contraction laws per step — the new state must entail the old
  * ({@code new ⊑ old}), and emitting new work requires STRICT descent (the
@@ -68,7 +68,7 @@ public final class Worklist {
 	}
 
 	/** The checked monotone drain: contraction laws enforced per step, ⊥ short-circuits. */
-	public static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> drainMonotone(
+	public static <W, S extends Semilattice<S> & Absorbing> Fiber<S> drainMonotone(
 			S initial,
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step) {
@@ -76,19 +76,19 @@ public final class Worklist {
 	}
 
 	/** The unchecked twin: same contract by convention, ⊥ short-circuit kept, no law checks. */
-	public static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> drainMonotoneUnsafe(
+	public static <W, S extends Semilattice<S> & Absorbing> Fiber<S> drainMonotoneUnsafe(
 			S initial,
 			Iterable<W> work,
 			BiFunction<S, W, Step<W, S>> step) {
 		return goMonotone(initial, Queue.ofAll(work), step, false);
 	}
 
-	private static <W, S extends MeetSemilattice<S> & Bottomed> Fiber<S> goMonotone(
+	private static <W, S extends Semilattice<S> & Absorbing> Fiber<S> goMonotone(
 			S state,
 			Queue<W> queue,
 			BiFunction<S, W, Step<W, S>> step,
 			boolean checked) {
-		if (state.isBottom() || queue.isEmpty()) {
+		if (state.isAbsorbing() || queue.isEmpty()) {
 			return Fiber.done(state);
 		}
 		Tuple2<W, Queue<W>> popped = queue.dequeue();

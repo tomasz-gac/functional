@@ -3,7 +3,8 @@ package com.tgac.functional.algebra.laws;
 // ABOUTME: The step contract of chaotic iteration: an endofunction that only
 // ABOUTME: shrinks (f(x) ⊑ x) and preserves the order — a propagator body's laws.
 
-import com.tgac.functional.algebra.MeetSemilattice;
+import com.tgac.functional.algebra.PartialOrder;
+import com.tgac.functional.algebra.Semilattice;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import lombok.AccessLevel;
@@ -20,7 +21,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ReductorLaws {
 
-	public static <L extends MeetSemilattice<L>> void check(UnaryOperator<L> f, List<L> samples) {
+	public static <L extends Semilattice<L> & PartialOrder<L>> void check(UnaryOperator<L> f, List<L> samples) {
 		for (L x : samples) {
 			Laws.require(f.apply(x).leq(x), "deflationary: f(x) ⊑ x", x, f.apply(x));
 		}

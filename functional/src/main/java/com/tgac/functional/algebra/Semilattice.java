@@ -23,6 +23,7 @@ package com.tgac.functional.algebra;
  * {@link #absorbedBy} — growth refusal — is decidable from the op and
  * equality alone.
  */
+@CheckedBy({"semilattice"})
 public interface Semilattice<L extends Semilattice<L>> {
 
 	L combine(L other);
