@@ -10,10 +10,13 @@ package com.tgac.functional.algebra;
  * moves, under which every semilattice ascends by definition. "Meet" and
  * "join" are the DOMAIN's names for which way it reads this order:
  * {@link JoinSemilattice} extends this with {@code combine = join} (its
- * {@code leq} coincides with the accumulation order); a
- * {@link MeetSemilattice} value participates through its dual — its
- * accumulation order is its knowledge order REVERSED — by implementing
- * {@code combine = meet} directly where a descending accumulation is wanted.
+ * {@code leq} coincides with the accumulation order);
+ * {@link MeetSemilattice} with {@code combine = meet} (its accumulation
+ * order is its knowledge order reversed). A LATTICE is deliberately NOT a
+ * semilattice: one value type carrying two semilattice structures has no
+ * answer to "which one am I?", so a two-structure type exposes its
+ * structures as PROJECTIONS (witness operations, the law kits' style),
+ * never by inheriting both faces.
  *
  * <p>What the laws buy an accumulator: idempotence makes duplicate delivery
  * free, commutativity + associativity make arrival order irrelevant, and

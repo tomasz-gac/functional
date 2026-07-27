@@ -27,8 +27,18 @@ package com.tgac.functional.algebra;
  * {@link JoinSemilattice}, never this with a flipped convention.
  */
 @CheckedBy({"meet", "lattice", "lattice-inflationary"})
-public interface MeetSemilattice<L extends MeetSemilattice<L>> extends PartialOrder<L> {
+public interface MeetSemilattice<L extends MeetSemilattice<L>> extends PartialOrder<L>, Semilattice<L> {
 	L meet(L other);
+
+	/**
+	 * The accumulation order is the knowledge order REVERSED: accumulating
+	 * constraints descends the extension — {@code x ⊑ y} in accumulation
+	 * reads "y knows at least as much as x".
+	 */
+	@Override
+	default L combine(L other) {
+		return meet(other);
+	}
 
 	@Override
 	default boolean leq(L other) {

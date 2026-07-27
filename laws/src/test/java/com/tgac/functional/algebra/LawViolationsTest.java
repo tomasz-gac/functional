@@ -179,7 +179,7 @@ public class LawViolationsTest {
 
 	/** join returns the left argument — not an upper bound. */
 	@Value
-	private static class LeftBiased implements Lattice<LeftBiased>, Bottomed {
+	private static class LeftBiased implements MeetSemilattice<LeftBiased>, Bottomed {
 		int lo;
 		int hi;
 
@@ -189,7 +189,6 @@ public class LawViolationsTest {
 			return new LeftBiased(Math.min(l, h + 1), h);
 		}
 
-		@Override
 		public LeftBiased join(LeftBiased other) {
 			return this;
 		}
@@ -203,7 +202,7 @@ public class LawViolationsTest {
 	@Test
 	public void inflationaryLawsRejectAJoinThatIsNotAnUpperBound() {
 		assertThatThrownBy(() -> LatticeLaws.checkInflationary(
-				Arrays.asList(new LeftBiased(0, 3), new LeftBiased(5, 9))))
+				Arrays.asList(new LeftBiased(0, 3), new LeftBiased(5, 9)), LeftBiased::join))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("upper bound");
 	}

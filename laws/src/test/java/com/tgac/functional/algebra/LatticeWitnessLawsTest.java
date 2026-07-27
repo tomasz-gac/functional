@@ -26,9 +26,8 @@ public class LatticeWitnessLawsTest {
 		List<Lattices.Mask> xs = Arrays.asList(
 				Lattices.Mask.of(0b0000L), Lattices.Mask.of(0b1010L),
 				Lattices.Mask.of(0b0110L), Lattices.Mask.of(0b1111L));
-		LatticeLaws.check(xs);
+		LatticeLaws.check(xs, Lattices.Mask::join);
 		SemilatticeLaws.checkMeet(xs);
-		SemilatticeLaws.checkJoin(xs);
 		BottomedLaws.check(xs);
 	}
 
@@ -37,7 +36,7 @@ public class LatticeWitnessLawsTest {
 		List<Lattices.Range> xs = Arrays.asList(
 				Lattices.Range.of(0, 10), Lattices.Range.of(3, 5),
 				Lattices.Range.of(8, 12), Lattices.Range.of(1, 0));
-		LatticeLaws.checkInflationary(xs);
+		LatticeLaws.checkInflationary(xs, Lattices.Range::join);
 		BottomedLaws.check(xs);
 	}
 }

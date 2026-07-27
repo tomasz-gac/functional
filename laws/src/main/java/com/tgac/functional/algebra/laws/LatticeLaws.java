@@ -1,37 +1,64 @@
 package com.tgac.functional.algebra.laws;
 
-// ABOUTME: Full-lattice absorption, and the INFLATIONARY variant for
-// ABOUTME: approximate joins (interval hulls): upper-bound-ness without absorption.
+// ABOUTME: Two-structure laws: absorption between a meet witness and a join
+// ABOUTME: projection, and the INFLATIONARY variant (interval hulls) without it.
 
-import com.tgac.functional.algebra.Lattice;
+import com.tgac.functional.algebra.MeetSemilattice;
 import java.util.List;
+import java.util.function.BinaryOperator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+/**
+ * A lattice is NOT a semilattice — it is one value type carrying two
+ * semilattice structures, so the second structure arrives here as a
+ * PROJECTION ({@code join}, a plain binary op), never as a second
+ * inherited face. The value type implements {@link MeetSemilattice}
+ * (its canonical order); these kits check the projection's own
+ * semilattice laws and the absorption that interlocks the two.
+ */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class LatticeLaws {
-	/** Exact lattices: both semilattice kits plus absorption. */
-	public static <L extends Lattice<L>> void check(List<L> xs) {
+
+	/** Exact two-structure values: both semilattice kits plus absorption. */
+	public static <L extends MeetSemilattice<L>> void check(List<L> xs, BinaryOperator<L> join) {
 		SemilatticeLaws.checkMeet(xs);
-		SemilatticeLaws.checkJoin(xs);
+		checkJoinProjection(xs, join);
 		for (L a : xs) {
 			for (L b : xs) {
-				Laws.require(a.meet(a.join(b)).equals(a), "absorption meet-join", a, b);
-				Laws.require(a.join(a.meet(b)).equals(a), "absorption join-meet", a, b);
+				Laws.require(a.meet(join.apply(a, b)).equals(a), "absorption meet-join", a, b);
+				Laws.require(join.apply(a, a.meet(b)).equals(a), "absorption join-meet", a, b);
 			}
 		}
 		LawRegistry.recordSamples("lattice", xs);
 	}
 
 	/** Approximate joins: sound to generalize over, not exact — skip absorption. */
-	public static <L extends Lattice<L>> void checkInflationary(List<L> xs) {
+	public static <L extends MeetSemilattice<L>> void checkInflationary(List<L> xs, BinaryOperator<L> join) {
 		SemilatticeLaws.checkMeet(xs);
 		for (L a : xs) {
 			for (L b : xs) {
-				Laws.require(a.leq(a.join(b)) && b.leq(a.join(b)), "inflationary join is an upper bound", a, b);
+				L ab = join.apply(a, b);
+				Laws.require(a.leq(ab) && b.leq(ab), "inflationary join is an upper bound", a, b);
 			}
 		}
 		LawRegistry.recordSamples("lattice-inflationary", xs);
 		LawRegistry.recordSamples("join-inflationary", xs);
+	}
+
+	/** The projection's own semilattice algebra: idempotent, commutative, associative. */
+	private static <L> void checkJoinProjection(List<L> xs, BinaryOperator<L> join) {
+		for (L a : xs) {
+			Laws.require(join.apply(a, a).equals(a), "join idempotence", a);
+			for (L b : xs) {
+				L ab = join.apply(a, b);
+				Laws.require(ab.equals(join.apply(b, a)), "join commutativity", a, b);
+				for (L c : xs) {
+					Laws.require(join.apply(ab, c).equals(join.apply(a, join.apply(b, c))),
+							"join associativity", a, b, c);
+				}
+			}
+		}
+		LawRegistry.recordSamples("join", xs);
 	}
 }

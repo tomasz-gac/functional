@@ -1,7 +1,7 @@
 package com.tgac.functional.algebra;
 
-// ABOUTME: Lattice witnesses: Mask, the exact finite-subset lattice (the adornment
-// ABOUTME: prototype), and Range, the inflationary-join exemplar (interval hulls).
+// ABOUTME: Two-structure fixtures: Mask, the exact finite-subset case, and Range,
+// ABOUTME: the inflationary-hull exemplar - meet inherited, join exposed as a projection.
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -16,7 +16,7 @@ public final class Lattices {
 	 * optimizer's adornment lattice.
 	 */
 	@Value(staticConstructor = "of")
-	public static class Mask implements Lattice<Mask>, Bottomed {
+	public static class Mask implements MeetSemilattice<Mask>, Bottomed {
 		long bits;
 
 		@Override
@@ -24,7 +24,6 @@ public final class Lattices {
 			return of(bits & other.bits);
 		}
 
-		@Override
 		public Mask join(Mask other) {
 			return of(bits | other.bits);
 		}
@@ -41,7 +40,7 @@ public final class Lattices {
 	 * which is exactly what LatticeLaws.checkInflationary permits).
 	 */
 	@Value
-	public static class Range implements Lattice<Range>, Bottomed {
+	public static class Range implements MeetSemilattice<Range>, Bottomed {
 		int lo;
 		int hi;
 
@@ -54,7 +53,6 @@ public final class Lattices {
 			return of(Math.max(lo, other.lo), Math.min(hi, other.hi));
 		}
 
-		@Override
 		public Range join(Range other) {
 			if (isBottom()) {
 				return other;
