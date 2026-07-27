@@ -21,28 +21,29 @@ public class FixpointTest {
 	public void growthFeedsParkedSubscribersAbsorbedDeltasDoNot() {
 		List<String> fed = new ArrayList<>();
 		Fixpoint<MaxInt, String> f = new Fixpoint<>(MaxInt.of(0), s -> null,
-				s -> {
-					fed.add(s);
+				(s, v) -> {
+					fed.add(s + "@" + v.value);
 					return done(nothing());
 				});
 
-		assertThat(f.parkFrom(null, "sub", v -> v.value == 0).isDefined()).isTrue();
+		assertThat(f.parkFrom(null, "sub", v -> v.value == 0).isRight()).isTrue();
 		f.grow(MaxInt.of(1)).get();
-		assertThat(fed).containsExactly("sub");
+		assertThat(fed).containsExactly("sub@1");
 
 		// absorbed delta: nobody is fed, nothing changes
 		f.grow(MaxInt.of(1)).get();
-		assertThat(fed).containsExactly("sub");
+		assertThat(fed).containsExactly("sub@1");
 		assertThat(f.read()).isEqualTo(MaxInt.of(1));
 	}
 
 	@Test
 	public void aParkRefusesWhenTheValueMovedPast() {
-		Fixpoint<MaxInt, String> f = new Fixpoint<>(MaxInt.of(0), s -> null, s -> done(nothing()));
+		Fixpoint<MaxInt, String> f = new Fixpoint<>(MaxInt.of(0), s -> null, (s, v) -> done(nothing()));
 		f.grow(MaxInt.of(1)).get();
 
-		// the subscriber believes the value is still 0 — keep reading instead
-		assertThat(f.parkFrom(null, "stale", v -> v.value == 0).isDefined()).isFalse();
+		// the subscriber believes the value is still 0 — the fresh value is
+		// handed back: keep reading, never poll
+		assertThat(f.parkFrom(null, "stale", v -> v.value == 0).getLeft()).isEqualTo(MaxInt.of(1));
 		assertThat(f.parkedCount()).isEqualTo(0);
 	}
 
@@ -56,8 +57,8 @@ public class FixpointTest {
 	public void groupSealMarksEveryMemberBeforeAnyHookFires() {
 		Map<String, Fixpoint<MaxInt, String>> owners = new HashMap<>();
 		Function<String, Fixpoint<?, String>> ownerOf = owners::get;
-		Fixpoint<MaxInt, String> a = new Fixpoint<>(MaxInt.of(0), ownerOf, s -> done(nothing()));
-		Fixpoint<MaxInt, String> b = new Fixpoint<>(MaxInt.of(0), ownerOf, s -> done(nothing()));
+		Fixpoint<MaxInt, String> a = new Fixpoint<>(MaxInt.of(0), ownerOf, (s, v) -> done(nothing()));
+		Fixpoint<MaxInt, String> b = new Fixpoint<>(MaxInt.of(0), ownerOf, (s, v) -> done(nothing()));
 
 		List<Boolean> groupSealedAtHook = new ArrayList<>();
 		a.onSealed(drained -> {
@@ -72,9 +73,9 @@ public class FixpointTest {
 		// the ring: a's subscriber waits at b, b's subscriber waits at a —
 		// each park through the safe door, the owner's ledger kept honest
 		owners.put("a-reader", a);
-		assertThat(b.parkFrom(a, "a-reader", v -> true).isDefined()).isTrue();
+		assertThat(b.parkFrom(a, "a-reader", v -> true).isRight()).isTrue();
 		owners.put("b-reader", b);
-		assertThat(a.parkFrom(b, "b-reader", v -> true).isDefined()).isTrue();
+		assertThat(a.parkFrom(b, "b-reader", v -> true).isRight()).isTrue();
 
 		// each fixpoint runs one master; the last finish's cascade attempt
 		// finds the drained ring and group-seals it

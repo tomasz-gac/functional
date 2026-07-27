@@ -1,30 +1,35 @@
 package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A distributed fixpoint over parked continuations: producers grow a
-// ABOUTME: semilattice value, growth FEEDS the subscribers, quiescence seals it.
+// ABOUTME: semilattice value, growth FEEDS the value to subscribers, quiescence seals.
 
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
 import io.vavr.collection.List;
+import io.vavr.control.Either;
 import io.vavr.control.Option;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
  * The fixpoint, with its mechanism in its shape: subscribers are PARKED
  * CONTINUATIONS (each {@code S} carries a resume point and a cursor into the
- * value), and the injected {@link #feed} is how growth pushes work into
- * them. The lifecycle is four verbs:
+ * value), and the injected {@link #feed} is how growth pushes the GROWN VALUE
+ * into them — a subscriber never reaches back to poll: the value arrives
+ * pushed by growth, or handed over when a park refuses. The lifecycle is
+ * four verbs:
  *
  * <pre>
  * master(work)                 a producer, detached into this fixpoint's scope
  * grow(delta)                  join the value; every subscriber the growth
- *                              drains is FED - billed-before-awoken - as a
- *                              detached fiber riding the returned tail
- * parkFrom(owner, s, caughtUp) a subscriber out of work parks, its owner's
- *                              ledger kept honest; some(sealAttempt) when
- *                              parked, none when the value moved - keep reading
+ *                              drains is FED the grown value - billed-before-
+ *                              awoken - as a detached fiber riding the tail
+ * parkFrom(owner, s, caughtUp) a subscriber out of value parks, its owner's
+ *                              ledger kept honest; right(sealAttempt) when
+ *                              parked, left(freshValue) when the value moved -
+ *                              keep reading what you were handed
  * onSealed / seal              convergence: the workforce is provably
  *                              exhausted, no subscriber can ever be fed again
  * </pre>
@@ -40,17 +45,17 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	private final MonotoneCell<V, S> cell;
 	private final Scope<S> scope;
 	private final Function<S, Scope<S>> ownerOf;
-	private final Function<S, Fiber<Nothing>> feed;
+	private final BiFunction<S, V, Fiber<Nothing>> feed;
 
 	/**
 	 * @param ownerOf which fixpoint's scope a subscriber works FOR (null =
 	 * 		unowned top-level work, unbilled, gating nothing)
-	 * @param feed how a drained subscriber consumes new growth - the
+	 * @param feed how a drained subscriber consumes the grown value - the
 	 * 		continuation push, owned by the domain
 	 */
 	public Fixpoint(V initial,
 			Function<S, Fixpoint<?, S>> ownerOf,
-			Function<S, Fiber<Nothing>> feed) {
+			BiFunction<S, V, Fiber<Nothing>> feed) {
 		this.cell = new MonotoneCell<>(initial);
 		this.ownerOf = s -> {
 			Fixpoint<?, S> owner = ownerOf.apply(s);
@@ -70,21 +75,24 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	/**
 	 * Join {@code delta} into the value. An absorbed delta (no new
 	 * knowledge) is inert; strict growth drains every parked subscriber and
-	 * FEEDS each one - billed to its owner before its sleeping record is
-	 * removed, so a racing seal never reads quiescence in the gap - as
-	 * detached fibers riding the returned tail.
+	 * FEEDS each one the grown value - billed to its owner before its
+	 * sleeping record is removed, so a racing seal never reads quiescence in
+	 * the gap - as detached fibers riding the returned tail.
 	 */
 	public Fiber<Nothing> grow(V delta) {
 		Option<List<S>> drained = cell.grow(delta);
 		if (drained.isEmpty()) {
 			return Fiber.done(Nothing.nothing());
 		}
+		// a racing later grow may make this snapshot even fresher - sound:
+		// subscribers read by cursor, so a newer value only feeds them more
+		V grown = cell.read();
 		Fiber<Nothing> tail = Fiber.done(Nothing.nothing());
 		for (S subscriber : drained.get()) {
 			Scope<S> owner = ownerOf.apply(subscriber);
 			Fiber<Nothing> fed = owner == null
-					? Fiber.detach(feed.apply(subscriber))
-					: owner.respawn(subscriber, feed.apply(subscriber));
+					? Fiber.detach(feed.apply(subscriber, grown))
+					: owner.respawn(subscriber, feed.apply(subscriber, grown));
 			Fiber<Nothing> prev = tail;
 			tail = prev.flatMap(__ -> fed);
 		}
@@ -103,26 +111,26 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	 * honest: the sleeping record lands BEFORE the park (a feed can only
 	 * drain a parked subscriber, so the record is always there to remove),
 	 * and a refused park - the value moved past the subscriber - removes it
-	 * again.
+	 * again and hands the FRESH VALUE back: keep reading, never poll.
 	 *
-	 * @return the owner's seal attempt when parked (parking may have
-	 * 		completed the owner's region - the emit rides the tail); none when
-	 * 		the value moved past the subscriber - keep reading
+	 * @return right(the owner's seal attempt) when parked - parking may have
+	 * 		completed the owner's region, the emit rides the tail; left(the
+	 * 		fresh value) when the value moved past the subscriber
 	 */
-	public Option<Fiber<Nothing>> parkFrom(Fixpoint<?, S> owner, S subscriber, Predicate<V> caughtUp) {
+	public Either<V, Fiber<Nothing>> parkFrom(Fixpoint<?, S> owner, S subscriber, Predicate<V> caughtUp) {
 		Scope<S> ownerScope = owner == null ? null : owner.scope;
 		if (ownerScope != null) {
 			ownerScope.sleeping(subscriber, scope);
 		}
 		if (cell.park(subscriber, caughtUp)) {
-			return Option.of(ownerScope == null
+			return Either.right(ownerScope == null
 					? Fiber.done(Nothing.nothing())
 					: Fiber.defer(ownerScope::sealCascade));
 		}
 		if (ownerScope != null) {
 			ownerScope.awake(subscriber);
 		}
-		return Option.none();
+		return Either.left(cell.read());
 	}
 
 	public int parkedCount() {
