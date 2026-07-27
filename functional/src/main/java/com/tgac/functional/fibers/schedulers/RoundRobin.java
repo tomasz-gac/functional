@@ -4,7 +4,9 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — all it owns is the queue and the fork join.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final List<Entry> entries;
+	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
 	private int index = -1;
 	private StepListener stepListener = StepListener.NO_OP;
 
@@ -48,7 +51,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 			if (step(sink))
 				return true;
 		}
-		return entries.isEmpty();
+		return entries.isEmpty() && awaits.quiet();
 	}
 
 	@Override
@@ -77,8 +80,11 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		if (entries.isEmpty())
+		awaits.drainInto(entries::add);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
 			return true;
+		}
 
 		index = (index + 1) % entries.size();
 		current = entries.get(index);
@@ -128,6 +134,24 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		// runs independently; its result is discarded
 		entries.add(new Entry(new FiberStep.Frame(child, scope), value -> {
 		}));
+	}
+
+	@Override
+	public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+		return awaits.resumeHandle(current, current.frame, owner);
+	}
+
+	@Override
+	public void suspending(Source<?> at) {
+		awaits.held(current, at);
+		Collections.swap(entries, index, entries.size() - 1);
+		entries.remove(entries.size() - 1);
+	}
+
+	@Override
+	public void suspendCancelled() {
+		awaits.cancelled(current);
+		entries.add(current);
 	}
 
 	private static Fiber<Object> doneNothing() {

@@ -55,22 +55,6 @@ final class FiberStep {
 		}
 	}
 
-	/** The continuation-stack marker that leaves a {@link Fiber.Scoped} subtree. */
-	private static final class ScopeRestore implements Function<Object, Fiber<Object>> {
-		final WorkScope inner;
-		final WorkScope outer;
-
-		ScopeRestore(WorkScope inner, WorkScope outer) {
-			this.inner = inner;
-			this.outer = outer;
-		}
-
-		@Override
-		public Fiber<Object> apply(Object value) {
-			throw new IllegalStateException("scope markers are interpreted, never applied");
-		}
-	}
-
 	/**
 	 * Scheduling policy hooks. {@code completed} and {@code forked} mean the
 	 * frame yielded control and must leave the run queue; {@code detached}
@@ -101,10 +85,17 @@ final class FiberStep {
 		}
 
 		/**
-		 * The current frame suspended into {@code at} — leave the run queue
-		 * without completing; the {@link #resumeHandle} re-queues it.
+		 * The current frame is about to be offered to {@code at} — register it
+		 * as held and leave the run queue NOW, before the source can resume it
+		 * from another thread.
 		 */
-		default void suspended(Source<?> at) {
+		default void suspending(Source<?> at) {
+			throw new UnsupportedOperationException(
+					"Fiber.await is not supported by this scheduler yet");
+		}
+
+		/** The suspend was answered immediately — undo {@link #suspending}. */
+		default void suspendCancelled() {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -146,21 +137,7 @@ final class FiberStep {
 				return false;
 			}
 			Function<Object, Fiber<Object>> k = frame.ks.pollLast();
-			if (k instanceof ScopeRestore) {
-				ScopeRestore restore = (ScopeRestore) k;
-				frame.scope = restore.outer;
-				frame.computation = restore.inner.finished().map(__ -> value);
-				return true;
-			}
 			frame.computation = k.apply(value);
-			return true;
-		}
-		if (computation instanceof Fiber.Scoped) {
-			Fiber.Scoped<Object> scoped = (Fiber.Scoped<Object>) computation;
-			scoped.getScope().started();
-			frame.ks.addLast(new ScopeRestore(scoped.getScope(), frame.scope));
-			frame.scope = scoped.getScope();
-			frame.computation = scoped.getFiber();
 			return true;
 		}
 		if (computation instanceof Fiber.Detached) {
@@ -179,22 +156,27 @@ final class FiberStep {
 				// racing seal must never see drained counters with no sleeper
 				owner.blocked(frame, source.account());
 			}
-			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), effects.resumeHandle(owner));
+			// hand the frame off BEFORE offering the waiter: once the source
+			// holds it, another thread may resume the frame at any moment, so
+			// nothing here may touch the frame after a held suspend
+			frame.scope = null;
+			Await.Waiter<Object> waiter = effects.resumeHandle(owner);
+			effects.suspending(source);
+			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), waiter);
 			if (immediate != null) {
+				effects.suspendCancelled();
 				if (owner != null) {
 					owner.unblocked(frame);
 				}
+				frame.scope = owner;
 				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
 				return true;
 			}
-			// held: the frame leaves the queue; the finish tick and seal attempt
-			// run as detached work — the still-open pair until it runs only
-			// delays a seal, which is always sound
-			frame.scope = null;
+			// held: the finish tick and seal attempt run as detached work — the
+			// still-open pair until it runs only delays a seal, which is sound
 			if (owner != null) {
 				effects.detached(owner.finished(), null);
 			}
-			effects.suspended(source);
 			return false;
 		}
 		if (computation instanceof Fiber.Forked) {

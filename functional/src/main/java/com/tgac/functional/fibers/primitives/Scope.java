@@ -74,18 +74,6 @@ public final class Scope<S> implements WorkScope {
 		this.onSealed = work;
 	}
 
-	/**
-	 * Enclose a workforce: run {@code seed} with this scope AMBIENT — every
-	 * frame forked from it bills here automatically — and when the seal
-	 * fires (all transitively billed work exhausted, every sleeper provably
-	 * dead) run {@code atSeal}. Consumers that only want "run this, tell me
-	 * when it is truly done" never touch raw billing.
-	 */
-	public Fiber<Nothing> enclose(Fiber<Nothing> seed, Supplier<Fiber<Nothing>> atSeal) {
-		onSealed(drained -> atSeal.get());
-		return Fiber.scoped(this, seed);
-	}
-
 	// ---- the interpreter's billing doors ----
 
 	@Override

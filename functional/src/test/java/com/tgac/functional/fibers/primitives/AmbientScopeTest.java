@@ -1,6 +1,6 @@
 package com.tgac.functional.fibers.primitives;
 
-// ABOUTME: Ambient billing: enclosed work seals with no manual track — forks inherit,
+// ABOUTME: Ambient billing: detached work seals with no manual billing — forks inherit,
 // ABOUTME: detachTo re-parents, and the parallel scheduler bills race-free.
 
 import static com.tgac.functional.category.Nothing.nothing;
@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 public class AmbientScopeTest {
 
 	@Test
-	public void enclosedWorkSealsWithNoManualTracking() {
+	public void detachedWorkSealsWithNoManualBilling() {
 		Scope<String> scope = new Scope<>(s -> null);
 		List<String> events = new ArrayList<>();
 
@@ -29,10 +29,11 @@ public class AmbientScopeTest {
 					return done(nothing());
 				});
 
-		scope.enclose(work, () -> {
+		scope.onSealed(drained -> {
 			events.add("sealed");
 			return done(nothing());
-		}).get();
+		});
+		Fiber.detachTo(scope, work).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		assertThat(events).containsExactly("worked", "sealed");
@@ -51,10 +52,11 @@ public class AmbientScopeTest {
 				v -> {
 				});
 
-		scope.enclose(work, () -> {
+		scope.onSealed(drained -> {
 			childrenAtSeal.add(childrenRun.get());
 			return done(nothing());
-		}).get();
+		});
+		Fiber.detachTo(scope, work).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		// the seal fired only after every forked child completed
@@ -77,10 +79,11 @@ public class AmbientScopeTest {
 		Fiber<Nothing> master = Fiber.defer(() -> done(masterSteps.incrementAndGet()))
 				.flatMap(__ -> Fiber.defer(() -> done(nothing())));
 
-		caller.enclose(Fiber.detachTo(entry, master), () -> {
+		caller.onSealed(drained -> {
 			sealOrder.add("caller");
 			return done(nothing());
-		}).get();
+		});
+		Fiber.detachTo(caller, Fiber.detachTo(entry, master)).get();
 
 		assertThat(caller.isSealed()).isTrue();
 		assertThat(entry.isSealed()).isTrue();
@@ -98,13 +101,13 @@ public class AmbientScopeTest {
 				tasks.add(Fiber.defer(() -> done(sum.incrementAndGet())));
 			}
 			AtomicInteger atSeal = new AtomicInteger(-1);
-			Fiber<Nothing> work = scope.enclose(
+			scope.onSealed(drained -> {
+				atSeal.set(sum.get());
+				return done(nothing());
+			});
+			Fiber<Nothing> work = Fiber.detachTo(scope,
 					Fiber.fork(tasks, v -> {
-					}),
-					() -> {
-						atSeal.set(sum.get());
-						return done(nothing());
-					});
+					}));
 
 			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(work)) {
 				engine.get();

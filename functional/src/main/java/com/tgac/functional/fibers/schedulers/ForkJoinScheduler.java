@@ -4,10 +4,15 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — a join callback threads fork/join and continue-after-join.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -43,6 +48,9 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private final ForkJoinPool pool;
 	private final CompletableFuture<A> result = new CompletableFuture<>();
 	private final AtomicInteger pending = new AtomicInteger(0);
+	/** Frames held by a Source; each keeps one pending unit open until its resume. */
+	private final Map<FiberStep.Frame, Source<?>> outstanding =
+			Collections.synchronizedMap(new LinkedHashMap<FiberStep.Frame, Source<?>>());
 
 	private volatile boolean started = false;
 	private volatile boolean cancelled = false;
@@ -94,8 +102,20 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 	/** The last task to finish completes the result with the root value. */
 	private void taskFinished() {
-		if (pending.decrementAndGet() == 0 && !result.isDone()) {
+		int p = pending.decrementAndGet();
+		if (p == 0 && !result.isDone()) {
 			result.complete(rootValue);
+			return;
+		}
+		// every remaining unit is a held frame and no task is left to complete
+		// them — sealed sources release their waiters, so these are stranded
+		// (docs/design/await.md §6). Sound against racing resumes: a resume
+		// removes its outstanding entry BEFORE spawning, so a mid-flight one
+		// only makes p read HIGHER than the map size, never equal.
+		if (p > 0 && p == outstanding.size() && !result.isDone()) {
+			result.completeExceptionally(new IllegalStateException(
+					"drive exhausted with " + p + " frame(s) blocked at unsealed sources: "
+							+ outstanding.values()));
 		}
 	}
 
@@ -168,6 +188,42 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
 			spawn(new Task(new FiberStep.Frame(child, scope), DISCARD, NO_JOIN));
+		}
+
+		@Override
+		public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+			FiberStep.Frame contFrame = frame;
+			Consumer<Object> contSink = valueSink;
+			Runnable contJoin = joinCallback;
+			return result -> {
+				if (owner != null) {
+					owner.started();
+					owner.unblocked(contFrame);
+				}
+				contFrame.scope = owner;
+				contFrame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
+				// remove-then-spawn-then-release: the strand check reads p >
+				// size for a mid-flight resume, never a false equality
+				outstanding.remove(contFrame);
+				pending.incrementAndGet();
+				pool.execute(new Task(contFrame, contSink, contJoin));
+				taskFinished();
+			};
+		}
+
+		@Override
+		public void suspending(Source<?> at) {
+			// the held frame keeps one pending unit open until its resume; the
+			// unit lands BEFORE the map entry so a concurrent strand check can
+			// only read p > size, never a false equality
+			pending.incrementAndGet();
+			outstanding.put(frame, at);
+		}
+
+		@Override
+		public void suspendCancelled() {
+			outstanding.remove(frame);
+			pending.decrementAndGet();
 		}
 
 		private void spawn(Task task) {

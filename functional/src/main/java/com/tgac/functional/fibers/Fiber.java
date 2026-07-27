@@ -119,16 +119,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
-	 * Run {@code fiber} with {@code scope} as the ambient owner: every frame
-	 * forked from it bills there automatically, and leaving the subtree ticks
-	 * the scope's finish and runs its seal attempt. The enclosed form of
-	 * billing — exactly-once by construction.
-	 */
-	static <A> Fiber<A> scoped(WorkScope scope, Fiber<A> fiber) {
-		return new Scoped<>(scope, fiber);
-	}
-
-	/**
 	 * Suspend until {@code ready} holds of {@code source}'s value or the
 	 * source's account seals — the condition variable over a monotone source
 	 * (docs/design/await.md). The fiber does not end while blocked: its
@@ -188,14 +178,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Detached<A> implements Fiber<Nothing> {
 		private final Fiber<A> fiber;
 		private final WorkScope scope;
-	}
-
-	/** A subtree with an ambient owner: frames inside bill to {@code scope}. */
-	@Value
-	@RequiredArgsConstructor
-	class Scoped<A> implements Fiber<A> {
-		private final WorkScope scope;
-		private final Fiber<A> fiber;
 	}
 
 	/** A fiber suspended on a {@link Source} until ready or sealed. */

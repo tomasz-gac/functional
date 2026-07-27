@@ -4,7 +4,9 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — unfair because a shallow frame can starve deeper ones.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.Comparator;
@@ -22,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final PriorityQueue<Entry> entries;
+	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
 	private StepListener stepListener = StepListener.NO_OP;
 
 	@Override
@@ -47,7 +50,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 			if (step(sink))
 				return true;
 		}
-		return entries.isEmpty();
+		return entries.isEmpty() && awaits.quiet();
 	}
 
 	@Override
@@ -76,8 +79,11 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		if (entries.isEmpty())
+		awaits.drainInto(entries::offer);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
 			return true;
+		}
 
 		current = entries.peek();
 		rootSink = sink;
@@ -123,6 +129,23 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		// runs independently; its result is discarded
 		entries.offer(new Entry(new FiberStep.Frame(child, scope), value -> {
 		}, current.depth));
+	}
+
+	@Override
+	public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+		return awaits.resumeHandle(current, current.frame, owner);
+	}
+
+	@Override
+	public void suspending(Source<?> at) {
+		awaits.held(current, at);
+		entries.poll();
+	}
+
+	@Override
+	public void suspendCancelled() {
+		awaits.cancelled(current);
+		entries.offer(current);
 	}
 
 	private static Fiber<Object> doneNothing() {

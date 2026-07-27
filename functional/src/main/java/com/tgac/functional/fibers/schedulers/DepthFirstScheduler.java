@@ -4,7 +4,9 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: its siblings. Prolog-order search — a driver over FiberStep backed by a LIFO stack.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayDeque;
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
 
 	private final Deque<Entry> entries;
+	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
 	private StepListener stepListener = StepListener.NO_OP;
 
 	// the entry being stepped and the sink of the current step() call
@@ -48,7 +51,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 			if (step(sink))
 				return true;
 		}
-		return entries.isEmpty();
+		return entries.isEmpty() && awaits.quiet();
 	}
 
 	@Override
@@ -77,8 +80,12 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		if (entries.isEmpty())
+		// injected resumes do not preempt the current branch - like detached
+		awaits.drainInto(entries::addLast);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
 			return true;
+		}
 
 		current = entries.peekFirst();
 		rootSink = sink;
@@ -126,6 +133,23 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 		// runs independently; its result is discarded, and it does not preempt the current branch
 		entries.addLast(new Entry(new FiberStep.Frame(child, scope), value -> {
 		}, current.depth));
+	}
+
+	@Override
+	public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+		return awaits.resumeHandle(current, current.frame, owner);
+	}
+
+	@Override
+	public void suspending(Source<?> at) {
+		awaits.held(current, at);
+		entries.pollFirst();
+	}
+
+	@Override
+	public void suspendCancelled() {
+		awaits.cancelled(current);
+		entries.addFirst(current);
 	}
 
 	private static Fiber<Object> doneNothing() {

@@ -10,8 +10,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.primitives.Scope;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.DepthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
+import com.tgac.functional.fibers.schedulers.RoundRobin;
+import com.tgac.functional.fibers.schedulers.UnfairBreadthFirstScheduler;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +46,7 @@ public class AwaitTest {
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public Await.Result<Integer> suspend(Predicate<Integer> ready, Await.Waiter<Integer> waiter) {
+		public synchronized Await.Result<Integer> suspend(Predicate<Integer> ready, Await.Waiter<Integer> waiter) {
 			if (sealed) {
 				return Await.Result.sealed(value);
 			}
@@ -50,7 +58,7 @@ public class AwaitTest {
 		}
 
 		@SuppressWarnings("unchecked")
-		void grow(int v) {
+		synchronized void grow(int v) {
 			value = Math.max(value, v);
 			List<Object[]> woken = new ArrayList<>();
 			for (Object[] h : held) {
@@ -65,7 +73,7 @@ public class AwaitTest {
 		}
 
 		@SuppressWarnings("unchecked")
-		void seal() {
+		synchronized void seal() {
 			sealed = true;
 			List<Object[]> rest = new ArrayList<>(held);
 			held.clear();
@@ -205,6 +213,70 @@ public class AwaitTest {
 		assertThat(seen).containsExactly(4);
 		assertThat(consumers.isSealed()).isTrue();
 		assertThat(producers.isSealed()).isTrue();
+	}
+
+	@Test
+	public void everySchedulerDrivesTheReArmLoopToTheSealedEnd() {
+		List<Function<Fiber<Nothing>, Scheduler<Nothing>>> drivers = Arrays.asList(
+				BreadthFirstScheduler::new,
+				DepthFirstScheduler::of,
+				RoundRobin::of,
+				UnfairBreadthFirstScheduler::of,
+				ForkJoinScheduler::new);
+		for (Function<Fiber<Nothing>, Scheduler<Nothing>> driver : drivers) {
+			IntSource source = new IntSource(null);
+			List<String> log = Collections.synchronizedList(new ArrayList<String>());
+			Fiber<Nothing> program = Fiber.detach(collectAbove(source, 0, log))
+					.flatMap(__ -> Fiber.defer(() -> {
+						source.grow(1);
+						return done(nothing());
+					}))
+					.flatMap(__ -> Fiber.defer(() -> {
+						source.grow(2);
+						return done(nothing());
+					}))
+					.flatMap(__ -> Fiber.defer(() -> {
+						source.seal();
+						return done(nothing());
+					}));
+
+			driver.apply(program).get();
+
+			// scheduling order varies by driver; the invariants do not:
+			// values are never duplicated, and the loop always ends at the
+			// sealed completion carrying the final value
+			assertThat(log).isNotEmpty();
+			assertThat(log).doesNotHaveDuplicates();
+			assertThat(log.get(log.size() - 1)).isEqualTo("sealed@2");
+		}
+	}
+
+	@Test
+	public void forkJoinBillsAwaitsRaceFree() {
+		for (int round = 0; round < 20; round++) {
+			Scope<Object> consumers = new Scope<>(s -> null);
+			Scope<Object> producers = new Scope<>(s -> null);
+			IntSource source = new IntSource(producers);
+			List<Integer> seen = Collections.synchronizedList(new ArrayList<Integer>());
+
+			Fiber<Nothing> program = Fiber.detachTo(consumers, Fiber.await(source, v -> v >= 1)
+							.flatMap(r -> {
+								seen.add(r.getValue());
+								return done(nothing());
+							}))
+					.flatMap(__ -> Fiber.detachTo(producers, Fiber.defer(() -> {
+						source.grow(4);
+						source.seal();
+						return done(nothing());
+					})));
+
+			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(program)) {
+				engine.get();
+			}
+			assertThat(seen).containsExactly(4);
+			assertThat(consumers.isSealed()).isTrue();
+			assertThat(producers.isSealed()).isTrue();
+		}
 	}
 
 	@Test
