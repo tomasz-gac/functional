@@ -26,17 +26,13 @@ import java.util.function.Supplier;
  * Racy seal reads are sound: a stale false only defers.
  *
  * <p>A scope needs no published value to be sealable: subscribers that wait
- * only for the seal {@link #park} here and are drained when it fires. A
+ * only for the seal {@link #awaitSeal} here and are drained when it fires. A
  * {@link Fixpoint} composes a scope with a {@link MonotoneCell} and redirects
  * the drain to the cell's parked subscribers.
  *
  * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
  * which scope's work is it (null = unowned top-level work, unbilled, gating
  * nothing). Everything else is the theorem:
- *
- * <p>{@link #track} is the billing door — every unit of the scope's work
- * passes through exactly once (start ticks at wrap time, no gap for a
- * racing seal; finish at fiber end, then a cascade attempt).
  *
  * <p>The SEAL RULE (internal): counters drained and every sleeper parked
  * HOME (waking needs new growth here, which needs running work here — just
@@ -53,7 +49,7 @@ public final class Scope<S> implements WorkScope {
 	private final WorkLedger<S, Scope<S>> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final Function<S, Scope<S>> ownerOf;
-	private final ArrayList<S> parked = new ArrayList<>();
+	private final ArrayList<S> awaitingSeal = new ArrayList<>();
 
 	/**
 	 * Work to spawn the moment this scope seals, given the drained
@@ -64,7 +60,7 @@ public final class Scope<S> implements WorkScope {
 
 	/**
 	 * Where dead subscribers are harvested at seal time: this scope's own
-	 * {@link #park}ed list by default; a {@link Fixpoint} redirects to its
+	 * {@link #awaitSeal}ed list by default; a {@link Fixpoint} redirects to its
 	 * cell's parked subscribers.
 	 */
 	private Supplier<List<S>> drainOnSeal = this::drainParked;
@@ -110,31 +106,19 @@ public final class Scope<S> implements WorkScope {
 	// ---- seal-only subscribers ----
 
 	/** Park a subscriber that waits only for the seal — drained when it fires. */
-	public synchronized void park(S subscriber) {
-		parked.add(subscriber);
+	public synchronized void awaitSeal(S subscriber) {
+		awaitingSeal.add(subscriber);
 	}
 
 	private synchronized List<S> drainParked() {
-		List<S> dead = List.ofAll(parked);
-		parked.clear();
+		List<S> dead = List.ofAll(awaitingSeal);
+		awaitingSeal.clear();
 		return dead;
 	}
 
 	// ---- the work half ----
 
-	/**
-	 * Bill {@code work} as one unit of this scope's running work, with a
-	 * cascade attempt on finish. Null-tolerant statically: unowned work
-	 * runs unbilled.
-	 */
-	public static <S> Fiber<Nothing> track(Scope<S> scope, Fiber<Nothing> work) {
-		if (scope == null) {
-			return work;
-		}
-		return scope.ledger.counted(work, scope::sealCascade);
-	}
-
-	public void sleeping(S sleeper, Scope<S> at) {
+	public void blocked(S sleeper, Scope<S> at) {
 		ledger.sleeping(sleeper, at);
 	}
 

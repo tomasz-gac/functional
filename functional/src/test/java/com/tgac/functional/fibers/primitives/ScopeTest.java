@@ -25,9 +25,9 @@ public class ScopeTest {
 			drained.forEach(drainedAtHook::add);
 			return done(nothing());
 		});
-		scope.park("the-fold");
+		scope.awaitSeal("the-fold");
 
-		Scope.track(scope, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(scope, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		assertThat(drainedAtHook).containsExactly("the-fold");
@@ -52,14 +52,14 @@ public class ScopeTest {
 
 		// outer's subscriber waits on the dependency's seal
 		owners.put("waiter", outer);
-		outer.sleeping("waiter", dependency);
-		dependency.park("waiter");
+		outer.blocked("waiter", dependency);
+		dependency.awaitSeal("waiter");
 
-		Scope.track(outer, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(outer, Fiber.defer(() -> done(nothing()))).get();
 		assertThat(outer.isSealed()).isFalse();
 
 		// the dependency finishing seals it, kills the waiter, and cascades to outer
-		Scope.track(dependency, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(dependency, Fiber.defer(() -> done(nothing()))).get();
 		assertThat(dependency.isSealed()).isTrue();
 		assertThat(outer.isSealed()).isTrue();
 		assertThat(sealedOrder).containsExactly("dependency", "outer");
@@ -83,14 +83,14 @@ public class ScopeTest {
 		});
 
 		owners.put("a-reader", a);
-		a.sleeping("a-reader", b);
-		b.park("a-reader");
+		a.blocked("a-reader", b);
+		b.awaitSeal("a-reader");
 		owners.put("b-reader", b);
-		b.sleeping("b-reader", a);
-		a.park("b-reader");
+		b.blocked("b-reader", a);
+		a.awaitSeal("b-reader");
 
-		Scope.track(a, Fiber.defer(() -> done(nothing()))).get();
-		Scope.track(b, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(a, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(b, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(a.isSealed()).isTrue();
 		assertThat(b.isSealed()).isTrue();

@@ -122,7 +122,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	public Either<V, Fiber<Nothing>> park(S subscriber, Predicate<V> caughtUp) {
 		Scope<S> ownerScope = ownerOf.apply(subscriber);
 		if (ownerScope != null) {
-			ownerScope.sleeping(subscriber, scope);
+			ownerScope.blocked(subscriber, scope);
 		}
 		if (cell.park(subscriber, caughtUp)) {
 			return Either.right(ownerScope == null
