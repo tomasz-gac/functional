@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.primitives;
 
 // ABOUTME: A sealable scope of work: the billing ledger, the seal, and the cascade —
-// ABOUTME: termination detection without a published value; MonotoneGrowth adds the cell.
+// ABOUTME: termination detection without a published value; Fixpoint adds the cell.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -18,7 +18,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * The termination-detection half of a {@link MonotoneGrowth}: a {@link WorkLedger}
+ * The termination-detection half of a {@link Fixpoint}: a {@link WorkLedger}
  * (everything working for the scope — running fibers and sleeping
  * subscribers, each recorded with the scope it sleeps at) and a SEAL — the
  * upward-closed, CAS'd-once declaration that the scope's work is finished.
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  *
  * <p>A scope needs no published value to be sealable: subscribers that wait
  * only for the seal {@link #park} here and are drained when it fires. A
- * {@link MonotoneGrowth} composes a scope with a {@link MonotoneCell} and redirects
+ * {@link Fixpoint} composes a scope with a {@link MonotoneCell} and redirects
  * the drain to the cell's parked subscribers.
  *
  * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
@@ -63,7 +63,7 @@ public final class Scope<S> {
 
 	/**
 	 * Where dead subscribers are harvested at seal time: this scope's own
-	 * {@link #park}ed list by default; a {@link MonotoneGrowth} redirects to its
+	 * {@link #park}ed list by default; a {@link Fixpoint} redirects to its
 	 * cell's parked subscribers.
 	 */
 	private Supplier<List<S>> drainOnSeal = this::drainParked;
@@ -75,6 +75,18 @@ public final class Scope<S> {
 	/** Register the fiber to spawn when this scope seals. */
 	public void onSealed(Function<List<S>, Fiber<Nothing>> work) {
 		this.onSealed = work;
+	}
+
+	/**
+	 * Enclose a workforce: bill {@code seed} to this scope, and when the
+	 * seal fires — all transitively billed work exhausted, every sleeper
+	 * provably dead — run {@code atSeal}. The one-call form of the
+	 * track/onSealed pairing: consumers that only want "run this, tell me
+	 * when it is truly done" never touch raw billing.
+	 */
+	public Fiber<Nothing> enclose(Fiber<Nothing> seed, Supplier<Fiber<Nothing>> atSeal) {
+		onSealed(drained -> atSeal.get());
+		return track(this, seed);
 	}
 
 	void drainOnSeal(Supplier<List<S>> drain) {

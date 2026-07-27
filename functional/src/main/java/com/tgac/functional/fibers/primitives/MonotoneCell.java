@@ -1,20 +1,22 @@
 package com.tgac.functional.fibers.primitives;
 
-// ABOUTME: A cell whose value only grows, waking parked subscribers on growth —
-// ABOUTME: monotone writes, threshold reads: the LVars shape, park-as-data style.
+// ABOUTME: A cell whose value only grows by semilattice combine, waking parked
+// ABOUTME: subscribers on strict growth — monotone writes, threshold reads.
 
+import com.tgac.functional.algebra.Semilattice;
 import io.vavr.collection.List;
 import io.vavr.control.Option;
 import java.util.ArrayList;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
  * A broadcast channel with replay, split along the value/subscriber seam:
- * the VALUE is a persistent element that only grows (the caller's step
- * decides what growth means — returning none refuses, the strict-ascent
- * guard); SUBSCRIBERS park as data and are drained wholesale by the next
- * growth. Invariants, all under this monitor:
+ * the VALUE is a persistent {@link Semilattice} element that only grows —
+ * growth is {@link Semilattice#combine} with a delta, and a delta already
+ * {@link Semilattice#absorbedBy absorbed} refuses (the strict-ascent guard,
+ * now a law of the value's algebra rather than a caller convention);
+ * SUBSCRIBERS park as data and are drained wholesale by the next growth.
+ * Invariants, all under this monitor:
  * <ul>
  * <li>a successful {@link #grow} swaps the value and drains ALL parked
  * subscribers — whoever grew the value wakes them;</li>
@@ -25,7 +27,7 @@ import java.util.function.Predicate;
  * declared final and sleepers are dead.</li>
  * </ul>
  */
-public final class MonotoneCell<V, S> {
+public final class MonotoneCell<V extends Semilattice<V>, S> {
 
 	private V value;
 	private final ArrayList<S> parked = new ArrayList<>();
@@ -39,13 +41,13 @@ public final class MonotoneCell<V, S> {
 		return value;
 	}
 
-	/** @return the drained subscribers to wake, or none when the step refused */
-	public synchronized Option<List<S>> grow(Function<V, Option<V>> step) {
-		Option<V> grown = step.apply(value);
-		if (grown.isEmpty()) {
+	/** @return the drained subscribers to wake, or none when the delta was absorbed */
+	public synchronized Option<List<S>> grow(V delta) {
+		V combined = value.combine(delta);
+		if (combined.equals(value)) {
 			return Option.none();
 		}
-		value = grown.get();
+		value = combined;
 		List<S> drained = List.ofAll(parked);
 		parked.clear();
 		return Option.of(drained);

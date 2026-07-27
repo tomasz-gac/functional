@@ -1,6 +1,6 @@
 package com.tgac.functional.fibers.primitives;
 
-// ABOUTME: MonotoneGrowth seal-cascade tests: the group seal marks every member sealed
+// ABOUTME: Fixpoint seal-cascade tests: the group seal marks every member sealed
 // ABOUTME: before any member's onSealed hook fires (SEALED implies SOLVABLE).
 
 import static com.tgac.functional.category.Nothing.nothing;
@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 
-public class MonotoneGrowthTest {
+public class FixpointTest {
 
 	/**
 	 * A sleeper ring group-seals as one unit: at the moment any member's
@@ -25,10 +25,10 @@ public class MonotoneGrowthTest {
 	 */
 	@Test
 	public void groupSealMarksEveryMemberBeforeAnyHookFires() {
-		Map<String, MonotoneGrowth<Integer, String>> owners = new HashMap<>();
-		Function<String, MonotoneGrowth<Integer, String>> ownerOf = owners::get;
-		MonotoneGrowth<Integer, String> a = new MonotoneGrowth<>(0, ownerOf);
-		MonotoneGrowth<Integer, String> b = new MonotoneGrowth<>(0, ownerOf);
+		Map<String, Fixpoint<MaxInt, String>> owners = new HashMap<>();
+		Function<String, Fixpoint<MaxInt, String>> ownerOf = owners::get;
+		Fixpoint<MaxInt, String> a = new Fixpoint<>(MaxInt.of(0), ownerOf);
+		Fixpoint<MaxInt, String> b = new Fixpoint<>(MaxInt.of(0), ownerOf);
 
 		List<Boolean> groupSealedAtHook = new ArrayList<>();
 		a.onSealed(drained -> {
@@ -50,8 +50,8 @@ public class MonotoneGrowthTest {
 
 		// each fixpoint runs one unit of tracked work (its master); the last
 		// finish's cascade attempt finds the drained ring and group-seals it
-		MonotoneGrowth.track(a, Fiber.defer(() -> done(nothing()))).get();
-		MonotoneGrowth.track(b, Fiber.defer(() -> done(nothing()))).get();
+		Fixpoint.track(a, Fiber.defer(() -> done(nothing()))).get();
+		Fixpoint.track(b, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(a.isSealed()).isTrue();
 		assertThat(b.isSealed()).isTrue();
