@@ -15,6 +15,13 @@ import java.util.function.Predicate;
  * {@link #account()} seals — the census proves no growth can ever arrive —
  * the source completes every held waiter with a sealed {@link Await.Result}
  * carrying the final value.
+ *
+ * <p>A source belongs to ONE drive-family. Waiters from foreign drives
+ * would get correct wakes (handles are drive-bound), but a drive's
+ * stranded-waiter detection assumes every possible completer runs in that
+ * drive — a foreign engine still growing this source reads as a false
+ * strand and is refused loudly. Cross-engine sharing is unsupported, and
+ * fails loud, never silent.
  */
 public interface Source<V> {
 
