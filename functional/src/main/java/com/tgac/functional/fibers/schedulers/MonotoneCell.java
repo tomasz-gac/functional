@@ -26,9 +26,9 @@ import java.util.function.Predicate;
  * <li>frames, via {@link com.tgac.functional.fibers.Fiber#await}: held by
  * {@link #suspend}, completed with {@code more(value)} by the first
  * satisfying growth, or with {@code sealed(value)} — the FINAL value — at
- * the seal. The seal path calls {@link ResumeHandle#bill} on EVERY resumed
- * frame before delivering any result, so no blocked record can be read as
- * dead while its sealed-arm work is pending;</li>
+ * the seal. The seal path calls {@link ResumeHandle#markRunning} on EVERY
+ * resumed frame before delivering any result, so no blocked record can be
+ * read as dead while its sealed-arm work is pending;</li>
  * <li>data subscribers S (the interim {@link Fixpoint} path): parked by
  * {@link #park}, drained wholesale by the next growth or by the seal.</li>
  * </ul>
@@ -141,9 +141,10 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 
 	/**
 	 * The seal's completion of held frames, run by {@link Scope} once the
-	 * flag is set: FIRST bill every runtime waiter ({@link ResumeHandle#bill}
-	 * — its owner's ledger reads it as running before any blocked record can
-	 * satisfy a quiescence predicate), THEN deliver the final value.
+	 * flag is set: FIRST mark every runtime waiter running
+	 * ({@link ResumeHandle#markRunning} — its owner's ledger reads it as
+	 * running before any blocked record can satisfy a quiescence predicate),
+	 * THEN deliver the final value.
 	 */
 	private void completeAllSealed() {
 		ArrayList<Held<V>> rest;
@@ -156,7 +157,7 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 		for (Held<V> h : rest) {
 			Await.Waiter<?> waiter = h.waiter;
 			if (waiter instanceof ResumeHandle) {
-				((ResumeHandle) waiter).bill();
+				((ResumeHandle) waiter).markRunning();
 			}
 		}
 		for (Held<V> h : rest) {
