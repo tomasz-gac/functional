@@ -84,18 +84,19 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 			return true;
 		}
 
-		Entry entry = entries.peekFirst();
+		Entry entry = entries.pollFirst();
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(entry.frame, entry, this, stepListener);
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.addFirst(entry);
+		}
 
 		return currentCompleted && entries.isEmpty();
 	}
 
 	@Override
 	public void completed(Entry entry, Object value) {
-		entries.pollFirst();
 		if (entry.sink != null) {
 			entry.sink.accept(value);
 		} else {
@@ -106,8 +107,6 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		entries.pollFirst();
-
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
@@ -140,13 +139,11 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		entries.pollFirst();
 	}
 
 	@Override
 	public void suspendCancelled(Entry entry) {
 		awaits.cancelled(entry);
-		entries.addFirst(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {

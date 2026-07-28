@@ -84,19 +84,20 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 		}
 
 		index = (index + 1) % entries.size();
-		Entry entry = entries.get(index);
+		Collections.swap(entries, index, entries.size() - 1);
+		Entry entry = entries.remove(entries.size() - 1);
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(entry.frame, entry, this, stepListener);
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.add(entry);
+		}
 
 		return currentCompleted && entries.isEmpty();
 	}
 
 	@Override
 	public void completed(Entry entry, Object value) {
-		Collections.swap(entries, index, entries.size() - 1); // avoids shuffling
-		entries.remove(entries.size() - 1);
 		if (entry.sink != null) {
 			entry.sink.accept(value);
 		} else {
@@ -107,8 +108,6 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		entries.remove(index);
-
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
@@ -141,14 +140,11 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		Collections.swap(entries, index, entries.size() - 1);
-		entries.remove(entries.size() - 1);
 	}
 
 	@Override
 	public void suspendCancelled(Entry entry) {
 		awaits.cancelled(entry);
-		entries.add(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {

@@ -57,6 +57,11 @@ final class FiberStep {
 			this(computation, own(into));
 		}
 
+		/** Step this frame once as {@code entry}, reporting events to {@code effects}. */
+		<E> boolean step(E entry, Effects<E> effects, StepListener listener) {
+			return FiberStep.step(this, entry, effects, listener);
+		}
+
 		/** The workforce of a runtime source; a foreign source has none - unowned. */
 		static Scope<?> own(Source<?> into) {
 			return into instanceof MonotoneCell ? ((MonotoneCell<?, ?>) into).scope() : null;
@@ -115,7 +120,7 @@ final class FiberStep {
 	 * 		control through {@link Effects#completed} or {@link Effects#forked}
 	 */
 	@SuppressWarnings("unchecked")
-	static <E> boolean step(Frame frame, E entry, Effects<E> effects, StepListener listener) {
+	private static <E> boolean step(Frame frame, E entry, Effects<E> effects, StepListener listener) {
 		Fiber<Object> computation = frame.computation;
 		listener.onStep(computation);
 

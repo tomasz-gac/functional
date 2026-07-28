@@ -82,18 +82,19 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 			return true;
 		}
 
-		Entry entry = entries.peek();
+		Entry entry = entries.poll();
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(entry.frame, entry, this, stepListener);
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.offer(entry);
+		}
 
 		return currentCompleted && entries.isEmpty();
 	}
 
 	@Override
 	public void completed(Entry entry, Object value) {
-		entries.poll();
 		if (entry.sink != null) {
 			entry.sink.accept(value);
 		} else {
@@ -104,8 +105,6 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		entries.poll();
-
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
@@ -136,13 +135,11 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		entries.poll();
 	}
 
 	@Override
 	public void suspendCancelled(Entry entry) {
 		awaits.cancelled(entry);
-		entries.offer(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {

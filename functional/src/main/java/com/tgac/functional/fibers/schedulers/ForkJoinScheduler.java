@@ -142,7 +142,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		@Override
 		protected void compute() {
 			try {
-				while (!cancelled && FiberStep.step(frame, this, this, stepListener)) {
+				while (!cancelled && frame.step(this, this, stepListener)) {
 					// run this frame's trampoline uninterrupted
 				}
 			} catch (Throwable t) {
@@ -156,8 +156,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		public void completed(Task task, Object value) {
-			valueSink.accept(value);
-			joinCallback.run();
+			task.valueSink.accept(value);
+			task.joinCallback.run();
 		}
 
 		@Override
@@ -166,9 +166,9 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			Consumer<Object> childSink = fork.getSink();
 
 			// the continuation resumes this frame once every option has joined
-			FiberStep.Frame contFrame = frame;
-			Consumer<Object> contSink = valueSink;
-			Runnable contJoin = joinCallback;
+			FiberStep.Frame contFrame = task.frame;
+			Consumer<Object> contSink = task.valueSink;
+			Runnable contJoin = task.joinCallback;
 			AtomicInteger latch = new AtomicInteger(options.size());
 			Runnable childDone = () -> {
 				if (latch.decrementAndGet() == 0) {
@@ -178,7 +178,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			};
 
 			for (Fiber<Object> option : options) {
-				spawn(new Task(new FiberStep.Frame(option, frame.scope), childSink, childDone));
+				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope), childSink, childDone));
 			}
 		}
 
@@ -186,14 +186,14 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public void detached(Task task, Fiber<?> child, Source<?> into) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
-			spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_JOIN));
+			task.spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_JOIN));
 		}
 
 		@Override
 		public Await.Waiter<Object> resumeHandle(Task task, Scope<?> owner) {
-			FiberStep.Frame contFrame = frame;
-			Consumer<Object> contSink = valueSink;
-			Runnable contJoin = joinCallback;
+			FiberStep.Frame contFrame = task.frame;
+			Consumer<Object> contSink = task.valueSink;
+			Runnable contJoin = task.joinCallback;
 			return new ResumeHandle(contFrame, owner, () -> {
 				// remove-then-spawn-then-release: the strand check reads p >
 				// size for a mid-flight resume, never a false equality
@@ -210,12 +210,12 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			// unit lands BEFORE the map entry so a concurrent strand check can
 			// only read p > size, never a false equality
 			pending.incrementAndGet();
-			outstanding.put(frame, at);
+			outstanding.put(task.frame, at);
 		}
 
 		@Override
 		public void suspendCancelled(Task task) {
-			outstanding.remove(frame);
+			outstanding.remove(task.frame);
 			pending.decrementAndGet();
 		}
 

@@ -39,7 +39,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	// the entry being stepped and the sink of the current step() call
-	private Bucket currentBucket;
+	private int currentDepth;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
@@ -100,19 +100,28 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		++bucket.iterations;
 		bucket.index = (bucket.index + 1) % bucket.entries.size();
 
-		currentBucket = bucket;
-		Entry entry = bucket.entries.get(bucket.index);
+		currentDepth = bucket.depth;
+		// take the entry OUT before stepping - callbacks never remove, the
+		// loop re-adds a still-runnable frame
+		Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
+		Entry entry = bucket.entries.remove(bucket.entries.size() - 1);
+		if (bucket.entries.isEmpty()) {
+			buckets.remove(bucket);
+		} else {
+			tryPromote();
+		}
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(entry.frame, entry, this, stepListener);
+		if (entry.frame.step(entry, this, stepListener)) {
+			addAll(currentDepth, new ArrayList<>(Collections.singletonList(entry)));
+		}
 
 		return currentCompleted && buckets.isEmpty();
 	}
 
 	@Override
 	public void completed(Entry entry, Object value) {
-		removeCurrentEntry(currentBucket);
 		if (entry.sink != null) {
 			entry.sink.accept(value);
 		} else {
@@ -123,8 +132,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		removeCurrentEntry(currentBucket);
-
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
@@ -135,7 +142,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 			fork.getSink().accept(result);
 		};
 
-		addAll(currentBucket.depth + 1, fork.getOptions().stream()
+		addAll(currentDepth + 1, fork.getOptions().stream()
 				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent))
 				.collect(Collectors.toList()));
 	}
@@ -143,7 +150,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	@Override
 	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
-		addAll(currentBucket.depth,
+		addAll(currentDepth,
 				new ArrayList<>(Collections.singletonList(
 						new Entry(new FiberStep.Frame(child, into), value -> {
 						}))));
@@ -157,13 +164,11 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		removeCurrentEntry(currentBucket);
 	}
 
 	@Override
 	public void suspendCancelled(Entry entry) {
 		awaits.cancelled(entry);
-		add(entry);
 	}
 
 	private void tryPromote() {
@@ -195,16 +200,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 			buckets.offer(new Bucket(entries, 0, -1, 0)); // re-introduce the parent node
 		} else {
 			buckets.peek().entries.add(entry);
-		}
-	}
-
-	private void removeCurrentEntry(Bucket bucket) {
-		Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
-		bucket.entries.remove(bucket.entries.size() - 1);
-		if (bucket.entries.isEmpty()) {
-			buckets.remove(bucket);
-		} else {
-			tryPromote();
 		}
 	}
 
