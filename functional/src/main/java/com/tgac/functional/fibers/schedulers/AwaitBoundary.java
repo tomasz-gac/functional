@@ -38,7 +38,7 @@ final class AwaitBoundary<E> {
 	 * owner.unblocked(frame) — a racing seal never reads quiescence in the
 	 * gap — then hands the frame its result and injects the entry.
 	 */
-	Await.Waiter<Object> resumeHandle(E entry, FiberStep.Frame frame, Scope owner) {
+	ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner) {
 		return new ResumeHandle(frame, owner, () -> {
 			outstanding.remove(entry);
 			injections.add(entry);

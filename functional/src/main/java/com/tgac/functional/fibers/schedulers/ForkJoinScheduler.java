@@ -199,7 +199,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public Await.Waiter<Object> resumeHandle(Task task, Scope owner) {
+		public ResumeHandle resumeHandle(Task task, Scope owner) {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
 			Runnable contJoin = task.joinCallback;
@@ -214,8 +214,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void suspended(Task task, Source<?> at, Await.Waiter<Object> waiter) {
-			((ResumeHandle) waiter).heldAt(FiberStep.Frame.own(at), () -> {
+		public void suspended(Task task, Source<?> at, ResumeHandle handle) {
+			handle.heldAt(FiberStep.Frame.own(at), () -> {
 				// the held unit lands BEFORE the map entry so a concurrent
 				// strand check can only read p > size, never a false equality
 				pending.incrementAndGet();

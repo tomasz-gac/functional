@@ -92,7 +92,7 @@ final class FiberStep {
 		 * that order is internal, no caller can misorder it — hands the frame
 		 * its result and re-queues it through the scheduler's injections.
 		 */
-		default Await.Waiter<Object> resumeHandle(E entry, Scope owner) {
+		default ResumeHandle resumeHandle(E entry, Scope owner) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -105,7 +105,7 @@ final class FiberStep {
 		 * also where the fork's join fires: an immediately answered await
 		 * never yields, so the join never rides the attempt.
 		 */
-		default void suspended(E entry, Source<?> at, Await.Waiter<Object> waiter) {
+		default void suspended(E entry, Source<?> at, ResumeHandle handle) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -166,8 +166,8 @@ final class FiberStep {
 			// holds it, another thread may resume the frame at any moment, so
 			// nothing here may touch the frame after a held suspend
 			frame.scope = null;
-			Await.Waiter<Object> waiter = effects.resumeHandle(entry, owner);
-			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), waiter);
+			ResumeHandle handle = effects.resumeHandle(entry, owner);
+			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), handle);
 			if (immediate != null) {
 				// nothing was recorded, nothing to undo — the frame continues
 				frame.scope = owner;
@@ -177,7 +177,7 @@ final class FiberStep {
 			// held: the handle referees the record-vs-completion race; then
 			// finished() closes the pair — record lands first, so a racing
 			// seal never sees drained counters with no blocked record
-			effects.suspended(entry, source, waiter);
+			effects.suspended(entry, source, handle);
 			if (owner != null) {
 				effects.detached(entry, owner.finished(), null);
 			}

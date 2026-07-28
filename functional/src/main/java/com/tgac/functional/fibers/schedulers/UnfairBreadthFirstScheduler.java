@@ -129,13 +129,13 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Entry entry, Scope owner) {
+	public ResumeHandle resumeHandle(Entry entry, Scope owner) {
 		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override
-	public void suspended(Entry entry, Source<?> at, Await.Waiter<Object> waiter) {
-		((ResumeHandle) waiter).heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
+	public void suspended(Entry entry, Source<?> at, ResumeHandle handle) {
+		handle.heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
 		entry.joined();
 	}
 
