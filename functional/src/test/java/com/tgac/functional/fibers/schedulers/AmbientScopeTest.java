@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Ambient billing: detached work seals with no manual billing — forks inherit,
 // ABOUTME: detachTo re-parents, and the parallel scheduler bills race-free.

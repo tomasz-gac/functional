@@ -132,7 +132,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+	public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
 		return awaits.resumeHandle(current, current.frame, owner);
 	}
 

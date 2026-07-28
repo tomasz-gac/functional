@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Pins the monotone cell's contract: strict growth swaps and drains all
 // ABOUTME: parked, an absorbed delta changes nothing, park races grow toward reading.

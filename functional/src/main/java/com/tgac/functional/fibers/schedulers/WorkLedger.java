@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: A production's work ledger: the running half as two monotone counters,
 // ABOUTME: the blocked half as who-blocks-where — quiescence is both halves empty.
@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * predicate may read foreign state lock-free when that state is
  * upward-closed (a stale false only defers).
  */
-public final class WorkLedger<S, P> {
+final class WorkLedger<S, P> {
 
 
 	private long started;

@@ -191,7 +191,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public Await.Waiter<Object> resumeHandle(WorkScope owner) {
+		public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
 			FiberStep.Frame contFrame = frame;
 			Consumer<Object> contSink = valueSink;
 			Runnable contJoin = joinCallback;

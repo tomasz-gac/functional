@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Fiber.await lifecycle tests: immediate results, growth wakes with the
 // ABOUTME: grown value, sealed carries the final value, census and endgame honesty.
@@ -9,12 +9,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.primitives.Scope;
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
-import com.tgac.functional.fibers.schedulers.DepthFirstScheduler;
-import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
-import com.tgac.functional.fibers.schedulers.RoundRobin;
-import com.tgac.functional.fibers.schedulers.UnfairBreadthFirstScheduler;
+import com.tgac.functional.fibers.Await;
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
+import com.tgac.functional.fibers.Source;
+import com.tgac.functional.fibers.WorkScope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

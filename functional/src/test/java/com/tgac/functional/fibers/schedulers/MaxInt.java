@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: The smallest interesting test semilattice: ints under max —
 // ABOUTME: combine is max, absorption is ≤.

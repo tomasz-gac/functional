@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: A sealable scope of work: the ledger, the seal, and the cascade —
 // ABOUTME: termination detection without a published value; Fixpoint adds the cell.
@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  * an obstruction and is rechecked. Monitors never nest — each scope's
  * rule runs under its own locks, the walk happens outside them.
  */
-public final class Scope<S> implements WorkScope {
+final class Scope<S> implements WorkScope {
 
 	private final WorkLedger<Object, WorkScope> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
@@ -76,12 +76,10 @@ public final class Scope<S> implements WorkScope {
 
 	// ---- the WorkScope methods ----
 
-	@Override
 	public void started() {
 		ledger.started();
 	}
 
-	@Override
 	public Fiber<Nothing> finished() {
 		ledger.finished();
 		return Fiber.defer(this::sealCascade);
@@ -106,12 +104,10 @@ public final class Scope<S> implements WorkScope {
 
 	// ---- the work half ----
 
-	@Override
 	public void blocked(Object sleeper, WorkScope at) {
 		ledger.blocked(sleeper, at);
 	}
 
-	@Override
 	public void unblocked(Object sleeper) {
 		ledger.unblocked(sleeper);
 	}
@@ -135,7 +131,6 @@ public final class Scope<S> implements WorkScope {
 
 	// ---- the seal ----
 
-	@Override
 	public boolean isSealed() {
 		return sealed.get();
 	}
@@ -186,7 +181,8 @@ public final class Scope<S> implements WorkScope {
 	}
 
 	private List<S> sealIfQuiescent(ArrayList<Fiber<Nothing>> emits) {
-		if (!ledger.quiescent(at -> at == this || at.isSealed())) {
+		if (!ledger.quiescent(at -> at == this
+				|| (at instanceof Scope && ((Scope<?>) at).isSealed()))) {
 			return null;
 		}
 		if (!sealed.compareAndSet(false, true)) {
@@ -245,12 +241,16 @@ public final class Scope<S> implements WorkScope {
 			}
 			members.put(scope, snapshot.started);
 			for (WorkScope at : snapshot.blockedAt) {
-				if (at != scope && !at.isSealed()) {
-					if (!(at instanceof Scope)) {
-						// a foreign unsealed place cannot join the merge - defer
-						return null;
-					}
-					frontier.add((Scope<S>) at);
+				if (at == scope) {
+					continue;
+				}
+				if (!(at instanceof Scope)) {
+					// a place with no seal (or a foreign one) can never join - defer
+					return null;
+				}
+				Scope<S> other = (Scope<S>) at;
+				if (!other.isSealed()) {
+					frontier.add(other);
 				}
 			}
 		}

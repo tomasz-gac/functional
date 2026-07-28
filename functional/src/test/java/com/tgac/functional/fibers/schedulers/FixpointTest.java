@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Fixpoint lifecycle tests: growth feeds parked subscribers, parks refuse
 // ABOUTME: past-moved values, and sleeper rings group-seal before any hook fires.

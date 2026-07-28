@@ -30,7 +30,7 @@ final class AwaitBoundary<E> {
 	 * gap — then hands the frame its result and injects the entry.
 	 */
 	@SuppressWarnings("unchecked")
-	Await.Waiter<Object> resumeHandle(E entry, FiberStep.Frame frame, WorkScope owner) {
+	Await.Waiter<Object> resumeHandle(E entry, FiberStep.Frame frame, Scope<?> owner) {
 		return result -> {
 			if (owner != null) {
 				owner.started();

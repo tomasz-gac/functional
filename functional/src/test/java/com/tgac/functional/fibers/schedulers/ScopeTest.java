@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Bare-scope seal tests: a cell-less scope bills work, parks seal-only
 // ABOUTME: subscribers, defers on foreign sleepers, and group-seals rings.

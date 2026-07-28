@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: A cell whose value only grows by semilattice combine, waking parked
 // ABOUTME: subscribers on strict growth — monotone writes, threshold reads.
@@ -27,7 +27,7 @@ import java.util.function.Predicate;
  * declared final and sleepers are dead.</li>
  * </ul>
  */
-public final class MonotoneCell<V extends Semilattice<V>, S> {
+final class MonotoneCell<V extends Semilattice<V>, S> {
 
 	private V value;
 	private final ArrayList<S> parked = new ArrayList<>();

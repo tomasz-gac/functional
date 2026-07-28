@@ -1,43 +1,15 @@
 package com.tgac.functional.fibers;
 
-// ABOUTME: What the interpreter records frames' work in: one started/finished pair
-// ABOUTME: per frame, finished returning the seal-attempt fiber to run after it.
-
-import com.tgac.functional.category.Nothing;
+// ABOUTME: The opaque token fibers carry to name the scope their work belongs to.
+// ABOUTME: Only the runtime's Scope implements it; foreign implementations are refused.
 
 /**
- * The face of a scope the fiber interpreter sees. Every frame constructed
- * with a scope calls {@link #started} at construction and, on completion,
- * runs the fiber {@link #finished} returns as its own continuation — the
- * seal attempt, and any work the seal spawns, stepped by the same
- * scheduler. The interpreter owns the pairing, so exactly-once holds by
- * construction; consumer code never calls these methods.
+ * The scope a fiber's work belongs to, as an opaque token: {@link Fiber#detachTo}
+ * accepts one, {@link Source#scope} returns one, frames carry one. The methods
+ * that record work against a scope live on the runtime's own implementation,
+ * package-private in {@code fibers.schedulers} — exactly-once recording holds
+ * because nothing else can call them. A foreign implementation of this
+ * interface is refused at frame construction.
  */
 public interface WorkScope {
-
-	void started();
-
-	/** Record the matching finish and return the seal-attempt work to run next. */
-	Fiber<Nothing> finished();
-
-	/**
-	 * Record that a piece of this scope's work is blocked, wakeable only by
-	 * {@code at}. The interpreter writes the record BEFORE the
-	 * started/finished pair closes, so a racing seal never sees drained
-	 * counters with no blocked record.
-	 */
-	default void blocked(Object waiter, WorkScope at) {
-	}
-
-	/** The blocked piece is no longer an obstruction — resumed or proven dead. */
-	default void unblocked(Object waiter) {
-	}
-
-	/**
-	 * Whether this scope's work is provably finished — an upward-closed read
-	 * (a stale false only defers a seal, never unsounds one).
-	 */
-	default boolean isSealed() {
-		return false;
-	}
 }

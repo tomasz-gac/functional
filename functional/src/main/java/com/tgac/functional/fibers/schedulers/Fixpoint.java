@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.primitives;
+package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: A distributed fixpoint over parked continuations: producers grow a
 // ABOUTME: semilattice value, growth FEEDS the value to subscribers, quiescence seals.
