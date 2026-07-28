@@ -307,6 +307,32 @@ public class AwaitTest {
 	}
 
 	@Test
+	public void anImmediatelyAnsweredAwaitDoesNotJoinBeforeTheChildYields() {
+		IntSource source = new IntSource();
+		source.grow(5); // the child's await answers immediately
+		List<String> order = new ArrayList<>();
+
+		Fiber<Nothing> child = Fiber.await(source, v -> v >= 1)
+				.flatMap(r -> {
+					order.add("child");
+					return done(nothing());
+				});
+		Fiber<Nothing> program = Fiber.fork(
+						Collections.singletonList(child), v -> {
+						})
+				.flatMap(__ -> Fiber.defer(() -> {
+					order.add("parent");
+					return done(nothing());
+				}));
+
+		program.get();
+
+		// the join means the child YIELDED: an immediately answered await is
+		// not a yield - the child keeps running, and the parent waits for it
+		assertThat(order).containsExactly("child", "parent");
+	}
+
+	@Test
 	public void aDriveExhaustedWithALiveBlockedFrameRefusesLoudly() {
 		// a foreign Source has no workforce - it can never seal
 		IntSource source = new IntSource();

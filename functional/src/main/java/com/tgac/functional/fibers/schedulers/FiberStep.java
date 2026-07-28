@@ -112,6 +112,16 @@ final class FiberStep {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
+
+		/**
+		 * The suspension STUCK — the frame has yielded control. This is where
+		 * a fork's join may fire: an immediately answered await never yields,
+		 * so the join must not ride {@link #suspending}.
+		 */
+		default void suspended(E entry) {
+			throw new UnsupportedOperationException(
+					"Fiber.await is not supported by this scheduler yet");
+		}
 	}
 
 
@@ -189,6 +199,7 @@ final class FiberStep {
 			}
 			// held: finished() and the seal attempt run as detached work — the
 			// still-open pair until it runs only delays a seal, which is sound
+			effects.suspended(entry);
 			if (owner != null) {
 				effects.detached(entry, owner.finished(), null);
 			}

@@ -215,7 +215,6 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		public void suspending(Task task, Source<?> at) {
-			task.joined();
 			// the held frame keeps one pending unit open until its resume; the
 			// unit lands BEFORE the map entry so a concurrent strand check can
 			// only read p > size, never a false equality
@@ -227,6 +226,11 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public void suspendCancelled(Task task) {
 			outstanding.remove(task.frame);
 			pending.decrementAndGet();
+		}
+
+		@Override
+		public void suspended(Task task) {
+			task.joined();
 		}
 
 		private void spawn(Task task) {

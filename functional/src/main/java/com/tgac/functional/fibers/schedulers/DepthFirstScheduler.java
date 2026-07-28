@@ -140,6 +140,10 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
+	}
+
+	@Override
+	public void suspended(Entry entry) {
 		entry.joined();
 	}
 
