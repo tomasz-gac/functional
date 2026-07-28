@@ -1,29 +1,30 @@
 package com.tgac.functional.fibers;
 
-// ABOUTME: What the interpreter bills frames to: one started/finished pair per unit
-// ABOUTME: of work, finished returning the seal-attempt fiber to run as the tail.
+// ABOUTME: What the interpreter records frames' work in: one started/finished pair
+// ABOUTME: per frame, finished returning the seal-attempt fiber to run after it.
 
 import com.tgac.functional.category.Nothing;
 
 /**
- * The billing face of a scope, as the fiber interpreter sees it. Every frame
- * born with a scope ticks {@link #started} at birth and, on completion, runs
- * the fiber {@link #finished} returns as its own tail — the seal attempt, and
- * any work the seal spawns, stepped by the same driver. The interpreter owns
- * the pairing, so exactly-once billing holds by construction; consumer code
- * never touches these doors.
+ * The face of a scope the fiber interpreter sees. Every frame constructed
+ * with a scope calls {@link #started} at construction and, on completion,
+ * runs the fiber {@link #finished} returns as its own continuation — the
+ * seal attempt, and any work the seal spawns, stepped by the same
+ * scheduler. The interpreter owns the pairing, so exactly-once holds by
+ * construction; consumer code never calls these methods.
  */
 public interface WorkScope {
 
 	void started();
 
-	/** Tick the matching finish and return the seal-attempt work to run as the tail. */
+	/** Record the matching finish and return the seal-attempt work to run next. */
 	Fiber<Nothing> finished();
 
 	/**
 	 * Record that a piece of this scope's work is blocked, wakeable only by
-	 * {@code at}. The interpreter places the record BEFORE the running pair
-	 * closes, so a racing seal never sees drained counters with no sleeper.
+	 * {@code at}. The interpreter writes the record BEFORE the
+	 * started/finished pair closes, so a racing seal never sees drained
+	 * counters with no blocked record.
 	 */
 	default void blocked(Object waiter, WorkScope at) {
 	}

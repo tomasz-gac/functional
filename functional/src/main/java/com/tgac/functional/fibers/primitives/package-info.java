@@ -16,7 +16,7 @@
  * <p><b>Which waiting mechanism to use — the three cases:</b>
  * <ul>
  * <li><b>External completion</b> (I/O, another process): the waited-for event
- * completes on its own, independent of any fiber in this drive. No cycle can
+ * completes on its own, independent of any fiber in this scheduler. No cycle can
  * form through the wait, so no detection is needed — represent the work as an
  * externally-completed fiber (with a timeout regime; an exceptional completion
  * fails the branch: incompleteness, never unsoundness). Do NOT enroll such
@@ -25,7 +25,7 @@
  * anything with upward-closed wake conditions over a grow-only substrate):
  * enroll in a Fixpoint. Cyclic waits are FIXPOINTS, not errors; quiescence
  * detection completes them soundly. This is the only legal way for one piece
- * of in-drive work to wait on another.</li>
+ * of in-scheduler work to wait on another.</li>
  * <li><b>Internal, non-monotone</b> (a cycle through an operator whose result
  * depends on a COMPLETED sub-search — aggregation, negation): no sound
  * completion value exists; such cycles must be detected and refused
@@ -34,7 +34,7 @@
  * </ul>
  *
  * <p>Blocking a thread until a fiber completes is never legal: in a
- * cooperative drive the awaited fiber may need that thread. Waiting is always
+ * cooperative scheduler the awaited fiber may need that thread. Waiting is always
  * parked data (a subscriber in a cell, a sleeper in a ledger) or an external
  * completion — never thread state.
  */

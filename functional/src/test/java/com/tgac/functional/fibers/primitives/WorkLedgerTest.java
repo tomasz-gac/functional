@@ -23,21 +23,21 @@ public class WorkLedgerTest {
 	@Test
 	public void quiescenceNeedsEveryStartMatchedByAFinish() {
 		WorkLedger<String, String> ledger = new WorkLedger<>();
-		ledger.taskStarted();
+		ledger.started();
 		assertThat(ledger.quiescent(at -> true)).isFalse();
-		ledger.taskStarted();
-		ledger.taskFinished();
+		ledger.started();
+		ledger.finished();
 		assertThat(ledger.quiescent(at -> true)).isFalse();
-		ledger.taskFinished();
+		ledger.finished();
 		assertThat(ledger.quiescent(at -> true)).isTrue();
 	}
 
 	@Test
 	public void aSleeperBlocksQuiescenceUnlessItCannotWake() {
 		WorkLedger<String, String> ledger = new WorkLedger<>();
-		ledger.taskStarted();
-		ledger.taskFinished();
-		ledger.sleeping("consumer", "someEntry");
+		ledger.started();
+		ledger.finished();
+		ledger.blocked("consumer", "someEntry");
 
 		assertThat(ledger.quiescent(at -> false)).isFalse();
 		assertThat(ledger.quiescent(at -> at.equals("someEntry"))).isTrue();
@@ -46,10 +46,10 @@ public class WorkLedgerTest {
 	@Test
 	public void wakingRemovesTheSleeper() {
 		WorkLedger<String, String> ledger = new WorkLedger<>();
-		ledger.taskStarted();
-		ledger.taskFinished();
-		ledger.sleeping("consumer", "someEntry");
-		ledger.awake("consumer");
+		ledger.started();
+		ledger.finished();
+		ledger.blocked("consumer", "someEntry");
+		ledger.unblocked("consumer");
 
 		assertThat(ledger.quiescent(at -> false)).isTrue();
 	}

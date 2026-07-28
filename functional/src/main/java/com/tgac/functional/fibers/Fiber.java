@@ -100,7 +100,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/**
 	 * Detach a fiber to run independently without blocking the caller's completion.
 	 * The detached fiber runs in the background and the caller continues immediately.
-	 * The child runs UNOWNED — no scope bills it; use {@link #detachTo} to re-parent.
+	 * The child runs UNOWNED — no scope records it; use {@link #detachTo} to re-parent.
 	 *
 	 * @param fiber The fiber to detach
 	 * @return A fiber that completes immediately while the detached fiber runs independently
@@ -111,7 +111,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	/**
 	 * Detach a fiber re-parented to {@code scope}: the child runs independently
-	 * but its work bills there — the one legal escape from ambient inheritance
+	 * but its work is recorded there — the one legal escape from ambient inheritance
 	 * (a tabling master belongs to its entry, not to whichever caller spawned it).
 	 */
 	static <A> Fiber<Nothing> detachTo(WorkScope scope, Fiber<A> fiber) {
@@ -120,9 +120,9 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	/**
 	 * Suspend until {@code ready} holds of {@code source}'s value or the
-	 * source's account seals — the condition variable over a monotone source
+	 * source's scope seals — the condition variable over a monotone source
 	 * (docs/design/await.md). The fiber does not end while blocked: its
-	 * account converts the running pair into a blocked record, so every
+	 * scope's started/finished pair converts into a blocked record, so every
 	 * quiescence question stays answerable. Run-once: one await completes at
 	 * most once ({@code more} or {@code sealed}); re-arm with flatMap.
 	 */

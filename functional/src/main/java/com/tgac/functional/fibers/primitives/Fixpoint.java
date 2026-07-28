@@ -24,8 +24,8 @@ import java.util.function.Predicate;
  * <pre>
  * master(work)                 a producer, detached into this fixpoint's scope
  * grow(delta)                  join the value; every subscriber the growth
- *                              drains is FED the grown value - billed-before-
- *                              awoken - as a detached fiber riding the tail
+ *                              drains is FED the grown value - started
+ *                              before unblocked - as a detached fiber
  * park(s, caughtUp)            a subscriber out of value parks, its owner's
  *                              ledger kept honest; right(sealAttempt) when
  *                              parked, left(freshValue) when the value moved -
@@ -49,7 +49,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	/**
 	 * @param ownerOf which fixpoint's scope a subscriber works FOR (null =
-	 * 		unowned top-level work, unbilled, gating nothing)
+	 * 		unowned top-level work, recorded nowhere, gating nothing)
 	 * @param feed how a drained subscriber consumes the grown value - the
 	 * 		continuation push, owned by the domain
 	 */
@@ -75,9 +75,9 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	/**
 	 * Join {@code delta} into the value. An absorbed delta (no new
 	 * knowledge) is inert; strict growth drains every parked subscriber and
-	 * FEEDS each one the grown value - billed to its owner before its
-	 * sleeping record is removed, so a racing seal never reads quiescence in
-	 * the gap - as detached fibers riding the returned tail.
+	 * FEEDS each one the grown value - recorded running at its owner
+	 * (respawn) before its blocked record is removed, so a racing seal never
+	 * reads quiescence in the gap - as detached fibers in the returned fiber.
 	 */
 	public Fiber<Nothing> grow(V delta) {
 		Option<List<S>> drained = cell.grow(delta);
@@ -101,19 +101,19 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	// ---- the workforce ----
 
-	/** A producer: {@code work} runs detached, billed to this fixpoint. */
+	/** A producer: {@code work} runs detached, recorded in this fixpoint's scope. */
 	public Fiber<Nothing> master(Fiber<Nothing> work) {
 		return Fiber.detachTo(scope, work);
 	}
 
 	/**
 	 * Park a subscriber that ran out of value, its OWNER's ledger kept
-	 * honest: the sleeping record lands BEFORE the park (a feed can only
+	 * honest: the blocked record lands BEFORE the park (a feed can only
 	 * drain a parked subscriber, so the record is always there to remove),
 	 * and a refused park - the value moved past the subscriber - removes it
 	 * again and hands the FRESH VALUE back: keep reading, never poll. The
 	 * owner is {@link #ownerOf}'s answer - the same authority {@link #grow}
-	 * bills respawns to, so sleep and respawn can never split ledgers.
+	 * respawns through, so parking and respawn can never split ledgers.
 	 *
 	 * @return right(the owner's seal attempt) when parked - parking may have
 	 * 		completed the owner's region, the emit rides the tail; left(the

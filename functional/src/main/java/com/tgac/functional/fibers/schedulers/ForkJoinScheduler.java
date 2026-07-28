@@ -109,12 +109,12 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 		// every remaining unit is a held frame and no task is left to complete
 		// them — sealed sources release their waiters, so these are stranded
-		// (docs/design/await.md §6). Sound against racing resumes: a resume
+		// (docs/design/completion.md §6). Sound against racing resumes: a resume
 		// removes its outstanding entry BEFORE spawning, so a mid-flight one
 		// only makes p read HIGHER than the map size, never equal.
 		if (p > 0 && p == outstanding.size() && !result.isDone()) {
 			result.completeExceptionally(new IllegalStateException(
-					"drive exhausted with " + p + " frame(s) blocked at unsealed sources: "
+					"scheduler exhausted with " + p + " frame(s) blocked at unsealed sources: "
 							+ outstanding.values()));
 		}
 	}

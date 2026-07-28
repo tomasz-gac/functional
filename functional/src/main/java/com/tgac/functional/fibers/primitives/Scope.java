@@ -1,6 +1,6 @@
 package com.tgac.functional.fibers.primitives;
 
-// ABOUTME: A sealable scope of work: the billing ledger, the seal, and the cascade —
+// ABOUTME: A sealable scope of work: the ledger, the seal, and the cascade —
 // ABOUTME: termination detection without a published value; Fixpoint adds the cell.
 
 import static com.tgac.functional.category.Nothing.nothing;
@@ -20,8 +20,8 @@ import java.util.function.Supplier;
 
 /**
  * The termination-detection half of a {@link Fixpoint}: a {@link WorkLedger}
- * (everything working for the scope — running fibers and sleeping
- * subscribers, each recorded with the scope it sleeps at) and a SEAL — the
+ * (everything working for the scope — running fibers and blocked
+ * subscribers, each recorded with the scope it waits at) and a SEAL — the
  * upward-closed, CAS'd-once declaration that the scope's work is finished.
  * Racy seal reads are sound: a stale false only defers.
  *
@@ -31,8 +31,8 @@ import java.util.function.Supplier;
  * the drain to the cell's parked subscribers.
  *
  * <p>The one domain-specific input is {@code ownerOf}: given a subscriber,
- * which scope's work is it (null = unowned top-level work, unbilled, gating
- * nothing). Everything else is the theorem:
+ * which scope's work is it (null = unowned top-level work, recorded
+ * nowhere, gating nothing). Everything else is the theorem:
  *
  * <p>The SEAL RULE (internal): counters drained and every sleeper parked
  * HOME (waking needs new growth here, which needs running work here — just
@@ -74,16 +74,16 @@ public final class Scope<S> implements WorkScope {
 		this.onSealed = work;
 	}
 
-	// ---- the interpreter's billing doors ----
+	// ---- the WorkScope methods ----
 
 	@Override
 	public void started() {
-		ledger.taskStarted();
+		ledger.started();
 	}
 
 	@Override
 	public Fiber<Nothing> finished() {
-		ledger.taskFinished();
+		ledger.finished();
 		return Fiber.defer(this::sealCascade);
 	}
 
@@ -108,22 +108,23 @@ public final class Scope<S> implements WorkScope {
 
 	@Override
 	public void blocked(Object sleeper, WorkScope at) {
-		ledger.sleeping(sleeper, at);
+		ledger.blocked(sleeper, at);
 	}
 
 	@Override
 	public void unblocked(Object sleeper) {
-		ledger.awake(sleeper);
+		ledger.unblocked(sleeper);
 	}
 
 	/**
-	 * Respawn a woken sleeper's continuation: bill it as RUNNING before
-	 * removing the SLEEPING record — the transition must never leave a
-	 * window where the sleeper is gone but the running count has not risen,
+	 * Respawn a woken sleeper's continuation: record it as running
+	 * (counted) before removing the blocked record — the transition must
+	 * never leave a window where the record is gone but the running count
+	 * has not risen,
 	 * or a racing seal (parallel schedulers) reads this scope as quiescent
-	 * and seals it out from under the consumer. The eager tick is why this
-	 * lives here and not on the ambient path, whose tick lands at frame
-	 * creation — after the unblock. Over-counting for the instant between
+	 * and seals it out from under the consumer. The eager started() is why
+	 * this lives here and not on the ambient path, whose started() lands at
+	 * frame construction — after the unblock. Over-counting for the instant between
 	 * only delays a seal, which is always sound.
 	 */
 	public Fiber<Nothing> respawn(S sleeper, Fiber<Nothing> work) {
@@ -204,7 +205,7 @@ public final class Scope<S> implements WorkScope {
 	 * on merge(S), verbatim — merged ledger drained, every merged sleeper
 	 * home or at a sealed scope — and its soundness argument transfers
 	 * with it: growth inside S needs running S-work (none), and nothing
-	 * outside injects, because growth is billed to the grower's own scope.
+	 * outside injects, because growth is recorded in the grower's own scope.
 	 *
 	 * <p>WHICH merge: the smallest one that makes all sleepers home — the
 	 * walk below is a fixpoint ascent in the finite join-semilattice of
@@ -243,7 +244,7 @@ public final class Scope<S> implements WorkScope {
 				return null;
 			}
 			members.put(scope, snapshot.started);
-			for (WorkScope at : snapshot.sleepingAt) {
+			for (WorkScope at : snapshot.blockedAt) {
 				if (at != scope && !at.isSealed()) {
 					if (!(at instanceof Scope)) {
 						// a foreign unsealed place cannot join the merge - defer

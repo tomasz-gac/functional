@@ -30,18 +30,18 @@ public class AwaitTest {
 	 * held waiters it satisfies, seal completes the rest with the final value.
 	 */
 	private static final class IntSource implements Source<Integer> {
-		private final WorkScope account;
+		private final WorkScope scope;
 		private int value = 0;
 		private boolean sealed = false;
 		private final List<Object[]> held = new ArrayList<>();
 
-		IntSource(WorkScope account) {
-			this.account = account;
+		IntSource(WorkScope scope) {
+			this.scope = scope;
 		}
 
 		@Override
-		public WorkScope account() {
-			return account;
+		public WorkScope scope() {
+			return scope;
 		}
 
 		@Override

@@ -17,16 +17,16 @@ import java.util.function.Function;
 /**
  * Advances one fiber frame by one step. A frame is a fiber under evaluation:
  * the current computation plus the stack of pending continuations, plus the
- * AMBIENT SCOPE the frame's work bills to (null = unowned).
+ * AMBIENT SCOPE the frame's work is recorded in (null = unowned).
  *
- * <p>Billing is the interpreter's, not the schedulers': a frame born with a
- * scope ticks its start at birth (no gap for a racing seal); on completion
- * the finish ticks and the scope's seal attempt runs as the frame's own tail
- * — same driver, same fairness. {@link Fiber.Scoped} re-owns a subtree
- * within a frame via a restore marker on the continuation stack, and
- * {@link Fiber.Detached} carries the one legal escape: an explicit
- * re-parenting scope, or null for unowned. Exactly-once holds by
- * construction — consumer code never touches the billing doors.
+ * <p>The WorkScope calls are the interpreter's, not the schedulers': a
+ * frame constructed with a scope calls started() at construction (no gap
+ * for a racing seal); on completion finished() runs and the seal attempt
+ * it returns runs as the frame's own continuation — same scheduler, same
+ * fairness. {@link Fiber.Detached} carries the one legal escape from
+ * inheritance: an explicit re-parenting scope, or null for unowned.
+ * Exactly-once holds by construction — consumer code never calls the
+ * WorkScope methods.
  *
  * The rare events — a frame completing, forking, or detaching a child — are
  * reported through {@link Effects}; the common path (unwrap a deferred,
@@ -75,9 +75,9 @@ final class FiberStep {
 
 		/**
 		 * The resume handle for the current frame, bound to its queue entry.
-		 * Completing it re-bills {@code owner} (billed-before-unblocked is
-		 * internal — no caller can misorder it), hands the frame its result
-		 * and re-queues it through the drive's injection boundary.
+		 * Completing it calls owner.started() then owner.unblocked(frame) —
+		 * that order is internal, no caller can misorder it — hands the frame
+		 * its result and re-queues it through the scheduler's injections.
 		 */
 		default Await.Waiter<Object> resumeHandle(WorkScope owner) {
 			throw new UnsupportedOperationException(
@@ -125,8 +125,9 @@ final class FiberStep {
 			Object value = ((Fiber.Done<Object>) computation).getValue();
 			if (frame.ks.isEmpty()) {
 				if (frame.scope != null) {
-					// the finish and the seal attempt run as this frame's tail —
-					// same driver steps the cascade and whatever it emits
+					// finished() and the seal attempt run as this frame's
+					// continuation — the same scheduler steps the cascade and
+					// whatever it emits
 					WorkScope owner = frame.scope;
 					frame.scope = null;
 					frame.computation = owner.finished().map(__ -> value);
@@ -152,9 +153,10 @@ final class FiberStep {
 			Source<Object> source = awaiting.getSource();
 			WorkScope owner = frame.scope;
 			if (owner != null) {
-				// the blocked record lands BEFORE the running pair closes — a
-				// racing seal must never see drained counters with no sleeper
-				owner.blocked(frame, source.account());
+				// the blocked record lands BEFORE the started/finished pair
+				// closes — a racing seal must never see drained counters with
+				// no blocked record
+				owner.blocked(frame, source.scope());
 			}
 			// hand the frame off BEFORE offering the waiter: once the source
 			// holds it, another thread may resume the frame at any moment, so
@@ -172,7 +174,7 @@ final class FiberStep {
 				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
 				return true;
 			}
-			// held: the finish tick and seal attempt run as detached work — the
+			// held: finished() and the seal attempt run as detached work — the
 			// still-open pair until it runs only delays a seal, which is sound
 			if (owner != null) {
 				effects.detached(owner.finished(), null);
