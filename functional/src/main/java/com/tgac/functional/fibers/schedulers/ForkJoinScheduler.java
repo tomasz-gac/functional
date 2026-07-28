@@ -214,22 +214,13 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void suspending(Task task, Source<?> at) {
-			// the held frame keeps one pending unit open until its resume; the
-			// unit lands BEFORE the map entry so a concurrent strand check can
-			// only read p > size, never a false equality
-			pending.incrementAndGet();
-			outstanding.put(task.frame, at);
-		}
-
-		@Override
-		public void suspendCancelled(Task task) {
-			outstanding.remove(task.frame);
-			pending.decrementAndGet();
-		}
-
-		@Override
-		public void suspended(Task task) {
+		public void suspended(Task task, Source<?> at, Await.Waiter<Object> waiter) {
+			((ResumeHandle) waiter).heldAt(FiberStep.Frame.own(at), () -> {
+				// the held unit lands BEFORE the map entry so a concurrent
+				// strand check can only read p > size, never a false equality
+				pending.incrementAndGet();
+				outstanding.put(task.frame, at);
+			});
 			task.joined();
 		}
 

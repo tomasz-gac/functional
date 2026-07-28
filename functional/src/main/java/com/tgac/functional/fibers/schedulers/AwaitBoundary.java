@@ -50,11 +50,6 @@ final class AwaitBoundary<E> {
 		outstanding.put(entry, at);
 	}
 
-	/** The suspend was answered immediately — the entry was never held. */
-	void cancelled(E entry) {
-		outstanding.remove(entry);
-	}
-
 	/** Move every injected entry back into the scheduler's run queue. */
 	void drainInto(Consumer<E> requeue) {
 		E entry;

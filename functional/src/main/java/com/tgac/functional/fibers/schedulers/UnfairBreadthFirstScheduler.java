@@ -134,18 +134,9 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public void suspending(Entry entry, Source<?> at) {
-		awaits.held(entry, at);
-	}
-
-	@Override
-	public void suspended(Entry entry) {
+	public void suspended(Entry entry, Source<?> at, Await.Waiter<Object> waiter) {
+		((ResumeHandle) waiter).heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
 		entry.joined();
-	}
-
-	@Override
-	public void suspendCancelled(Entry entry) {
-		awaits.cancelled(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {

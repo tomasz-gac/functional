@@ -98,27 +98,14 @@ final class FiberStep {
 		}
 
 		/**
-		 * The current frame is about to be offered to {@code at} — register it
-		 * as held and leave the run queue NOW, before the source can resume it
-		 * from another thread.
+		 * The suspension STUCK — the frame has yielded control. The handle
+		 * referees placement against a racing completion (ResumeHandle.heldAt):
+		 * the blocked record and the scheduler's registration land in one
+		 * guarded step, or not at all if a completion already won. This is
+		 * also where the fork's join fires: an immediately answered await
+		 * never yields, so the join never rides the attempt.
 		 */
-		default void suspending(E entry, Source<?> at) {
-			throw new UnsupportedOperationException(
-					"Fiber.await is not supported by this scheduler yet");
-		}
-
-		/** The suspend was answered immediately — undo {@link #suspending}. */
-		default void suspendCancelled(E entry) {
-			throw new UnsupportedOperationException(
-					"Fiber.await is not supported by this scheduler yet");
-		}
-
-		/**
-		 * The suspension STUCK — the frame has yielded control. This is where
-		 * a fork's join may fire: an immediately answered await never yields,
-		 * so the join must not ride {@link #suspending}.
-		 */
-		default void suspended(E entry) {
+		default void suspended(E entry, Source<?> at, Await.Waiter<Object> waiter) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -175,31 +162,22 @@ final class FiberStep {
 			Fiber.Awaiting<Object> awaiting = (Fiber.Awaiting<Object>) (Fiber<?>) computation;
 			Source<Object> source = awaiting.getSource();
 			Scope owner = frame.scope;
-			if (owner != null) {
-				// the blocked record lands BEFORE the started/finished pair
-				// closes — a racing seal must never see drained counters with
-				// no blocked record
-				owner.blocked(frame, Frame.own(source));
-			}
 			// hand the frame off BEFORE offering the waiter: once the source
 			// holds it, another thread may resume the frame at any moment, so
 			// nothing here may touch the frame after a held suspend
 			frame.scope = null;
 			Await.Waiter<Object> waiter = effects.resumeHandle(entry, owner);
-			effects.suspending(entry, source);
 			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), waiter);
 			if (immediate != null) {
-				effects.suspendCancelled(entry);
-				if (owner != null) {
-					owner.unblocked(frame);
-				}
+				// nothing was recorded, nothing to undo — the frame continues
 				frame.scope = owner;
 				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
 				return true;
 			}
-			// held: finished() and the seal attempt run as detached work — the
-			// still-open pair until it runs only delays a seal, which is sound
-			effects.suspended(entry);
+			// held: the handle referees the record-vs-completion race; then
+			// finished() closes the pair — record lands first, so a racing
+			// seal never sees drained counters with no blocked record
+			effects.suspended(entry, source, waiter);
 			if (owner != null) {
 				effects.detached(entry, owner.finished(), null);
 			}

@@ -63,8 +63,14 @@ final class Scope {
 		ledger.blocked(sleeper, at);
 	}
 
-	public void unblocked(Object sleeper) {
-		ledger.unblocked(sleeper);
+	/**
+	 * The frame resumed: one transition, started-before-unblocked inside it —
+	 * a racing seal never reads quiescence between the record leaving and
+	 * the counter rising.
+	 */
+	public void resumed(Object waiter) {
+		ledger.started();
+		ledger.unblocked(waiter);
 	}
 
 	// ---- the seal ----
