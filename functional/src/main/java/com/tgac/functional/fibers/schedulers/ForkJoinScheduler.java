@@ -128,7 +128,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	 * current task's count is released, so {@code pending} reaches zero only
 	 * when the whole tree is genuinely done.
 	 */
-	private final class Task extends RecursiveAction implements FiberStep.Effects {
+	private final class Task extends RecursiveAction implements FiberStep.Effects<Task> {
 		private final FiberStep.Frame frame;
 		private final Consumer<Object> valueSink;
 		private final Runnable joinCallback;
@@ -142,7 +142,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		@Override
 		protected void compute() {
 			try {
-				while (!cancelled && FiberStep.step(frame, this, stepListener)) {
+				while (!cancelled && FiberStep.step(frame, this, this, stepListener)) {
 					// run this frame's trampoline uninterrupted
 				}
 			} catch (Throwable t) {
@@ -155,13 +155,13 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void completed(Object value) {
+		public void completed(Task task, Object value) {
 			valueSink.accept(value);
 			joinCallback.run();
 		}
 
 		@Override
-		public void forked(Fiber.Forked<Object> fork) {
+		public void forked(Task task, Fiber.Forked<Object> fork) {
 			List<Fiber<Object>> options = fork.getOptions();
 			Consumer<Object> childSink = fork.getSink();
 
@@ -183,14 +183,14 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void detached(Fiber<?> child, Source<?> into) {
+		public void detached(Task task, Fiber<?> child, Source<?> into) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
 			spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_JOIN));
 		}
 
 		@Override
-		public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
+		public Await.Waiter<Object> resumeHandle(Task task, Scope<?> owner) {
 			FiberStep.Frame contFrame = frame;
 			Consumer<Object> contSink = valueSink;
 			Runnable contJoin = joinCallback;
@@ -205,7 +205,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void suspending(Source<?> at) {
+		public void suspending(Task task, Source<?> at) {
 			// the held frame keeps one pending unit open until its resume; the
 			// unit lands BEFORE the map entry so a concurrent strand check can
 			// only read p > size, never a false equality
@@ -214,7 +214,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void suspendCancelled() {
+		public void suspendCancelled(Task task) {
 			outstanding.remove(frame);
 			pending.decrementAndGet();
 		}

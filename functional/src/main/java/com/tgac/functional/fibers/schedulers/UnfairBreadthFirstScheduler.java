@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
+public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<UnfairBreadthFirstScheduler.Entry>, SearchInspectable {
 
 	private final PriorityQueue<Entry> entries;
 	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
@@ -32,8 +32,6 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		return this;
 	}
 
-	// the entry being stepped and the sink of the current step() call
-	private Entry current;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
@@ -84,20 +82,20 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 			return true;
 		}
 
-		current = entries.peek();
+		Entry entry = entries.peek();
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this, stepListener);
+		FiberStep.step(entry.frame, entry, this, stepListener);
 
 		return currentCompleted && entries.isEmpty();
 	}
 
 	@Override
-	public void completed(Object value) {
+	public void completed(Entry entry, Object value) {
 		entries.poll();
-		if (current.sink != null) {
-			current.sink.accept(value);
+		if (entry.sink != null) {
+			entry.sink.accept(value);
 		} else {
 			rootSink.accept((A) value);
 		}
@@ -105,10 +103,10 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public void forked(Fiber.Forked<Object> fork) {
+	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		entries.poll();
 
-		Entry parent = current;
+		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
 			if (pending.decrementAndGet() == 0) {
@@ -119,32 +117,32 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.offer(new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent, current.depth + 1));
+			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent, entry.depth + 1));
 		}
 	}
 
 	@Override
-	public void detached(Fiber<?> child, Source<?> into) {
+	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
 		entries.offer(new Entry(new FiberStep.Frame(child, into), value -> {
-		}, current.depth));
+		}, entry.depth));
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
-		return awaits.resumeHandle(current, current.frame, owner);
+	public Await.Waiter<Object> resumeHandle(Entry entry, Scope<?> owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override
-	public void suspending(Source<?> at) {
-		awaits.held(current, at);
+	public void suspending(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
 		entries.poll();
 	}
 
 	@Override
-	public void suspendCancelled() {
-		awaits.cancelled(current);
-		entries.offer(current);
+	public void suspendCancelled(Entry entry) {
+		awaits.cancelled(entry);
+		entries.offer(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {
@@ -166,7 +164,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@RequiredArgsConstructor
-	private static final class Entry {
+	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 		@Getter

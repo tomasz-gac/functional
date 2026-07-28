@@ -69,17 +69,17 @@ final class FiberStep {
 	 * reports an independent child while the frame itself keeps running —
 	 * the child's frame is born with the given scope (null = unowned).
 	 */
-	interface Effects {
-		void completed(Object value);
+	interface Effects<E> {
+		void completed(E entry, Object value);
 
 		/**
 		 * The fork always carries at least one option: empty forks are
 		 * vacuously complete and never reach the scheduler. Child frames
 		 * inherit the forking frame's ambient scope.
 		 */
-		void forked(Fiber.Forked<Object> fork);
+		void forked(E entry, Fiber.Forked<Object> fork);
 
-		void detached(Fiber<?> child, Source<?> into);
+		void detached(E entry, Fiber<?> child, Source<?> into);
 
 		/**
 		 * The resume handle for the current frame, bound to its queue entry.
@@ -87,7 +87,7 @@ final class FiberStep {
 		 * that order is internal, no caller can misorder it — hands the frame
 		 * its result and re-queues it through the scheduler's injections.
 		 */
-		default Await.Waiter<Object> resumeHandle(Scope<?> owner) {
+		default Await.Waiter<Object> resumeHandle(E entry, Scope<?> owner) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -97,13 +97,13 @@ final class FiberStep {
 		 * as held and leave the run queue NOW, before the source can resume it
 		 * from another thread.
 		 */
-		default void suspending(Source<?> at) {
+		default void suspending(E entry, Source<?> at) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
 
 		/** The suspend was answered immediately — undo {@link #suspending}. */
-		default void suspendCancelled() {
+		default void suspendCancelled(E entry) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -115,7 +115,7 @@ final class FiberStep {
 	 * 		control through {@link Effects#completed} or {@link Effects#forked}
 	 */
 	@SuppressWarnings("unchecked")
-	static boolean step(Frame frame, Effects effects, StepListener listener) {
+	static <E> boolean step(Frame frame, E entry, Effects<E> effects, StepListener listener) {
 		Fiber<Object> computation = frame.computation;
 		listener.onStep(computation);
 
@@ -142,7 +142,7 @@ final class FiberStep {
 					return true;
 				}
 				listener.onCompleted(value);
-				effects.completed(value);
+				effects.completed(entry, value);
 				return false;
 			}
 			Function<Object, Fiber<Object>> k = frame.ks.pollLast();
@@ -153,7 +153,7 @@ final class FiberStep {
 			Fiber.Detached<?> detached = (Fiber.Detached<?>) (Fiber<?>) computation;
 			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
 			listener.onDetached(detached.getFiber());
-			effects.detached(detached.getFiber(), detached.getInto());
+			effects.detached(entry, detached.getFiber(), detached.getInto());
 			return true;
 		}
 		if (computation instanceof Fiber.Awaiting) {
@@ -170,11 +170,11 @@ final class FiberStep {
 			// holds it, another thread may resume the frame at any moment, so
 			// nothing here may touch the frame after a held suspend
 			frame.scope = null;
-			Await.Waiter<Object> waiter = effects.resumeHandle(owner);
-			effects.suspending(source);
+			Await.Waiter<Object> waiter = effects.resumeHandle(entry, owner);
+			effects.suspending(entry, source);
 			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), waiter);
 			if (immediate != null) {
-				effects.suspendCancelled();
+				effects.suspendCancelled(entry);
 				if (owner != null) {
 					owner.unblocked(frame);
 				}
@@ -185,7 +185,7 @@ final class FiberStep {
 			// held: finished() and the seal attempt run as detached work — the
 			// still-open pair until it runs only delays a seal, which is sound
 			if (owner != null) {
-				effects.detached(owner.finished(), null);
+				effects.detached(entry, owner.finished(), null);
 			}
 			return false;
 		}
@@ -197,7 +197,7 @@ final class FiberStep {
 				return true;
 			}
 			listener.onForked(fork);
-			effects.forked(fork);
+			effects.forked(entry, fork);
 			return false;
 		}
 		throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());

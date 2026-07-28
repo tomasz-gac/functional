@@ -24,7 +24,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
-public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
+public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<BreadthFirstScheduler.Entry>, SearchInspectable {
 
 	private final PriorityQueue<Bucket> buckets;
 	private final int iterationsForPromotion;
@@ -40,7 +40,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	// the entry being stepped and the sink of the current step() call
 	private Bucket currentBucket;
-	private Entry current;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
@@ -102,20 +101,20 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		bucket.index = (bucket.index + 1) % bucket.entries.size();
 
 		currentBucket = bucket;
-		current = bucket.entries.get(bucket.index);
+		Entry entry = bucket.entries.get(bucket.index);
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this, stepListener);
+		FiberStep.step(entry.frame, entry, this, stepListener);
 
 		return currentCompleted && buckets.isEmpty();
 	}
 
 	@Override
-	public void completed(Object value) {
+	public void completed(Entry entry, Object value) {
 		removeCurrentEntry(currentBucket);
-		if (current.sink != null) {
-			current.sink.accept(value);
+		if (entry.sink != null) {
+			entry.sink.accept(value);
 		} else {
 			rootSink.accept((A) value);
 		}
@@ -123,10 +122,10 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public void forked(Fiber.Forked<Object> fork) {
+	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		removeCurrentEntry(currentBucket);
 
-		Entry parent = current;
+		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
 			if (pending.decrementAndGet() == 0) {
@@ -137,12 +136,12 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		};
 
 		addAll(currentBucket.depth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent))
+				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent))
 				.collect(Collectors.toList()));
 	}
 
 	@Override
-	public void detached(Fiber<?> child, Source<?> into) {
+	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
 		addAll(currentBucket.depth,
 				new ArrayList<>(Collections.singletonList(
@@ -151,20 +150,20 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
-		return awaits.resumeHandle(current, current.frame, owner);
+	public Await.Waiter<Object> resumeHandle(Entry entry, Scope<?> owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override
-	public void suspending(Source<?> at) {
-		awaits.held(current, at);
+	public void suspending(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
 		removeCurrentEntry(currentBucket);
 	}
 
 	@Override
-	public void suspendCancelled() {
-		awaits.cancelled(current);
-		add(current);
+	public void suspendCancelled(Entry entry) {
+		awaits.cancelled(entry);
+		add(entry);
 	}
 
 	private void tryPromote() {
@@ -230,7 +229,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@RequiredArgsConstructor
-	private static final class Entry {
+	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 	}

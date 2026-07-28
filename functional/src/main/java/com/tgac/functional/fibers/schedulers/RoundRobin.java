@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, SearchInspectable {
+public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<RoundRobin.Entry>, SearchInspectable {
 
 	private final List<Entry> entries;
 	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
@@ -33,8 +33,6 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		return this;
 	}
 
-	// the entry being stepped and the sink of the current step() call
-	private Entry current;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
@@ -86,21 +84,21 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		}
 
 		index = (index + 1) % entries.size();
-		current = entries.get(index);
+		Entry entry = entries.get(index);
 		rootSink = sink;
 		currentCompleted = false;
 
-		FiberStep.step(current.frame, this, stepListener);
+		FiberStep.step(entry.frame, entry, this, stepListener);
 
 		return currentCompleted && entries.isEmpty();
 	}
 
 	@Override
-	public void completed(Object value) {
+	public void completed(Entry entry, Object value) {
 		Collections.swap(entries, index, entries.size() - 1); // avoids shuffling
 		entries.remove(entries.size() - 1);
-		if (current.sink != null) {
-			current.sink.accept(value);
+		if (entry.sink != null) {
+			entry.sink.accept(value);
 		} else {
 			rootSink.accept((A) value);
 		}
@@ -108,10 +106,10 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 	}
 
 	@Override
-	public void forked(Fiber.Forked<Object> fork) {
+	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		entries.remove(index);
 
-		Entry parent = current;
+		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
 		Consumer<Object> notifyParent = result -> {
 			if (pending.decrementAndGet() == 0) {
@@ -123,34 +121,34 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, current.frame.scope), notifyParent));
+			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent));
 		}
 		index = -1;
 	}
 
 	@Override
-	public void detached(Fiber<?> child, Source<?> into) {
+	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
 		entries.add(new Entry(new FiberStep.Frame(child, into), value -> {
 		}));
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Scope<?> owner) {
-		return awaits.resumeHandle(current, current.frame, owner);
+	public Await.Waiter<Object> resumeHandle(Entry entry, Scope<?> owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override
-	public void suspending(Source<?> at) {
-		awaits.held(current, at);
+	public void suspending(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
 		Collections.swap(entries, index, entries.size() - 1);
 		entries.remove(entries.size() - 1);
 	}
 
 	@Override
-	public void suspendCancelled() {
-		awaits.cancelled(current);
-		entries.add(current);
+	public void suspendCancelled(Entry entry) {
+		awaits.cancelled(entry);
+		entries.add(entry);
 	}
 
 	private static Fiber<Object> doneNothing() {
@@ -172,7 +170,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects, Sea
 	}
 
 	@RequiredArgsConstructor
-	private static final class Entry {
+	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 	}
