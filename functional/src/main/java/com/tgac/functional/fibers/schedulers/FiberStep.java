@@ -37,15 +37,15 @@ final class FiberStep {
 
 	static final class Frame {
 		Fiber<Object> computation;
-		Scope<?> scope;
+		Scope scope;
 		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
 		Frame(Fiber<?> computation) {
-			this(computation, (Scope<?>) null);
+			this(computation, (Scope) null);
 		}
 
 		@SuppressWarnings("unchecked")
-		Frame(Fiber<?> computation, Scope<?> scope) {
+		Frame(Fiber<?> computation, Scope scope) {
 			this.computation = (Fiber<Object>) computation;
 			this.scope = scope;
 			if (this.scope != null) {
@@ -63,8 +63,8 @@ final class FiberStep {
 		}
 
 		/** The workforce of a runtime source; a foreign source has none - unowned. */
-		static Scope<?> own(Source<?> into) {
-			return into instanceof MonotoneCell ? ((MonotoneCell<?, ?>) into).scope() : null;
+		static Scope own(Source<?> into) {
+			return into instanceof MonotoneCell ? ((MonotoneCell<?>) into).scope() : null;
 		}
 	}
 
@@ -92,7 +92,7 @@ final class FiberStep {
 		 * that order is internal, no caller can misorder it — hands the frame
 		 * its result and re-queues it through the scheduler's injections.
 		 */
-		default Await.Waiter<Object> resumeHandle(E entry, Scope<?> owner) {
+		default Await.Waiter<Object> resumeHandle(E entry, Scope owner) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -151,7 +151,7 @@ final class FiberStep {
 					// finished() and the seal attempt run as this frame's
 					// continuation — the same scheduler steps the cascade and
 					// whatever it emits
-					Scope<?> owner = frame.scope;
+					Scope owner = frame.scope;
 					frame.scope = null;
 					frame.computation = owner.finished().map(__ -> value);
 					return true;
@@ -174,7 +174,7 @@ final class FiberStep {
 		if (computation instanceof Fiber.Awaiting) {
 			Fiber.Awaiting<Object> awaiting = (Fiber.Awaiting<Object>) (Fiber<?>) computation;
 			Source<Object> source = awaiting.getSource();
-			Scope<?> owner = frame.scope;
+			Scope owner = frame.scope;
 			if (owner != null) {
 				// the blocked record lands BEFORE the started/finished pair
 				// closes — a racing seal must never see drained counters with

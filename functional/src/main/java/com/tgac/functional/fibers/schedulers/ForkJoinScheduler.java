@@ -199,7 +199,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public Await.Waiter<Object> resumeHandle(Task task, Scope<?> owner) {
+		public Await.Waiter<Object> resumeHandle(Task task, Scope owner) {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
 			Runnable contJoin = task.joinCallback;

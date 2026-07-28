@@ -1,60 +1,67 @@
 package com.tgac.functional.fibers.schedulers;
 
-// ABOUTME: Pins the monotone cell's contract: strict growth swaps and drains all
-// ABOUTME: parked, an absorbed delta changes nothing, park races grow toward reading.
+// ABOUTME: Pins the monotone cell's contract: strict growth swaps and wakes satisfied
+// ABOUTME: waiters, an absorbed delta changes nothing, suspend races grow toward reading.
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.vavr.collection.List;
-import io.vavr.control.Option;
+import com.tgac.functional.fibers.Await;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class MonotoneCellTest {
 
+	private static Await.Waiter<MaxInt> recording(List<Await.Result<MaxInt>> completions) {
+		return completions::add;
+	}
+
 	@Test
-	public void growSwapsTheValueAndDrainsAllParked() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
-		assertThat(cell.park("a", v -> v.value == 0)).isTrue();
-		assertThat(cell.park("b", v -> v.value == 0)).isTrue();
+	public void growSwapsTheValueAndWakesSatisfiedWaiters() {
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		List<Await.Result<MaxInt>> completions = new ArrayList<>();
+		assertThat(cell.suspend(v -> v.value > 0, recording(completions))).isNull();
+		assertThat(cell.suspend(v -> v.value > 0, recording(completions))).isNull();
 
-		Option<List<String>> drained = cell.grow(MaxInt.of(1));
+		cell.grow(MaxInt.of(1));
 
-		assertThat(drained.isDefined()).isTrue();
-		assertThat(drained.get()).containsExactly("a", "b");
+		assertThat(completions).hasSize(2);
+		assertThat(completions.get(0).getValue()).isEqualTo(MaxInt.of(1));
+		assertThat(completions.get(0).isSealed()).isFalse();
 		assertThat(cell.read()).isEqualTo(MaxInt.of(1));
-		assertThat(cell.parkedCount()).isEqualTo(0);
 	}
 
 	@Test
 	public void anAbsorbedDeltaChangesNothingAndWakesNobody() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(7));
-		cell.park("sleeper", v -> true);
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(7));
+		List<Await.Result<MaxInt>> completions = new ArrayList<>();
+		cell.suspend(v -> v.value > 7, recording(completions));
 
 		// 3 ⊑ 7 — the delta contributes nothing, growth refuses
-		assertThat(cell.grow(MaxInt.of(3)).isDefined()).isFalse();
-		assertThat(cell.grow(MaxInt.of(7)).isDefined()).isFalse();
+		cell.grow(MaxInt.of(3));
+		cell.grow(MaxInt.of(7));
 		assertThat(cell.read()).isEqualTo(MaxInt.of(7));
-		assertThat(cell.parkedCount()).isEqualTo(1);
+		assertThat(completions).isEmpty();
 	}
 
 	@Test
-	public void parkRefusesWhenNoLongerCaughtUp() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
+	public void suspendAnswersImmediatelyWhenNoLongerCaughtUp() {
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		cell.grow(MaxInt.of(1));
 
-		// the subscriber believes the value is still 0 — it must keep reading
-		assertThat(cell.park("stale", v -> v.value == 0)).isFalse();
-		assertThat(cell.parkedCount()).isEqualTo(0);
+		// the waiter believes the value is still 0 — it must keep reading
+		Await.Result<MaxInt> immediate = cell.suspend(v -> v.value > 0, recording(new ArrayList<>()));
+		assertThat(immediate).isNotNull();
+		assertThat(immediate.getValue()).isEqualTo(MaxInt.of(1));
 	}
 
 	@Test
-	public void drainParkedHarvestsEveryone() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
-		cell.park("a", v -> true);
-		cell.park("b", v -> true);
-
-		assertThat(cell.drainParked()).containsExactly("a", "b");
-		assertThat(cell.parkedCount()).isEqualTo(0);
-		assertThat(cell.drainParked()).isEmpty();
+	public void growOnASealedCellRefuses() {
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		cell.seal();
+		assertThatThrownBy(() -> cell.grow(MaxInt.of(1)))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("sealed");
 	}
 }

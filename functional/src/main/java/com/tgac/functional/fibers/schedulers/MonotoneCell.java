@@ -6,11 +6,8 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Source;
-import io.vavr.collection.List;
-import io.vavr.control.Option;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -36,7 +33,7 @@ import java.util.function.Predicate;
  * <p>{@link #grow} on a sealed cell THROWS: growing past a delivered
  * sealed result would falsify it.
  */
-public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
+public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 
 	private static final class Held<V> {
 		final Predicate<V> ready;
@@ -49,24 +46,16 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 	}
 
 	private V value;
-	private final ArrayList<S> parked = new ArrayList<>();
 	private final ArrayList<Held<V>> held = new ArrayList<>();
-	private final Scope<S> scope;
+	private final Scope scope = new Scope();
 
 	public MonotoneCell(V initial) {
-		this(initial, s -> null);
-	}
-
-	/** The interim constructor: {@link Fixpoint} supplies the S-subscriber ownership. */
-	MonotoneCell(V initial, Function<S, Scope<S>> ownerOf) {
 		this.value = initial;
-		this.scope = new Scope<>(ownerOf);
-		this.scope.drainOnSeal(this::drainParked);
 		this.scope.completeWaitersOnSeal(this::completeAllSealed);
 	}
 
-	/** The workforce — for the interpreter's token resolution and the interim Fixpoint. */
-	Scope<S> scope() {
+	/** The workforce — for the interpreter's token resolution. */
+	Scope scope() {
 		return scope;
 	}
 
@@ -101,16 +90,13 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 	/**
 	 * Join {@code delta} into the value. An absorbed delta is inert; strict
 	 * growth completes every held frame whose predicate the grown value
-	 * satisfies (outside the cell monitor — the cell is a leaf) and drains
-	 * ALL parked S-subscribers for the caller to respawn.
+	 * satisfies (outside the cell monitor — the cell is a leaf).
 	 *
-	 * @return the drained S-subscribers, or none when the delta was absorbed
 	 * @throws IllegalStateException on a sealed cell — no new value is
 	 * 		derivable at a seal, and growing past a delivered sealed result
 	 * 		would falsify it
 	 */
-	public Option<List<S>> grow(V delta) {
-		List<S> drained;
+	public void grow(V delta) {
 		ArrayList<Held<V>> woken = new ArrayList<>();
 		V grown;
 		synchronized (this) {
@@ -119,12 +105,10 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 			}
 			V combined = value.combine(delta);
 			if (combined.equals(value)) {
-				return Option.none();
+				return;
 			}
 			value = combined;
 			grown = combined;
-			drained = List.ofAll(parked);
-			parked.clear();
 			for (Iterator<Held<V>> it = held.iterator(); it.hasNext(); ) {
 				Held<V> h = it.next();
 				if (h.ready.test(grown)) {
@@ -136,7 +120,6 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 		for (Held<V> h : woken) {
 			h.waiter.complete(Await.Result.more(grown));
 		}
-		return Option.of(drained);
 	}
 
 	/**
@@ -155,34 +138,8 @@ public class MonotoneCell<V extends Semilattice<V>, S> implements Source<V> {
 			finalValue = value;
 		}
 		for (Held<V> h : rest) {
-			Await.Waiter<?> waiter = h.waiter;
-			if (waiter instanceof ResumeHandle) {
-				((ResumeHandle) waiter).markRunning();
-			}
-		}
-		for (Held<V> h : rest) {
 			h.waiter.complete(Await.Result.sealed(finalValue));
 		}
 	}
 
-	// ---- the interim S-subscriber half (retires with Fixpoint) ----
-
-	/** @return false if the value moved past the subscriber — keep reading instead */
-	synchronized boolean park(S subscriber, Predicate<V> caughtUp) {
-		if (!caughtUp.test(value)) {
-			return false;
-		}
-		parked.add(subscriber);
-		return true;
-	}
-
-	synchronized List<S> drainParked() {
-		List<S> dead = List.ofAll(parked);
-		parked.clear();
-		return dead;
-	}
-
-	public synchronized int parkedCount() {
-		return parked.size();
-	}
 }

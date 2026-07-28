@@ -134,7 +134,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Entry entry, Scope<?> owner) {
+	public Await.Waiter<Object> resumeHandle(Entry entry, Scope owner) {
 		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 

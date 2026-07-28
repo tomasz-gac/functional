@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
-// ABOUTME: Ambient billing: detached work seals with no manual billing — forks inherit,
-// ABOUTME: detachTo re-parents, and the parallel scheduler bills race-free.
+// ABOUTME: Ambient billing: detached work seals its cell with no manual recording —
+// ABOUTME: forks inherit, detachTo re-parents, and the parallel scheduler is race-free.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -9,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,9 +18,8 @@ import org.junit.jupiter.api.Test;
 public class AmbientScopeTest {
 
 	@Test
-	public void detachedWorkSealsWithNoManualBilling() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
-		Scope<String> scope = cell.scope();
+	public void detachedWorkSealsWithNoManualRecording() {
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		List<String> events = new ArrayList<>();
 
 		Fiber<Nothing> work = Fiber.defer(() -> done(nothing()))
@@ -30,22 +28,16 @@ public class AmbientScopeTest {
 					return done(nothing());
 				});
 
-		scope.onSealed(drained -> {
-			events.add("sealed");
-			return done(nothing());
-		});
 		Fiber.detachTo(cell, work).get();
 
-		assertThat(scope.isSealed()).isTrue();
-		assertThat(events).containsExactly("worked", "sealed");
+		assertThat(events).containsExactly("worked");
+		assertThat(cell.isSealed()).isTrue();
 	}
 
 	@Test
 	public void forkedChildrenInheritTheAmbientScopeAndGateTheSeal() {
-		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
-		Scope<String> scope = cell.scope();
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		AtomicInteger childrenRun = new AtomicInteger();
-		List<Integer> childrenAtSeal = new ArrayList<>();
 
 		Fiber<Nothing> work = Fiber.fork(Arrays.asList(
 						Fiber.defer(() -> done(childrenRun.incrementAndGet())),
@@ -54,62 +46,40 @@ public class AmbientScopeTest {
 				v -> {
 				});
 
-		scope.onSealed(drained -> {
-			childrenAtSeal.add(childrenRun.get());
-			return done(nothing());
-		});
 		Fiber.detachTo(cell, work).get();
 
-		assertThat(scope.isSealed()).isTrue();
-		// the seal fired only after every forked child completed
-		assertThat(childrenAtSeal).containsExactly(3);
+		// the seal fired, and only after every forked child completed
+		assertThat(cell.isSealed()).isTrue();
+		assertThat(childrenRun.get()).isEqualTo(3);
 	}
 
 	@Test
-	public void detachToReParentsAcrossScopes() {
-		MonotoneCell<MaxInt, String> callerCell = new MonotoneCell<>(MaxInt.of(0));
-		MonotoneCell<MaxInt, String> entryCell = new MonotoneCell<>(MaxInt.of(0));
-		Scope<String> caller = callerCell.scope();
-		Scope<String> entry = entryCell.scope();
-		List<String> sealOrder = new ArrayList<>();
-		entry.onSealed(drained -> {
-			sealOrder.add("entry");
-			return done(nothing());
-		});
+	public void detachToReParentsAcrossCells() {
+		MonotoneCell<MaxInt> caller = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt> entry = new MonotoneCell<>(MaxInt.of(0));
 
-		// the caller detaches a "master" to the entry's scope and finishes at
+		// the caller detaches a "master" into the entry's cell and finishes at
 		// once; the entry seals only when the master's work completes
 		AtomicInteger masterSteps = new AtomicInteger();
 		Fiber<Nothing> master = Fiber.defer(() -> done(masterSteps.incrementAndGet()))
 				.flatMap(__ -> Fiber.defer(() -> done(nothing())));
 
-		caller.onSealed(drained -> {
-			sealOrder.add("caller");
-			return done(nothing());
-		});
-		Fiber.detachTo(callerCell, Fiber.detachTo(entryCell, master)).get();
+		Fiber.detachTo(caller, Fiber.detachTo(entry, master)).get();
 
 		assertThat(caller.isSealed()).isTrue();
 		assertThat(entry.isSealed()).isTrue();
 		assertThat(masterSteps.get()).isEqualTo(1);
-		assertThat(sealOrder).contains("entry", "caller");
 	}
 
 	@Test
-	public void parallelSchedulerBillsAmbientlyRaceFree() throws Exception {
+	public void parallelSchedulerRecordsAmbientlyRaceFree() {
 		for (int round = 0; round < 20; round++) {
-			MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
-		Scope<String> scope = cell.scope();
+			MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 			AtomicInteger sum = new AtomicInteger();
 			List<Fiber<Integer>> tasks = new ArrayList<>();
 			for (int i = 0; i < 32; i++) {
 				tasks.add(Fiber.defer(() -> done(sum.incrementAndGet())));
 			}
-			AtomicInteger atSeal = new AtomicInteger(-1);
-			scope.onSealed(drained -> {
-				atSeal.set(sum.get());
-				return done(nothing());
-			});
 			Fiber<Nothing> work = Fiber.detachTo(cell,
 					Fiber.fork(tasks, v -> {
 					}));
@@ -117,8 +87,8 @@ public class AmbientScopeTest {
 			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(work)) {
 				engine.get();
 			}
-			assertThat(scope.isSealed()).isTrue();
-			assertThat(atSeal.get()).isEqualTo(32);
+			assertThat(cell.isSealed()).isTrue();
+			assertThat(sum.get()).isEqualTo(32);
 		}
 	}
 }

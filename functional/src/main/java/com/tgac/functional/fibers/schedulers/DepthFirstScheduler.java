@@ -133,7 +133,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public Await.Waiter<Object> resumeHandle(Entry entry, Scope<?> owner) {
+	public Await.Waiter<Object> resumeHandle(Entry entry, Scope owner) {
 		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 

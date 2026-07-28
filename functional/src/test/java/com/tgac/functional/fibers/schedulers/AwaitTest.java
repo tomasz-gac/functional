@@ -184,8 +184,8 @@ public class AwaitTest {
 
 	@Test
 	public void aBlockedFrameDoesNotHoldItsCellOpenAndBothCellsSeal() {
-		MonotoneCell<MaxInt, Object> consumers = new MonotoneCell<>(MaxInt.of(0));
-		MonotoneCell<MaxInt, Object> producers = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt> consumers = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt> producers = new MonotoneCell<>(MaxInt.of(0));
 		List<Integer> seen = new ArrayList<>();
 
 		Fiber<Nothing> consumer = Fiber.await(producers, v -> v.value >= 1)
@@ -208,7 +208,7 @@ public class AwaitTest {
 
 	@Test
 	public void theSealCompletesAHeldFrameWithTheFinalValue() {
-		MonotoneCell<MaxInt, Object> cell = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		List<String> log = new ArrayList<>();
 
 		// the consumer wants more than the master ever produces: only the
@@ -232,7 +232,7 @@ public class AwaitTest {
 
 	@Test
 	public void growOnASealedCellRefusesLoudly() {
-		MonotoneCell<MaxInt, Object> cell = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		Fiber.detachTo(cell, Fiber.defer(() -> {
 			cell.grow(MaxInt.of(1));
 			return done(nothing());
@@ -283,8 +283,8 @@ public class AwaitTest {
 	@Test
 	public void forkJoinBillsAwaitsRaceFree() {
 		for (int round = 0; round < 20; round++) {
-			MonotoneCell<MaxInt, Object> consumers = new MonotoneCell<>(MaxInt.of(0));
-			MonotoneCell<MaxInt, Object> producers = new MonotoneCell<>(MaxInt.of(0));
+			MonotoneCell<MaxInt> consumers = new MonotoneCell<>(MaxInt.of(0));
+			MonotoneCell<MaxInt> producers = new MonotoneCell<>(MaxInt.of(0));
 			List<Integer> seen = Collections.synchronizedList(new ArrayList<Integer>());
 
 			Fiber<Nothing> program = Fiber.detachTo(consumers, Fiber.await(producers, v -> v.value >= 1)
