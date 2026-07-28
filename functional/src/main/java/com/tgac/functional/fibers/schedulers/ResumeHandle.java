@@ -38,16 +38,15 @@ final class ResumeHandle implements Await.Waiter<Object> {
 	 * registration — unless a completion already won, in which case nothing
 	 * is placed and there is nothing to undo.
 	 */
-	synchronized boolean heldAt(Scope place, Runnable register) {
+	synchronized void heldAt(Scope place, Runnable register) {
 		if (completed) {
-			return false;
+			return;
 		}
 		recorded = true;
 		if (owner != null) {
 			owner.blocked(frame, place);
 		}
 		register.run();
-		return true;
 	}
 
 	@Override
