@@ -105,7 +105,7 @@ final class FiberStep {
 		 * also where the fork's join fires: an immediately answered await
 		 * never yields, so the join never rides the attempt.
 		 */
-		default void suspended(E entry, Source<?> at, ResumeHandle handle) {
+		default boolean suspended(E entry, Source<?> at, ResumeHandle handle) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -174,11 +174,12 @@ final class FiberStep {
 				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
 				return true;
 			}
-			// held: the handle referees the record-vs-completion race; then
-			// finished() closes the pair — record lands first, so a racing
-			// seal never sees drained counters with no blocked record
-			effects.suspended(entry, source, handle);
-			if (owner != null) {
+			// held: the handle referees the record-vs-completion race; the
+			// pair closes ONLY if the records were placed — record lands
+			// first, so a racing seal never sees drained counters with no
+			// blocked record. A completion that outran the hold inherits the
+			// original quantum instead: no tick, no window
+			if (effects.suspended(entry, source, handle) && owner != null) {
 				effects.detached(entry, owner.finished(), null);
 			}
 			return false;

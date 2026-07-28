@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import java.util.function.Consumer;
 
 /**
  * The resume handle bound to one suspended frame — the one object both the
@@ -23,11 +24,11 @@ final class ResumeHandle implements Await.Waiter<Object> {
 
 	private final FiberStep.Frame frame;
 	private final Scope owner;
-	private final Runnable requeue;
+	private final Consumer<Boolean> requeue;
 	private boolean completed;
 	private boolean recorded;
 
-	ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue) {
+	ResumeHandle(FiberStep.Frame frame, Scope owner, Consumer<Boolean> requeue) {
 		this.frame = frame;
 		this.owner = owner;
 		this.requeue = requeue;
@@ -38,15 +39,23 @@ final class ResumeHandle implements Await.Waiter<Object> {
 	 * registration — unless a completion already won, in which case nothing
 	 * is placed and there is nothing to undo.
 	 */
-	synchronized void heldAt(Scope place, Runnable register) {
+	/**
+	 * @return whether the records were placed - false means a completion
+	 * 		outran the hold: the frame's original quantum CONTINUES into the
+	 * 		resumed run, so the caller must not close its started/finished
+	 * 		pair (closing it would open a window in which the frame is
+	 * 		recorded nowhere and a racing seal reads quiescence)
+	 */
+	synchronized boolean heldAt(Scope place, Runnable register) {
 		if (completed) {
-			return;
+			return false;
 		}
 		recorded = true;
 		if (owner != null) {
 			owner.blocked(frame, place);
 		}
 		register.run();
+		return true;
 	}
 
 	@Override
@@ -57,15 +66,16 @@ final class ResumeHandle implements Await.Waiter<Object> {
 			completed = true;
 			wasRecorded = recorded;
 		}
-		if (owner != null) {
-			if (wasRecorded) {
-				owner.resumed(frame);
-			} else {
-				owner.started();
-			}
+		if (owner != null && wasRecorded) {
+			// the frame resumed from a placed record; when the completion
+			// outran heldAt there is nothing to bill - the original quantum
+			// continues into this run and its final Done closes the pair
+			owner.resumed(frame);
 		}
 		frame.scope = owner;
 		frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
-		requeue.run();
+		// the requeue learns whether heldAt placed the registration - its
+		// releases must mirror exactly what was placed, nothing more
+		requeue.accept(wasRecorded);
 	}
 }

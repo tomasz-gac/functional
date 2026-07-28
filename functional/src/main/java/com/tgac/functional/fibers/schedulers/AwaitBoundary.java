@@ -39,7 +39,7 @@ final class AwaitBoundary<E> {
 	 * gap — then hands the frame its result and injects the entry.
 	 */
 	ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner) {
-		return new ResumeHandle(frame, owner, () -> {
+		return new ResumeHandle(frame, owner, recorded -> {
 			outstanding.remove(entry);
 			injections.add(entry);
 		});

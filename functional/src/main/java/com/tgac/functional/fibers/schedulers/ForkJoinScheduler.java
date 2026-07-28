@@ -202,26 +202,33 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public ResumeHandle resumeHandle(Task task, Scope owner) {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
-			Runnable contJoin = task.joinCallback;
-			return new ResumeHandle(contFrame, owner, () -> {
+			return new ResumeHandle(contFrame, owner, recorded -> {
 				// remove-then-spawn-then-release: the strand check reads p >
-				// size for a mid-flight resume, never a false equality
+				// size for a mid-flight resume, never a false equality. The
+				// held unit is released only if heldAt placed one - a
+				// completion that outran heldAt must not steal the resumed
+				// task's own unit. The resumed task carries NO join: the
+				// logical child joined when it suspended - a fresh Task's
+				// fresh latch must not fire the fork's countdown again
 				outstanding.remove(contFrame);
 				pending.incrementAndGet();
-				pool.execute(new Task(contFrame, contSink, contJoin));
-				taskFinished();
+				pool.execute(new Task(contFrame, contSink, NO_JOIN));
+				if (recorded) {
+					taskFinished();
+				}
 			});
 		}
 
 		@Override
-		public void suspended(Task task, Source<?> at, ResumeHandle handle) {
-			handle.heldAt(FiberStep.Frame.own(at), () -> {
+		public boolean suspended(Task task, Source<?> at, ResumeHandle handle) {
+			boolean held = handle.heldAt(FiberStep.Frame.own(at), () -> {
 				// the held unit lands BEFORE the map entry so a concurrent
 				// strand check can only read p > size, never a false equality
 				pending.incrementAndGet();
 				outstanding.put(task.frame, at);
 			});
 			task.joined();
+			return held;
 		}
 
 		private void spawn(Task task) {
