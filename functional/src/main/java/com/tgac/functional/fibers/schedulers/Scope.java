@@ -8,7 +8,6 @@ import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.WorkScope;
 import io.vavr.collection.List;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,9 +43,9 @@ import java.util.function.Supplier;
  * an obstruction and is rechecked. Monitors never nest — each scope's
  * rule runs under its own locks, the walk happens outside them.
  */
-final class Scope<S> implements WorkScope {
+final class Scope<S> {
 
-	private final WorkLedger<Object, WorkScope> ledger = new WorkLedger<>();
+	private final WorkLedger<Object, Scope<?>> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final Function<S, Scope<S>> ownerOf;
 	private final ArrayList<S> awaitingSeal = new ArrayList<>();
@@ -64,6 +63,10 @@ final class Scope<S> implements WorkScope {
 	 * cell's parked subscribers.
 	 */
 	private Supplier<List<S>> drainOnSeal = this::drainParked;
+
+	/** The cell's two-phase completion of held frames, run once the flag is set. */
+	private Runnable completeWaitersOnSeal = () -> {
+	};
 
 	public Scope(Function<S, Scope<S>> ownerOf) {
 		this.ownerOf = ownerOf;
@@ -86,7 +89,13 @@ final class Scope<S> implements WorkScope {
 	}
 
 	void drainOnSeal(Supplier<List<S>> drain) {
-		this.drainOnSeal = drain;
+		// composed, not replaced: the cell's parked subscribers AND this
+		// scope's own awaitSeal list are both dead at the seal
+		this.drainOnSeal = () -> drain.get().appendAll(drainParked());
+	}
+
+	void completeWaitersOnSeal(Runnable complete) {
+		this.completeWaitersOnSeal = complete;
 	}
 
 	// ---- seal-only subscribers ----
@@ -104,7 +113,7 @@ final class Scope<S> implements WorkScope {
 
 	// ---- the work half ----
 
-	public void blocked(Object sleeper, WorkScope at) {
+	public void blocked(Object sleeper, Scope<?> at) {
 		ledger.blocked(sleeper, at);
 	}
 
@@ -181,13 +190,13 @@ final class Scope<S> implements WorkScope {
 	}
 
 	private List<S> sealIfQuiescent(ArrayList<Fiber<Nothing>> emits) {
-		if (!ledger.quiescent(at -> at == this
-				|| (at instanceof Scope && ((Scope<?>) at).isSealed()))) {
+		if (!ledger.quiescent(at -> at == this || (at != null && at.isSealed()))) {
 			return null;
 		}
 		if (!sealed.compareAndSet(false, true)) {
 			return null;
 		}
+		completeWaitersOnSeal.run();
 		List<S> drained = drainOnSeal.get();
 		emits.add(onSealed.apply(drained));
 		return drained;
@@ -235,22 +244,21 @@ final class Scope<S> implements WorkScope {
 			// ONE atomic read per member: drained + counter + sleepers together —
 			// a racing respawn otherwise slips between the reads (see
 			// WorkLedger.drainedSnapshot) and the re-verify below cannot see it
-			WorkLedger.Snapshot<WorkScope> snapshot = scope.ledger.drainedSnapshot();
+			WorkLedger.Snapshot<Scope<?>> snapshot = scope.ledger.drainedSnapshot();
 			if (snapshot == null) {
 				return null;
 			}
 			members.put(scope, snapshot.started);
-			for (WorkScope at : snapshot.blockedAt) {
+			for (Scope<?> at : snapshot.blockedAt) {
 				if (at == scope) {
 					continue;
 				}
-				if (!(at instanceof Scope)) {
-					// a place with no seal (or a foreign one) can never join - defer
+				if (at == null) {
+					// a place with no workforce can never seal - defer forever
 					return null;
 				}
-				Scope<S> other = (Scope<S>) at;
-				if (!other.isSealed()) {
-					frontier.add(other);
+				if (!at.isSealed()) {
+					frontier.add((Scope<S>) at);
 				}
 			}
 		}
@@ -259,17 +267,24 @@ final class Scope<S> implements WorkScope {
 				return null;
 			}
 		}
-		// mark and drain EVERY member before announcing any: at each onSealed
-		// hook the whole group must already read as sealed (SEALED ⟹ SOLVABLE),
+		// mark EVERY member before completing or announcing any: at each hook
+		// the whole group must already read as sealed (SEALED ⟹ SOLVABLE),
 		// so the first-announced hook can act on the full closure
-		LinkedHashMap<Scope<S>, List<S>> won = new LinkedHashMap<>();
+		ArrayList<Scope<S>> won = new ArrayList<>();
 		for (Scope<S> member : members.keySet()) {
 			if (member.sealed.compareAndSet(false, true)) {
-				won.put(member, member.drainOnSeal.get());
+				won.add(member);
 			}
 		}
+		// all marked: bill-and-complete each member's held frames, drain the
+		// dead S-subscribers, then announce
+		LinkedHashMap<Scope<S>, List<S>> drains = new LinkedHashMap<>();
+		for (Scope<S> member : won) {
+			member.completeWaitersOnSeal.run();
+			drains.put(member, member.drainOnSeal.get());
+		}
 		List<S> dead = List.empty();
-		for (Map.Entry<Scope<S>, List<S>> m : won.entrySet()) {
+		for (Map.Entry<Scope<S>, List<S>> m : drains.entrySet()) {
 			emits.add(m.getKey().onSealed.apply(m.getValue()));
 			dead = dead.appendAll(m.getValue());
 		}

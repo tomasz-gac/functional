@@ -7,7 +7,6 @@ import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -129,9 +128,9 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public void detached(Fiber<?> child, WorkScope scope) {
+	public void detached(Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded, and it does not preempt the current branch
-		entries.addLast(new Entry(new FiberStep.Frame(child, scope), value -> {
+		entries.addLast(new Entry(new FiberStep.Frame(child, into), value -> {
 		}, current.depth));
 	}
 

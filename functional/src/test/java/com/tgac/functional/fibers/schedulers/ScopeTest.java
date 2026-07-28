@@ -19,7 +19,8 @@ public class ScopeTest {
 
 	@Test
 	public void trackedWorkSealsAndTheHookReceivesSealOnlySubscribers() {
-		Scope<String> scope = new Scope<>(s -> null);
+		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
+		Scope<String> scope = cell.scope();
 		List<String> drainedAtHook = new ArrayList<>();
 		scope.onSealed(drained -> {
 			drained.forEach(drainedAtHook::add);
@@ -27,7 +28,7 @@ public class ScopeTest {
 		});
 		scope.awaitSeal("the-fold");
 
-		Fiber.detachTo(scope, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(cell, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		assertThat(drainedAtHook).containsExactly("the-fold");
@@ -37,8 +38,10 @@ public class ScopeTest {
 	public void aSleeperAtAForeignUnsealedScopeDefersTheSeal() {
 		Map<String, Scope<String>> owners = new HashMap<>();
 		Function<String, Scope<String>> ownerOf = owners::get;
-		Scope<String> outer = new Scope<>(ownerOf);
-		Scope<String> dependency = new Scope<>(ownerOf);
+		MonotoneCell<MaxInt, String> outerCell = new MonotoneCell<>(MaxInt.of(0), ownerOf);
+		MonotoneCell<MaxInt, String> dependencyCell = new MonotoneCell<>(MaxInt.of(0), ownerOf);
+		Scope<String> outer = outerCell.scope();
+		Scope<String> dependency = dependencyCell.scope();
 
 		List<String> sealedOrder = new ArrayList<>();
 		outer.onSealed(drained -> {
@@ -55,11 +58,11 @@ public class ScopeTest {
 		outer.blocked("waiter", dependency);
 		dependency.awaitSeal("waiter");
 
-		Fiber.detachTo(outer, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(outerCell, Fiber.defer(() -> done(nothing()))).get();
 		assertThat(outer.isSealed()).isFalse();
 
 		// the dependency finishing seals it, kills the waiter, and cascades to outer
-		Fiber.detachTo(dependency, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(dependencyCell, Fiber.defer(() -> done(nothing()))).get();
 		assertThat(dependency.isSealed()).isTrue();
 		assertThat(outer.isSealed()).isTrue();
 		assertThat(sealedOrder).containsExactly("dependency", "outer");
@@ -69,8 +72,10 @@ public class ScopeTest {
 	public void aSleeperRingGroupSealsMarkingEveryMemberBeforeAnyHook() {
 		Map<String, Scope<String>> owners = new HashMap<>();
 		Function<String, Scope<String>> ownerOf = owners::get;
-		Scope<String> a = new Scope<>(ownerOf);
-		Scope<String> b = new Scope<>(ownerOf);
+		MonotoneCell<MaxInt, String> aCell = new MonotoneCell<>(MaxInt.of(0), ownerOf);
+		MonotoneCell<MaxInt, String> bCell = new MonotoneCell<>(MaxInt.of(0), ownerOf);
+		Scope<String> a = aCell.scope();
+		Scope<String> b = bCell.scope();
 
 		List<Boolean> groupSealedAtHook = new ArrayList<>();
 		a.onSealed(drained -> {
@@ -89,8 +94,8 @@ public class ScopeTest {
 		b.blocked("b-reader", a);
 		a.awaitSeal("b-reader");
 
-		Fiber.detachTo(a, Fiber.defer(() -> done(nothing()))).get();
-		Fiber.detachTo(b, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(aCell, Fiber.defer(() -> done(nothing()))).get();
+		Fiber.detachTo(bCell, Fiber.defer(() -> done(nothing()))).get();
 
 		assertThat(a.isSealed()).isTrue();
 		assertThat(b.isSealed()).isTrue();

@@ -6,7 +6,6 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.WorkScope;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,18 +28,11 @@ final class AwaitBoundary<E> {
 	 * owner.unblocked(frame) — a racing seal never reads quiescence in the
 	 * gap — then hands the frame its result and injects the entry.
 	 */
-	@SuppressWarnings("unchecked")
 	Await.Waiter<Object> resumeHandle(E entry, FiberStep.Frame frame, Scope<?> owner) {
-		return result -> {
-			if (owner != null) {
-				owner.started();
-				owner.unblocked(frame);
-			}
-			frame.scope = owner;
-			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
+		return new ResumeHandle(frame, owner, () -> {
 			outstanding.remove(entry);
 			injections.add(entry);
-		};
+		});
 	}
 
 	/** The entry is about to be offered to {@code at}. */

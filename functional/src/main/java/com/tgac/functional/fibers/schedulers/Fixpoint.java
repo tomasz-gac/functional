@@ -43,7 +43,6 @@ import java.util.function.Predicate;
 public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	private final MonotoneCell<V, S> cell;
-	private final Scope<S> scope;
 	private final Function<S, Scope<S>> ownerOf;
 	private final BiFunction<S, V, Fiber<Nothing>> feed;
 
@@ -56,13 +55,11 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	public Fixpoint(V initial,
 			Function<S, Fixpoint<?, S>> ownerOf,
 			BiFunction<S, V, Fiber<Nothing>> feed) {
-		this.cell = new MonotoneCell<>(initial);
 		this.ownerOf = s -> {
 			Fixpoint<?, S> owner = ownerOf.apply(s);
-			return owner == null ? null : owner.scope;
+			return owner == null ? null : owner.cell.scope();
 		};
-		this.scope = new Scope<>(this.ownerOf);
-		this.scope.drainOnSeal(cell::drainParked);
+		this.cell = new MonotoneCell<>(initial, this.ownerOf);
 		this.feed = feed;
 	}
 
@@ -103,7 +100,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	/** A producer: {@code work} runs detached, recorded in this fixpoint's scope. */
 	public Fiber<Nothing> master(Fiber<Nothing> work) {
-		return Fiber.detachTo(scope, work);
+		return Fiber.detachTo(cell, work);
 	}
 
 	/**
@@ -122,7 +119,7 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 	public Either<V, Fiber<Nothing>> park(S subscriber, Predicate<V> caughtUp) {
 		Scope<S> ownerScope = ownerOf.apply(subscriber);
 		if (ownerScope != null) {
-			ownerScope.blocked(subscriber, scope);
+			ownerScope.blocked(subscriber, cell.scope());
 		}
 		if (cell.park(subscriber, caughtUp)) {
 			return Either.right(ownerScope == null
@@ -143,15 +140,15 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	/** Register the fiber to spawn when this fixpoint seals, given the drained subscribers. */
 	public void onSealed(Function<List<S>, Fiber<Nothing>> work) {
-		scope.onSealed(work);
+		cell.scope().onSealed(work);
 	}
 
 	public boolean isSealed() {
-		return scope.isSealed();
+		return cell.isSealed();
 	}
 
 	/** Manual seal - tests and external certificates. */
 	public void seal() {
-		scope.seal();
+		cell.seal();
 	}
 }

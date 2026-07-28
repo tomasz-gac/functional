@@ -110,12 +110,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
-	 * Detach a fiber re-parented to {@code scope}: the child runs independently
-	 * but its work is recorded there — the one legal escape from ambient inheritance
-	 * (a tabling master belongs to its entry, not to whichever caller spawned it).
+	 * Detach a fiber PRODUCING INTO {@code into}: the child runs independently
+	 * and its work is recorded in the source's workforce — the one legal escape
+	 * from ambient inheritance (a tabling master belongs to its entry, not to
+	 * whichever caller spawned it). A foreign Source has no workforce the
+	 * runtime can count: the child runs unowned.
 	 */
-	static <A> Fiber<Nothing> detachTo(WorkScope scope, Fiber<A> fiber) {
-		return new Detached<>(fiber, scope);
+	static <A> Fiber<Nothing> detachTo(Source<?> into, Fiber<A> fiber) {
+		return new Detached<>(fiber, into);
 	}
 
 	/**
@@ -177,7 +179,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor
 	class Detached<A> implements Fiber<Nothing> {
 		private final Fiber<A> fiber;
-		private final WorkScope scope;
+		private final Source<?> into;
 	}
 
 	/** A fiber suspended on a {@link Source} until ready or sealed. */

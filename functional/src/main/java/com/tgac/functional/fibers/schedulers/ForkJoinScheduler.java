@@ -7,7 +7,6 @@ import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.WorkScope;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -184,10 +183,10 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void detached(Fiber<?> child, WorkScope scope) {
+		public void detached(Fiber<?> child, Source<?> into) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
-			spawn(new Task(new FiberStep.Frame(child, scope), DISCARD, NO_JOIN));
+			spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_JOIN));
 		}
 
 		@Override
@@ -195,20 +194,14 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			FiberStep.Frame contFrame = frame;
 			Consumer<Object> contSink = valueSink;
 			Runnable contJoin = joinCallback;
-			return result -> {
-				if (owner != null) {
-					owner.started();
-					owner.unblocked(contFrame);
-				}
-				contFrame.scope = owner;
-				contFrame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
+			return new ResumeHandle(contFrame, owner, () -> {
 				// remove-then-spawn-then-release: the strand check reads p >
 				// size for a mid-flight resume, never a false equality
 				outstanding.remove(contFrame);
 				pending.incrementAndGet();
 				pool.execute(new Task(contFrame, contSink, contJoin));
 				taskFinished();
-			};
+			});
 		}
 
 		@Override

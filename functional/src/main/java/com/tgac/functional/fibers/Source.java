@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers;
 
 // ABOUTME: A monotone value fibers can await: suspend answers immediately or holds
-// ABOUTME: the waiter; growth and the scope's seal complete held waiters.
+// ABOUTME: the waiter; growth and the seal of its workforce complete held waiters.
 
 import java.util.function.Predicate;
 
@@ -11,10 +11,15 @@ import java.util.function.Predicate;
  * true, and a completion carrying a fresher value than the growth that
  * triggered it only reveals more.
  *
- * <p>The negative completion comes from the scope: when {@link #scope()}
- * seals — its ledger proves no growth can ever arrive — the source
- * completes every held waiter with a sealed {@link Await.Result} carrying
- * the final value.
+ * <p>THE SOURCE IS THE TOKEN: a source is a monotone value plus the
+ * workforce producing it. {@link Fiber#detachTo} records work as producing
+ * into a source; a suspended frame is held by the source it waits at; the
+ * negative completion — {@code sealed}, provably no further growth — is the
+ * quiescence of the source's own workforce. A foreign implementation of
+ * this interface has no workforce the runtime can count, so it never seals:
+ * waits on it need their own completion regime (timeouts), and work
+ * detached into it runs unowned. One source per workforce — a production
+ * publishing two values models them as one source of a product value.
  *
  * <p>A source belongs to ONE scheduler. Waiters from foreign schedulers
  * would get correct wakes (an {@link Await.Waiter} resumes through the
@@ -25,14 +30,6 @@ import java.util.function.Predicate;
  * silent.
  */
 public interface Source<V> {
-
-	/**
-	 * The scope whose seal is this source's negative completion — the place
-	 * recorded ({@link WorkScope#blocked}) for every waiter held here. Null
-	 * for sources with no seal (externally completed work; waits there need
-	 * their own completion regime, e.g. timeouts).
-	 */
-	WorkScope scope();
 
 	/**
 	 * Attempt to suspend a waiter. Atomic with growth and seal: either the

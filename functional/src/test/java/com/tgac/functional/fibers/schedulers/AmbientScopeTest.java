@@ -20,7 +20,8 @@ public class AmbientScopeTest {
 
 	@Test
 	public void detachedWorkSealsWithNoManualBilling() {
-		Scope<String> scope = new Scope<>(s -> null);
+		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
+		Scope<String> scope = cell.scope();
 		List<String> events = new ArrayList<>();
 
 		Fiber<Nothing> work = Fiber.defer(() -> done(nothing()))
@@ -33,7 +34,7 @@ public class AmbientScopeTest {
 			events.add("sealed");
 			return done(nothing());
 		});
-		Fiber.detachTo(scope, work).get();
+		Fiber.detachTo(cell, work).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		assertThat(events).containsExactly("worked", "sealed");
@@ -41,7 +42,8 @@ public class AmbientScopeTest {
 
 	@Test
 	public void forkedChildrenInheritTheAmbientScopeAndGateTheSeal() {
-		Scope<String> scope = new Scope<>(s -> null);
+		MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
+		Scope<String> scope = cell.scope();
 		AtomicInteger childrenRun = new AtomicInteger();
 		List<Integer> childrenAtSeal = new ArrayList<>();
 
@@ -56,7 +58,7 @@ public class AmbientScopeTest {
 			childrenAtSeal.add(childrenRun.get());
 			return done(nothing());
 		});
-		Fiber.detachTo(scope, work).get();
+		Fiber.detachTo(cell, work).get();
 
 		assertThat(scope.isSealed()).isTrue();
 		// the seal fired only after every forked child completed
@@ -65,8 +67,10 @@ public class AmbientScopeTest {
 
 	@Test
 	public void detachToReParentsAcrossScopes() {
-		Scope<String> caller = new Scope<>(s -> null);
-		Scope<String> entry = new Scope<>(s -> null);
+		MonotoneCell<MaxInt, String> callerCell = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt, String> entryCell = new MonotoneCell<>(MaxInt.of(0));
+		Scope<String> caller = callerCell.scope();
+		Scope<String> entry = entryCell.scope();
 		List<String> sealOrder = new ArrayList<>();
 		entry.onSealed(drained -> {
 			sealOrder.add("entry");
@@ -83,7 +87,7 @@ public class AmbientScopeTest {
 			sealOrder.add("caller");
 			return done(nothing());
 		});
-		Fiber.detachTo(caller, Fiber.detachTo(entry, master)).get();
+		Fiber.detachTo(callerCell, Fiber.detachTo(entryCell, master)).get();
 
 		assertThat(caller.isSealed()).isTrue();
 		assertThat(entry.isSealed()).isTrue();
@@ -94,7 +98,8 @@ public class AmbientScopeTest {
 	@Test
 	public void parallelSchedulerBillsAmbientlyRaceFree() throws Exception {
 		for (int round = 0; round < 20; round++) {
-			Scope<String> scope = new Scope<>(s -> null);
+			MonotoneCell<MaxInt, String> cell = new MonotoneCell<>(MaxInt.of(0));
+		Scope<String> scope = cell.scope();
 			AtomicInteger sum = new AtomicInteger();
 			List<Fiber<Integer>> tasks = new ArrayList<>();
 			for (int i = 0; i < 32; i++) {
@@ -105,7 +110,7 @@ public class AmbientScopeTest {
 				atSeal.set(sum.get());
 				return done(nothing());
 			});
-			Fiber<Nothing> work = Fiber.detachTo(scope,
+			Fiber<Nothing> work = Fiber.detachTo(cell,
 					Fiber.fork(tasks, v -> {
 					}));
 

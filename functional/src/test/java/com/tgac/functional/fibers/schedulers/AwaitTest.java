@@ -13,7 +13,6 @@ import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.WorkScope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,19 +28,9 @@ public class AwaitTest {
 	 * held waiters it satisfies, seal completes the rest with the final value.
 	 */
 	private static final class IntSource implements Source<Integer> {
-		private final WorkScope scope;
 		private int value = 0;
 		private boolean sealed = false;
 		private final List<Object[]> held = new ArrayList<>();
-
-		IntSource(WorkScope scope) {
-			this.scope = scope;
-		}
-
-		@Override
-		public WorkScope scope() {
-			return scope;
-		}
 
 		@Override
 		@SuppressWarnings("unchecked")
@@ -84,7 +73,7 @@ public class AwaitTest {
 
 	@Test
 	public void aReadyValueCompletesTheAwaitWithoutSuspending() {
-		IntSource source = new IntSource(null);
+		IntSource source = new IntSource();
 		source.grow(3);
 
 		Await.Result<Integer> r = Fiber.await(source, v -> v >= 1).get();
@@ -96,7 +85,7 @@ public class AwaitTest {
 
 	@Test
 	public void growthWakesABlockedAwaiterWithTheGrownValue() {
-		IntSource source = new IntSource(null);
+		IntSource source = new IntSource();
 		List<Integer> seen = new ArrayList<>();
 
 		Fiber<Nothing> consumer = Fiber.await(source, v -> v >= 1)
@@ -115,7 +104,7 @@ public class AwaitTest {
 
 	@Test
 	public void theReArmLoopCollectsEveryGrowthThenEndsAtSeal() {
-		IntSource source = new IntSource(null);
+		IntSource source = new IntSource();
 		List<String> log = new ArrayList<>();
 
 		Fiber.detach(collectAbove(source, 0, log))
@@ -152,7 +141,7 @@ public class AwaitTest {
 
 	@Test
 	public void aSealCompletesABlockedAwaiterWithTheFinalValue() {
-		IntSource source = new IntSource(null);
+		IntSource source = new IntSource();
 		List<String> log = new ArrayList<>();
 
 		Fiber.detach(Fiber.await(source, v -> v >= 5).flatMap(r -> {
@@ -170,7 +159,7 @@ public class AwaitTest {
 
 	@Test
 	public void growthsLandingBeforeTheConsumerRestepsAreEachDeliveredExactlyOnce() {
-		IntSource source = new IntSource(null);
+		IntSource source = new IntSource();
 		List<String> log = new ArrayList<>();
 
 		// both growths and the seal land in one producer step, before the woken
@@ -189,20 +178,18 @@ public class AwaitTest {
 	}
 
 	@Test
-	public void aBlockedFrameDoesNotHoldItsAccountOpenAndBothAccountsSeal() {
-		Scope<Object> consumers = new Scope<>(s -> null);
-		Scope<Object> producers = new Scope<>(s -> null);
-		IntSource source = new IntSource(producers);
+	public void aBlockedFrameDoesNotHoldItsCellOpenAndBothCellsSeal() {
+		MonotoneCell<MaxInt, Object> consumers = new MonotoneCell<>(MaxInt.of(0));
+		MonotoneCell<MaxInt, Object> producers = new MonotoneCell<>(MaxInt.of(0));
 		List<Integer> seen = new ArrayList<>();
 
-		Fiber<Nothing> consumer = Fiber.await(source, v -> v >= 1)
+		Fiber<Nothing> consumer = Fiber.await(producers, v -> v.value >= 1)
 				.flatMap(r -> {
-					seen.add(r.getValue());
+					seen.add(r.getValue().value);
 					return done(nothing());
 				});
 		Fiber<Nothing> producer = Fiber.defer(() -> {
-			source.grow(4);
-			source.seal();
+			producers.grow(MaxInt.of(4));
 			return done(nothing());
 		});
 
@@ -215,6 +202,44 @@ public class AwaitTest {
 	}
 
 	@Test
+	public void theSealCompletesAHeldFrameWithTheFinalValue() {
+		MonotoneCell<MaxInt, Object> cell = new MonotoneCell<>(MaxInt.of(0));
+		List<String> log = new ArrayList<>();
+
+		// the consumer wants more than the master ever produces: only the
+		// SEAL - the workforce quiescing - can complete it, with the final value
+		Fiber<Nothing> consumer = Fiber.await(cell, v -> v.value >= 10)
+				.flatMap(r -> {
+					log.add(r.isSealed() + "@" + r.getValue().value);
+					return done(nothing());
+				});
+		Fiber<Nothing> master = Fiber.defer(() -> {
+			cell.grow(MaxInt.of(4));
+			return done(nothing());
+		});
+
+		Fiber.detach(consumer)
+				.flatMap(__ -> Fiber.detachTo(cell, master)).get();
+
+		assertThat(log).containsExactly("true@4");
+		assertThat(cell.isSealed()).isTrue();
+	}
+
+	@Test
+	public void growOnASealedCellRefusesLoudly() {
+		MonotoneCell<MaxInt, Object> cell = new MonotoneCell<>(MaxInt.of(0));
+		Fiber.detachTo(cell, Fiber.defer(() -> {
+			cell.grow(MaxInt.of(1));
+			return done(nothing());
+		})).get();
+
+		assertThat(cell.isSealed()).isTrue();
+		assertThatThrownBy(() -> cell.grow(MaxInt.of(2)))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("sealed");
+	}
+
+	@Test
 	public void everySchedulerDrivesTheReArmLoopToTheSealedEnd() {
 		List<Function<Fiber<Nothing>, Scheduler<Nothing>>> drivers = Arrays.asList(
 				BreadthFirstScheduler::new,
@@ -223,7 +248,7 @@ public class AwaitTest {
 				UnfairBreadthFirstScheduler::of,
 				ForkJoinScheduler::new);
 		for (Function<Fiber<Nothing>, Scheduler<Nothing>> driver : drivers) {
-			IntSource source = new IntSource(null);
+			IntSource source = new IntSource();
 			List<String> log = Collections.synchronizedList(new ArrayList<String>());
 			Fiber<Nothing> program = Fiber.detach(collectAbove(source, 0, log))
 					.flatMap(__ -> Fiber.defer(() -> {
@@ -253,19 +278,17 @@ public class AwaitTest {
 	@Test
 	public void forkJoinBillsAwaitsRaceFree() {
 		for (int round = 0; round < 20; round++) {
-			Scope<Object> consumers = new Scope<>(s -> null);
-			Scope<Object> producers = new Scope<>(s -> null);
-			IntSource source = new IntSource(producers);
+			MonotoneCell<MaxInt, Object> consumers = new MonotoneCell<>(MaxInt.of(0));
+			MonotoneCell<MaxInt, Object> producers = new MonotoneCell<>(MaxInt.of(0));
 			List<Integer> seen = Collections.synchronizedList(new ArrayList<Integer>());
 
-			Fiber<Nothing> program = Fiber.detachTo(consumers, Fiber.await(source, v -> v >= 1)
+			Fiber<Nothing> program = Fiber.detachTo(consumers, Fiber.await(producers, v -> v.value >= 1)
 							.flatMap(r -> {
-								seen.add(r.getValue());
+								seen.add(r.getValue().value);
 								return done(nothing());
 							}))
 					.flatMap(__ -> Fiber.detachTo(producers, Fiber.defer(() -> {
-						source.grow(4);
-						source.seal();
+						producers.grow(MaxInt.of(4));
 						return done(nothing());
 					})));
 
@@ -280,8 +303,8 @@ public class AwaitTest {
 
 	@Test
 	public void aDriveExhaustedWithALiveBlockedFrameRefusesLoudly() {
-		Scope<Object> neverStarted = new Scope<>(s -> null);
-		IntSource source = new IntSource(neverStarted);
+		// a foreign Source has no workforce - it can never seal
+		IntSource source = new IntSource();
 
 		Fiber<Await.Result<Integer>> stranded = Fiber.await(source, v -> v >= 1);
 

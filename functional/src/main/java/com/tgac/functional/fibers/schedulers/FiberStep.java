@@ -9,7 +9,6 @@ import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.WorkScope;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.function.Function;
@@ -42,28 +41,25 @@ final class FiberStep {
 		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
 		Frame(Fiber<?> computation) {
-			this(computation, null);
+			this(computation, (Scope<?>) null);
 		}
 
 		@SuppressWarnings("unchecked")
-		Frame(Fiber<?> computation, WorkScope scope) {
+		Frame(Fiber<?> computation, Scope<?> scope) {
 			this.computation = (Fiber<Object>) computation;
-			this.scope = own(scope);
+			this.scope = scope;
 			if (this.scope != null) {
 				this.scope.started();
 			}
 		}
 
-		/** The runtime's Scope is the only admissible WorkScope. */
-		private static Scope<?> own(WorkScope scope) {
-			if (scope == null) {
-				return null;
-			}
-			if (!(scope instanceof Scope)) {
-				throw new IllegalArgumentException(
-						"foreign WorkScope implementations are not supported: " + scope.getClass());
-			}
-			return (Scope<?>) scope;
+		Frame(Fiber<?> computation, Source<?> into) {
+			this(computation, own(into));
+		}
+
+		/** The workforce of a runtime source; a foreign source has none - unowned. */
+		static Scope<?> own(Source<?> into) {
+			return into instanceof MonotoneCell ? ((MonotoneCell<?, ?>) into).scope() : null;
 		}
 	}
 
@@ -83,7 +79,7 @@ final class FiberStep {
 		 */
 		void forked(Fiber.Forked<Object> fork);
 
-		void detached(Fiber<?> child, WorkScope scope);
+		void detached(Fiber<?> child, Source<?> into);
 
 		/**
 		 * The resume handle for the current frame, bound to its queue entry.
@@ -157,7 +153,7 @@ final class FiberStep {
 			Fiber.Detached<?> detached = (Fiber.Detached<?>) (Fiber<?>) computation;
 			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
 			listener.onDetached(detached.getFiber());
-			effects.detached(detached.getFiber(), detached.getScope());
+			effects.detached(detached.getFiber(), detached.getInto());
 			return true;
 		}
 		if (computation instanceof Fiber.Awaiting) {
@@ -168,7 +164,7 @@ final class FiberStep {
 				// the blocked record lands BEFORE the started/finished pair
 				// closes — a racing seal must never see drained counters with
 				// no blocked record
-				owner.blocked(frame, source.scope());
+				owner.blocked(frame, Frame.own(source));
 			}
 			// hand the frame off BEFORE offering the waiter: once the source
 			// holds it, another thread may resume the frame at any moment, so
