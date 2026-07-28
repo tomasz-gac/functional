@@ -109,7 +109,9 @@ sources with no seal (externally completed work, timeout regime).
 `more(value)` or `sealed(value)`, the sealed one carrying the FINAL value
 — or holds the `Await.Waiter` and returns null.
 `Await.Waiter.complete(result)` is the scheduler-owned resume handle,
-thread-safe, exactly-once. `Fiber.await(source, ready)` builds the
+exactly-once; completions arrive on the scheduler's own thread today, and
+the injection queue is the designated publication point when foreign-thread
+completers (external sources) land. `Fiber.await(source, ready)` builds the
 `Awaiting` node.
 
 **`FiberStep`** — `Frame` = `computation` + `scope` + the `ks`

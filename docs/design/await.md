@@ -115,9 +115,7 @@ public final class Await {
         public final boolean sealed;
     }
 
-    /** The scheduler-owned resume handle a Source completes. Thread-safe;
-     *  callable from any thread (growth on a ForkJoin worker, seal on a
-     *  cascading finisher, an I/O callback). */
+    /** The scheduler-owned resume handle a Source completes. */
     public interface Waiter<V> {
         void complete(Result<V> result);
     }
