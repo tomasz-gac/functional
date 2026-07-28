@@ -20,6 +20,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -132,6 +133,14 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		private final FiberStep.Frame frame;
 		private final Consumer<Object> valueSink;
 		private final Runnable joinCallback;
+		private final AtomicBoolean joined = new AtomicBoolean();
+
+		/** Fire the join exactly once: completion and suspension both yield control. */
+		private void joined() {
+			if (joined.compareAndSet(false, true)) {
+				joinCallback.run();
+			}
+		}
 
 		Task(FiberStep.Frame frame, Consumer<Object> valueSink, Runnable joinCallback) {
 			this.frame = frame;
@@ -157,7 +166,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		@Override
 		public void completed(Task task, Object value) {
 			task.valueSink.accept(value);
-			task.joinCallback.run();
+			task.joined();
 		}
 
 		@Override
@@ -206,6 +215,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		public void suspending(Task task, Source<?> at) {
+			task.joined();
 			// the held frame keeps one pending unit open until its resume; the
 			// unit lands BEFORE the map entry so a concurrent strand check can
 			// only read p > size, never a false equality

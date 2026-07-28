@@ -37,7 +37,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	public static <A> UnfairBreadthFirstScheduler<A> of(Fiber<A> fiber) {
 		PriorityQueue<Entry> entries = new PriorityQueue<>(Comparator.comparingInt(Entry::getDepth));
-		entries.add(new Entry(new FiberStep.Frame(fiber), null, 0));
+		entries.add(new Entry(new FiberStep.Frame(fiber), null, null, 0));
 		return new UnfairBreadthFirstScheduler<>(entries);
 	}
 
@@ -100,6 +100,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 		} else {
 			rootSink.accept((A) value);
 		}
+		entry.joined();
 		currentCompleted = true;
 	}
 
@@ -107,16 +108,16 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		Consumer<Object> notifyParent = result -> {
+		// the join counts CONTROL YIELDS - a suspended child joins without a value
+		Runnable childJoined = () -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
 				entries.offer(parent); // re-introduce the parent node
 			}
-			fork.getSink().accept(result);
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent, entry.depth + 1));
+			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope), fork.getSink(), childJoined, entry.depth + 1));
 		}
 	}
 
@@ -124,7 +125,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
 		entries.offer(new Entry(new FiberStep.Frame(child, into), value -> {
-		}, entry.depth));
+		}, null, entry.depth));
 	}
 
 	@Override
@@ -135,6 +136,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
+		entry.joined();
 	}
 
 	@Override
@@ -164,6 +166,19 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
+		final Runnable join; // the fork's countdown - control-yield, not value
+		private boolean joined;
+
+		/** Fire the join exactly once: completion and suspension both yield control. */
+		void joined() {
+			if (joined) {
+				return;
+			}
+			joined = true;
+			if (join != null) {
+				join.run();
+			}
+		}
 		@Getter
 		final int depth;
 	}

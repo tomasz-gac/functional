@@ -38,7 +38,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 
 	public static <A> RoundRobin<A> of(Fiber<A> fiber) {
 		ArrayList<Entry> entries = new ArrayList<>();
-		entries.add(new Entry(new FiberStep.Frame(fiber), null));
+		entries.add(new Entry(new FiberStep.Frame(fiber), null, null));
 		return new RoundRobin<>(entries);
 	}
 
@@ -103,6 +103,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 		} else {
 			rootSink.accept((A) value);
 		}
+		entry.joined();
 		currentCompleted = true;
 	}
 
@@ -110,17 +111,17 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		Consumer<Object> notifyParent = result -> {
+		// the join counts CONTROL YIELDS - a suspended child joins without a value
+		Runnable childJoined = () -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
 				entries.add(parent);
 				index = entries.size() - 1;
 			}
-			fork.getSink().accept(result);
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), notifyParent));
+			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), fork.getSink(), childJoined));
 		}
 		index = -1;
 	}
@@ -129,7 +130,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
 		entries.add(new Entry(new FiberStep.Frame(child, into), value -> {
-		}));
+		}, null));
 	}
 
 	@Override
@@ -140,6 +141,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	@Override
 	public void suspending(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
+		entry.joined();
 	}
 
 	@Override
@@ -169,5 +171,18 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
+		final Runnable join; // the fork's countdown - control-yield, not value
+		private boolean joined;
+
+		/** Fire the join exactly once: completion and suspension both yield control. */
+		void joined() {
+			if (joined) {
+				return;
+			}
+			joined = true;
+			if (join != null) {
+				join.run();
+			}
+		}
 	}
 }

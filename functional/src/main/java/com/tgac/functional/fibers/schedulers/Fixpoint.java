@@ -65,6 +65,11 @@ public final class Fixpoint<V extends Semilattice<V>, S> {
 
 	// ---- the value ----
 
+	/** The cell, as the Source consumers await. */
+	public MonotoneCell<V, S> source() {
+		return cell;
+	}
+
 	public V read() {
 		return cell.read();
 	}
