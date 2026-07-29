@@ -159,9 +159,13 @@ final class FiberStep {
 			frame.scope = null;
 			ResumeHandle handle = effects.resumeHandle(entry, owner);
 			if (owner != null) {
+				if (source.sealOnly() && owner == source.scope()) {
+					throw new IllegalStateException(
+							"drained its own workforce - a wait for yourself: " + source);
+				}
 				// the blocked record shields the owner's counters until the
 				// resume is billed
-				owner.blocked(frame, source.scope());
+				owner.blocked(frame, source.scope(), source.sealOnly());
 			}
 			effects.suspended(entry, source);
 			source.suspend(awaiting.getReady(), handle);

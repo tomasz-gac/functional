@@ -42,14 +42,27 @@ import java.util.function.Predicate;
  */
 public final class Scope {
 
-	private final WorkLedger<Object, Scope> ledger = new WorkLedger<>();
+	private final WorkLedger<Object, Wait> ledger = new WorkLedger<>();
+
+	/** One blocked record: where the member waits, and how it can be woken. */
+	static final class Wait {
+		final Scope at;          // null: a foreign source, no workforce
+		final boolean sealOnly;  // a drain-wait - woken by the seal alone
+
+		Wait(Scope at, boolean sealOnly) {
+			this.at = at;
+			this.sealOnly = sealOnly;
+		}
+	}
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final AtomicBoolean planted = new AtomicBoolean(false);
-	/** Each closed channel's completion of its held value-waiters, run once the flag is set. */
+	/**
+	 * The seal actions, one list, two registration sites: each closed cell
+	 * registers its EOF translation at construction; each drained() waiter
+	 * registers its completion at park. Guarded by this.
+	 */
 	private final List<Runnable> onSeal = new ArrayList<>();
-	/** Drain-waiters: the control audience, completed with Nothing at the seal. Guarded by this. */
-	private final ArrayList<Await.Waiter<Nothing>> drainWaiters = new ArrayList<>();
-	/** The valueless read face drained() parks at. */
+	/** The degenerate channel drained() parks at. */
 	private final Drain drain = new Drain();
 
 	Scope() {
@@ -67,10 +80,15 @@ public final class Scope {
 		}
 	}
 
+	/** Register a seal action — run at once when the seal has already landed. */
 	void onSeal(Runnable complete) {
 		synchronized (this) {
-			onSeal.add(complete);
+			if (!isSealed()) {
+				onSeal.add(complete);
+				return;
+			}
 		}
+		complete.run();
 	}
 
 	/** The read face for {@link Fiber#drained}: completes only at the seal. */
@@ -79,15 +97,19 @@ public final class Scope {
 	}
 
 	/**
-	 * The control audience's suspend: hold the waiter, or complete it at once
-	 * when the seal has already landed. Atomic with the seal by this monitor.
+	 * The DEGENERATE CHANNEL — the scope as a source over the one-point
+	 * lattice. A value that cannot ascend satisfies no readiness predicate,
+	 * so the only completion this channel can ever deliver is EOF:
+	 * sealed(nothing()), the seal spoken in value vocabulary with the only
+	 * value there is. This is aggregation over the trivial lattice reaching
+	 * the substrate (emit.md §5); drained() is an await on it.
 	 */
 	private final class Drain implements Source<Nothing> {
 		@Override
 		public void suspend(Predicate<Nothing> ready, Await.Waiter<Nothing> waiter) {
 			synchronized (Scope.this) {
 				if (!isSealed()) {
-					drainWaiters.add(waiter);
+					onSeal.add(() -> waiter.complete(Await.Result.sealed(nothing())));
 					return;
 				}
 			}
@@ -97,6 +119,11 @@ public final class Scope {
 		@Override
 		public Scope scope() {
 			return Scope.this;
+		}
+
+		@Override
+		public boolean sealOnly() {
+			return true;
 		}
 
 		@Override
@@ -116,8 +143,8 @@ public final class Scope {
 		return Fiber.defer(this::sealCascade);
 	}
 
-	public void blocked(Object sleeper, Scope at) {
-		ledger.blocked(sleeper, at);
+	public void blocked(Object sleeper, Scope at, boolean sealOnly) {
+		ledger.blocked(sleeper, new Wait(at, sealOnly));
 	}
 
 	/**
@@ -156,7 +183,7 @@ public final class Scope {
 	}
 
 	private boolean sealIfQuiescent() {
-		if (!ledger.quiescent(at -> at == this)) {
+		if (!ledger.quiescent(w -> w.at == this)) {
 			return false;
 		}
 		if (!sealed.compareAndSet(false, true)) {
@@ -172,18 +199,13 @@ public final class Scope {
 	 * sealed(value) for its value-waiters (EOF on the data channel).
 	 */
 	private void completeOnSeal() {
-		List<Await.Waiter<Nothing>> control;
-		List<Runnable> channels;
+		List<Runnable> actions;
 		synchronized (this) {
-			control = new ArrayList<>(drainWaiters);
-			drainWaiters.clear();
-			channels = new ArrayList<>(onSeal);
+			actions = new ArrayList<>(onSeal);
+			onSeal.clear();
 		}
-		for (Await.Waiter<Nothing> waiter : control) {
-			waiter.complete(Await.Result.sealed(nothing()));
-		}
-		for (Runnable channel : channels) {
-			channel.run();
+		for (Runnable action : actions) {
+			action.run();
 		}
 	}
 
@@ -210,20 +232,28 @@ public final class Scope {
 			if (members.containsKey(scope) || scope.isSealed()) {
 				continue;
 			}
-			WorkLedger.Snapshot<Scope> snapshot = scope.ledger.drainedSnapshot();
+			WorkLedger.Snapshot<Wait> snapshot = scope.ledger.drainedSnapshot();
 			if (snapshot == null) {
 				return;
 			}
 			members.put(scope, snapshot.started);
-			for (Scope at : snapshot.blockedAt) {
-				if (at == scope) {
+			for (Wait w : snapshot.blockedAt) {
+				if (w.at == scope) {
 					continue;
 				}
-				if (at == null || at.isSealed()) {
+				if (w.sealOnly) {
+					// A DRAIN-EDGE IS NOT A RING EDGE: its waiter is woken by
+					// the target's seal itself, so sealing the group would wake
+					// a member with pending work on a sealed scope. The target
+					// seals by its own cascade (or its own cell-wait ring) and
+					// the waiter's home seals later, at true quiescence.
+					return;
+				}
+				if (w.at == null || w.at.isSealed()) {
 					// no workforce, or a resume in flight — defer
 					return;
 				}
-				frontier.add(at);
+				frontier.add(w.at);
 			}
 		}
 		for (Map.Entry<Scope, Long> m : members.entrySet()) {

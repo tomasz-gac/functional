@@ -311,7 +311,7 @@ public class AwaitTest {
 	}
 
 	@Test
-	public void anImmediatelyAnsweredAwaitDoesNotJoinBeforeTheChildYields() {
+	public void aForkContinuesWithoutWaitingForItsChildren() {
 		IntSource source = new IntSource();
 		source.grow(5); // the child's await answers immediately
 		List<String> order = new ArrayList<>();
@@ -330,9 +330,10 @@ public class AwaitTest {
 
 		program.get();
 
-		// the join means the child YIELDED: an immediately answered await is
-		// not a yield - the child keeps running, and the parent waits for it
-		assertThat(order).containsExactly("child", "parent");
+		// fork is a control scatter: the parent continues at once, promising
+		// nothing about the child - but the drive drains the child before
+		// get() returns, so its effect is still here
+		assertThat(order).containsExactly("parent", "child");
 	}
 
 	@Test

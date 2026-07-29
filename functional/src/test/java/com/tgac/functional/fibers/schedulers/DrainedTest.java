@@ -83,4 +83,71 @@ public class DrainedTest {
 
 		assertThat(seen).containsExactlyInAnyOrder(1, 2);
 	}
+	@Test
+	public void aNestedDrainedInsideAPlantedTreeResolvesBottomUp() {
+		Scope outer = Scope.scope();
+		List<String> order = new ArrayList<>();
+
+		// the planted tree itself plants a sub-workforce and drains it -
+		// the outer seal must wait for the inner chain to resolve
+		Fiber<Nothing> innerWork = Fiber.defer(() -> {
+			order.add("inner-work");
+			return done(nothing());
+		});
+		Fiber<Nothing> tree = Fiber.defer(() -> {
+			Scope inner = Scope.scope();
+			return Fiber.plant(inner, innerWork)
+					.flatMap(__ -> Fiber.drained(inner))
+					.flatMap(__ -> {
+						order.add("inner-drained");
+						return done(nothing());
+					});
+		});
+
+		Fiber.plant(outer, tree)
+				.flatMap(__ -> Fiber.drained(outer))
+				.flatMap(__ -> {
+					order.add("outer-drained");
+					return done(nothing());
+				})
+				.get();
+
+		assertThat(order).containsExactly("inner-work", "inner-drained", "outer-drained");
+	}
+
+	@Test
+	public void aForkedChildsNestedDrainedHoldsTheOuterSealOpen() {
+		Scope outer = Scope.scope();
+		List<String> order = new ArrayList<>();
+
+		// one forked child plants and drains a sub-workforce; the outer
+		// drain must wait for the whole chain, not seal past the parked child
+		Fiber<Nothing> tree = Fiber.fork(Arrays.asList(
+				Fiber.defer(() -> {
+					order.add("sibling");
+					return done(nothing());
+				}),
+				Fiber.defer(() -> {
+					Scope inner = Scope.scope();
+					return Fiber.plant(inner, Fiber.defer(() -> {
+								order.add("inner-work");
+								return done(nothing());
+							}))
+							.flatMap(__ -> Fiber.drained(inner))
+							.flatMap(__ -> {
+								order.add("inner-drained");
+								return done(nothing());
+							});
+				})));
+
+		Fiber.plant(outer, tree)
+				.flatMap(__ -> Fiber.drained(outer))
+				.flatMap(__ -> {
+					order.add("outer-drained");
+					return done(nothing());
+				})
+				.get();
+
+		assertThat(order).containsExactly("sibling", "inner-work", "inner-drained", "outer-drained");
+	}
 }

@@ -51,4 +51,15 @@ public interface Source<V> {
 	default Scope scope() {
 		return null;
 	}
+
+	/**
+	 * True when this source's waiters can be completed ONLY by the seal —
+	 * the degenerate channel: no growth exists that could satisfy any
+	 * readiness predicate. The seal rule treats such waits specially: a
+	 * drain-edge is not a ring edge (group-sealing the target would wake
+	 * the waiter with pending work on its own sealed home).
+	 */
+	default boolean sealOnly() {
+		return false;
+	}
 }
