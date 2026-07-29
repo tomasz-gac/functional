@@ -4,6 +4,11 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — unfair because a shallow frame can starve deeper ones.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
@@ -108,7 +113,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD, entry.depth + 1));
+			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD, entry.depth + 1));
 		}
 	}
 
@@ -132,7 +137,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Entry entry : entries) {
-			b.add(entry.getDepth(), entry.frame.computation);
+			b.add(entry.getDepth(), entry.frame.computation());
 		}
 		return b.build();
 	}

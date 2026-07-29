@@ -4,6 +4,11 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — all it owns is the queue.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
@@ -111,7 +116,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD));
+			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD));
 		}
 		index = -1;
 	}
@@ -136,7 +141,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Entry entry : entries) {
-			b.add(0, entry.frame.computation);
+			b.add(0, entry.frame.computation());
 		}
 		return b.build();
 	}

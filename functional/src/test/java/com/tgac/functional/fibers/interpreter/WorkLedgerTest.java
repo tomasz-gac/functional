@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: Pins the work ledger: quiescence = counters drained AND every sleeper
 // ABOUTME: where it cannot wake; counted() ticks start at wrap time, not run time.

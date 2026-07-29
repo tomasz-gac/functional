@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: Pins the monotone cell's contract: strict growth swaps and wakes satisfied
 // ABOUTME: waiters, an absorbed delta changes nothing, suspend races grow toward reading.

@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The runtime's Await.Waiter: complete() records the frame resumed in its
 // ABOUTME: owner's ledger, hands the frame its result, and re-queues it.
@@ -21,7 +21,7 @@ import com.tgac.functional.fibers.Fiber;
  * holds structurally: the source removes a held waiter under its monitor
  * before completing it.
  */
-final class ResumeHandle implements Await.Waiter<Object> {
+public final class ResumeHandle implements Await.Waiter<Object> {
 
 	private final FiberStep.Frame frame;
 	private final Scope owner;
@@ -33,7 +33,7 @@ final class ResumeHandle implements Await.Waiter<Object> {
 	 */
 	private final boolean billedThrough;
 
-	ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue, boolean billedThrough) {
+	public ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue, boolean billedThrough) {
 		this.frame = frame;
 		this.owner = owner;
 		this.requeue = requeue;

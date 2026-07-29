@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The runtime's Source: a monotone value plus the workforce producing it.
 // ABOUTME: Growth wakes held waiters; the workforce's quiescence seals and finalizes.

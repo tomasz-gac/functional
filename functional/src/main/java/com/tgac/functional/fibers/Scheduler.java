@@ -1,6 +1,6 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.schedulers.StepListener;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;

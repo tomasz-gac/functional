@@ -4,6 +4,11 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: shallowest bucket, with long-running buckets promoted to keep disjunction fair.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
@@ -135,7 +140,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		addAll(currentDepth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD))
+				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD))
 				.collect(Collectors.toList()));
 	}
 
@@ -194,7 +199,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Bucket bucket : buckets) {
 			for (Entry entry : bucket.entries) {
-				b.add(bucket.depth, entry.frame.computation);
+				b.add(bucket.depth, entry.frame.computation());
 			}
 		}
 		return b.build();

@@ -11,6 +11,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.interpreter.MaxInt;
+import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.Source;
 import java.util.ArrayList;

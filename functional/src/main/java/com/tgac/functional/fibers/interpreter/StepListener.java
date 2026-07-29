@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: Observes fiber reductions at the one place every scheduler shares — FiberStep.
 // ABOUTME: Off by default (NO_OP); install with a scheduler's withListener for a uniform trace.

@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The single-step interpreter shared by every scheduler: one dispatch over the Fiber ADT.
 // ABOUTME: Schedulers are drivers — queues, countdowns and granularity live there; step semantics live here.
@@ -33,19 +33,19 @@ import java.util.function.Function;
  * allocates nothing.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-final class FiberStep {
+public final class FiberStep {
 
-	static final class Frame {
+	public static final class Frame {
 		Fiber<Object> computation;
 		Scope scope;
 		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
-		Frame(Fiber<?> computation) {
+		public Frame(Fiber<?> computation) {
 			this(computation, (Scope) null);
 		}
 
 		@SuppressWarnings("unchecked")
-		Frame(Fiber<?> computation, Scope scope) {
+		public Frame(Fiber<?> computation, Scope scope) {
 			this.computation = (Fiber<Object>) computation;
 			this.scope = scope;
 			if (this.scope != null) {
@@ -54,8 +54,18 @@ final class FiberStep {
 		}
 
 		/** Step this frame once as {@code entry}, reporting events to {@code effects}. */
-		<E> boolean step(E entry, Effects<E> effects, StepListener listener) {
+		public <E> boolean step(E entry, Effects<E> effects, StepListener listener) {
 			return FiberStep.step(this, entry, effects, listener);
+		}
+
+		/** The workforce this frame is billed to — children inherit it at a fork. */
+		public Scope scope() {
+			return scope;
+		}
+
+		/** The computation as of now — the drivers' snapshot read. */
+		public Fiber<Object> computation() {
+			return computation;
 		}
 	}
 
@@ -65,7 +75,7 @@ final class FiberStep {
 	 * reports an independent child while the frame itself keeps running —
 	 * the child's frame is born with the given scope (null = unowned).
 	 */
-	interface Effects<E> {
+	public interface Effects<E> {
 		void completed(E entry, Object value);
 
 		/**

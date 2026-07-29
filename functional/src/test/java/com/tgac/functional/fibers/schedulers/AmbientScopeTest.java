@@ -9,6 +9,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.interpreter.MaxInt;
+import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

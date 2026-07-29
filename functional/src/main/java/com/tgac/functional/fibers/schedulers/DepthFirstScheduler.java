@@ -4,6 +4,11 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: its siblings. Prolog-order search — a driver over FiberStep backed by a LIFO stack.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
@@ -112,7 +117,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 		// push options so the first is stepped first — depth-first, in clause order
 		List<Fiber<Object>> options = fork.getOptions();
 		for (int i = options.size() - 1; i >= 0; i--) {
-			entries.addFirst(new Entry(new FiberStep.Frame(options.get(i), entry.frame.scope), DISCARD, entry.depth + 1));
+			entries.addFirst(new Entry(new FiberStep.Frame(options.get(i), entry.frame.scope()), DISCARD, entry.depth + 1));
 		}
 	}
 
@@ -136,7 +141,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Entry entry : entries) {
-			b.add(entry.getDepth(), entry.frame.computation);
+			b.add(entry.getDepth(), entry.frame.computation());
 		}
 		return b.build();
 	}

@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The await boundary shared by the queue drivers: held entries, the
 // ABOUTME: injection queue resumed waiters re-enter through, the exhaustion refusal.
@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  * edge that publishes the completed frame's plain fields to the drive
  * thread.
  */
-final class AwaitBoundary<E> {
+public final class AwaitBoundary<E> {
 
 	private final ConcurrentLinkedQueue<E> injections = new ConcurrentLinkedQueue<>();
 	private final Map<E, Object> outstanding = Collections.synchronizedMap(new LinkedHashMap<E, Object>());
@@ -37,7 +37,7 @@ final class AwaitBoundary<E> {
 	 * The resume handle for {@code entry}: records the resume, hands the
 	 * frame its result, and injects the entry.
 	 */
-	ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner, boolean billedThrough) {
+	public ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner, boolean billedThrough) {
 		return new ResumeHandle(frame, owner, () -> {
 			outstanding.remove(entry);
 			injections.add(entry);
@@ -45,12 +45,12 @@ final class AwaitBoundary<E> {
 	}
 
 	/** The entry is about to be offered to {@code at}. */
-	void held(E entry, Object at) {
+	public void held(E entry, Object at) {
 		outstanding.put(entry, at);
 	}
 
 	/** Move every injected entry back into the scheduler's run queue. */
-	void drainInto(Consumer<E> requeue) {
+	public void drainInto(Consumer<E> requeue) {
 		E entry;
 		while ((entry = injections.poll()) != null) {
 			requeue.accept(entry);
@@ -58,7 +58,7 @@ final class AwaitBoundary<E> {
 	}
 
 	/** No injection is pending — safe to call the run queue empty. */
-	boolean quiet() {
+	public boolean quiet() {
 		return injections.isEmpty();
 	}
 
@@ -67,7 +67,7 @@ final class AwaitBoundary<E> {
 	 * work may hold no live blocked frame — every source's seal completes its
 	 * waiters, so a stranded one names a scope that never received work.
 	 */
-	void refuseStranded() {
+	public void refuseStranded() {
 		if (outstanding.isEmpty()) {
 			return;
 		}

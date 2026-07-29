@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: A sealable scope of work: the ledger, the seal, and the group walk —
 // ABOUTME: termination detection for the workforce producing one MonotoneCell.
@@ -82,7 +82,7 @@ public final class Scope {
 	 * monitor. The waiter stays billed to its home for the whole wait
 	 * (the Sealed node's contract): no blocked entry, no re-billing.
 	 */
-	public void awaitSeal(ResumeHandle waiter) {
+	void awaitSeal(ResumeHandle waiter) {
 		synchronized (this) {
 			if (!isSealed()) {
 				onSeal.add(() -> waiter.resume(nothing()));
@@ -95,16 +95,16 @@ public final class Scope {
 
 	// ---- the ledger writes ----
 
-	public void started() {
+	void started() {
 		ledger.started();
 	}
 
-	public Fiber<Nothing> finished() {
+	Fiber<Nothing> finished() {
 		ledger.finished();
 		return Fiber.defer(this::sealCascade);
 	}
 
-	public void blocked(Object sleeper, Scope at) {
+	void blocked(Object sleeper, Scope at) {
 		ledger.blocked(sleeper, at);
 	}
 
@@ -113,7 +113,7 @@ public final class Scope {
 	 * a racing seal never reads quiescence between the record leaving and
 	 * the counter rising.
 	 */
-	public void resumed(Object waiter) {
+	void resumed(Object waiter) {
 		ledger.started();
 		ledger.unblocked(waiter);
 	}
@@ -134,7 +134,7 @@ public final class Scope {
 	 * and each resumed frame's own {@code finished()} retries its scope — the
 	 * return value exists only to satisfy {@link #finished}'s shape.
 	 */
-	public Fiber<Nothing> sealCascade() {
+	Fiber<Nothing> sealCascade() {
 		if (!sealIfQuiescent() && !isSealed() && ledger.drained()) {
 			// the singleton rule refused on a drained scope: the obstruction
 			// is a record at a foreign scope — try the ring

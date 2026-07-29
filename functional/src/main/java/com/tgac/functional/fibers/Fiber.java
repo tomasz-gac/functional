@@ -4,7 +4,7 @@ import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
-import com.tgac.functional.fibers.schedulers.Scope;
+import com.tgac.functional.fibers.interpreter.Scope;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;

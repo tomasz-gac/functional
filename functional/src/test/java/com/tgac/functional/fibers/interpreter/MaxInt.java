@@ -1,19 +1,19 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The smallest interesting test semilattice: ints under max —
 // ABOUTME: combine is max, absorption is ≤.
 
 import com.tgac.functional.algebra.Semilattice;
 
-final class MaxInt implements Semilattice<MaxInt> {
+public final class MaxInt implements Semilattice<MaxInt> {
 
-	final int value;
+	public final int value;
 
 	private MaxInt(int value) {
 		this.value = value;
 	}
 
-	static MaxInt of(int value) {
+	public static MaxInt of(int value) {
 		return new MaxInt(value);
 	}
 

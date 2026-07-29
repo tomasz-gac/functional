@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: A StepListener that prints a concise per-reduction trace to a sink.
 // ABOUTME: A ready-made scheduler trace; subclass or filter for less noise.

@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The control await: drained(scope) completes with Nothing when the
 // ABOUTME: workforce seals; plant is once-only; readers keep the sealed arm.

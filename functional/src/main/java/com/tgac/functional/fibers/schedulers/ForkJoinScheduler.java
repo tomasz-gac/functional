@@ -4,6 +4,11 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: A driver over FiberStep — a join callback threads fork/join and continue-after-join.
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
@@ -154,7 +159,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public void forked(Task task, Fiber.Forked<Object> fork) {
 			// children spawn; the forking frame continues in its own compute loop
 			for (Fiber<Object> option : fork.getOptions()) {
-				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope), DISCARD));
+				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope()), DISCARD));
 			}
 		}
 

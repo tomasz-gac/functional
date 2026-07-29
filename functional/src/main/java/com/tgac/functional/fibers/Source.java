@@ -3,7 +3,7 @@ package com.tgac.functional.fibers;
 // ABOUTME: A monotone value fibers can await: suspend takes the waiter and completes
 // ABOUTME: it exactly once - immediately when ready or sealed, at growth, or at seal.
 
-import com.tgac.functional.fibers.schedulers.Scope;
+import com.tgac.functional.fibers.interpreter.Scope;
 import java.util.function.Predicate;
 
 /**

@@ -1,4 +1,4 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: A production's work ledger: the running half as two monotone counters,
 // ABOUTME: the blocked half as who-blocks-where — quiescence is both halves empty.
