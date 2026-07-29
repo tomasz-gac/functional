@@ -97,12 +97,12 @@ public final class Scope {
 
 	// ---- the ledger writes ----
 
-	void started(Object holder) {
-		ledger.started(holder);
+	void started() {
+		ledger.started();
 	}
 
-	Fiber<Nothing> finished(Object holder) {
-		ledger.finished(holder);
+	Fiber<Nothing> finished() {
+		ledger.finished();
 		return Fiber.defer(this::sealCascade);
 	}
 
@@ -116,7 +116,7 @@ public final class Scope {
 	 * the counter rising.
 	 */
 	void resumed(Object waiter) {
-		ledger.started(waiter);
+		ledger.started();
 		ledger.unblocked(waiter);
 	}
 

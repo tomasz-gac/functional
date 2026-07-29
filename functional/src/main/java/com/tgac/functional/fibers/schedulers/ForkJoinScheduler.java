@@ -26,6 +26,7 @@ import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -50,6 +51,18 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private final ForkJoinPool pool;
 	private final CompletableFuture<A> result = new CompletableFuture<>();
 	private final AtomicInteger pending = new AtomicInteger(0);
+	/**
+	 * Bumped on every pending mutation — the stability witness for strand
+	 * detection. Atomic so it is MONOTONE: an unchanged reading across a
+	 * poll window provably means zero mutations, never a racy overwrite.
+	 */
+	private final AtomicLong opsEpoch = new AtomicLong();
+
+	private int pendingOp(int delta) {
+		opsEpoch.incrementAndGet();
+		return delta > 0 ? pending.incrementAndGet() : pending.decrementAndGet();
+	}
+
 	/** Frames held by a Source; each keeps one pending unit open until its resume. */
 	private final Map<FiberStep.Frame, Object> outstanding =
 			Collections.synchronizedMap(new LinkedHashMap<FiberStep.Frame, Object>());
@@ -90,7 +103,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			this.rootSink = sink;
 			this.started = true;
 		}
-		pending.incrementAndGet();
+		pendingOp(1);
 		pool.execute(new Task(new FiberStep.Frame(initialFiber), this::deliverRoot));
 	}
 
@@ -104,7 +117,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 	/** The last task to finish completes the result with the root value. */
 	private void taskFinished() {
-		int p = pending.decrementAndGet();
+		int p = pendingOp(-1);
 		if (p == 0 && !result.isDone()) {
 			// completing with parked frames is ALWAYS a bug: every held frame
 			// keeps a pending unit open, so p == 0 with outstanding entries
@@ -119,15 +132,35 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			result.complete(rootValue);
 			return;
 		}
-		// every remaining unit is a held frame and no task is left to complete
-		// them — sealed sources release their waiters, so these are stranded
-		// (docs/design/completion.md §6). Sound against racing resumes: a resume
-		// removes its outstanding entry BEFORE spawning, so a mid-flight one
-		// only makes p read HIGHER than the map size, never equal.
-		if (p > 0 && p == outstanding.size() && !result.isDone()) {
+		// STRAND DETECTION DOES NOT LIVE HERE: a one-shot p == size read
+		// races wake-storms — a mid-churn snapshot fired falsely under load
+		// (the pending audit kept moving long after the refusal). The
+		// drivers detect strands with the STABILIZED check below, across
+		// poll timeouts.
+	}
+
+	/**
+	 * The stabilized strand check, called on poll timeouts: refuse only when
+	 * two consecutive observations agree AND no pending op landed between
+	 * them — a genuinely dead drive, never a mid-churn snapshot. Every held
+	 * frame keeps a unit, so a quiet epoch with p == size > 0 means only
+	 * parked frames remain and nothing can ever wake them.
+	 */
+	private volatile long lastEpoch = -1;
+	private volatile int lastP = -1;
+
+	private void strandCheckStabilized() {
+		int p = pending.get();
+		int size = outstanding.size();
+		long e = opsEpoch.get();
+		boolean candidate = p > 0 && p == size;
+		boolean stable = candidate && e == lastEpoch && p == lastP;
+		lastEpoch = candidate ? e : -1;
+		lastP = candidate ? p : -1;
+		if (stable && !result.isDone()) {
 			result.completeExceptionally(new IllegalStateException(
-					"scheduler exhausted with " + p + " frame(s) blocked at unsealed sources: "
-							+ outstanding.values()));
+					"scheduler exhausted: pending=" + p + " outstanding=" + size
+							+ " blocked at unsealed sources: " + outstanding.values()));
 		}
 	}
 
@@ -147,7 +180,6 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		protected void compute() {
-			frame.runs++;
 			try {
 				while (!cancelled && frame.step(this, this, stepListener)) {
 					// run this frame's trampoline uninterrupted
@@ -186,10 +218,10 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
 			return new ResumeHandle(contFrame, owner, () -> {
-				// remove-then-spawn-then-release: the strand check reads p >
-				// size for a mid-flight resume, never a false equality
+				// remove-then-spawn-then-release: a mid-flight resume keeps
+				// pending strictly above outstanding
 				outstanding.remove(contFrame);
-				pending.incrementAndGet();
+				pendingOp(1);
 				pool.execute(new Task(contFrame, contSink));
 				taskFinished();
 			}, billedThrough);
@@ -199,32 +231,42 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public void suspended(Task task, Object at) {
 			// the held unit lands BEFORE the map entry so a concurrent
 			// strand check can only read p > size, never a false equality
-			pending.incrementAndGet();
+			pendingOp(1);
 			outstanding.put(task.frame, at);
 		}
 
 		private void spawn(Task task) {
-			pending.incrementAndGet();
-			task.fork();
+			pendingOp(1);
+			// pool.execute, not task.fork(): a fire-and-forget fork onto the
+			// worker's local deque was observed LOST under load (a forked
+			// task with no task-end in the full pending audit) — the leaked
+			// ledger pair behind the deep-chain strand. The submission
+			// queue has never dropped one.
+			pool.execute(task);
 		}
 	}
 
 	@Override
 	public A get() {
 		start(null);
-		try {
-			return result.get();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			close();
-			throw new RuntimeException("ForkJoinScheduler.get() interrupted", e);
-		} catch (ExecutionException e) {
-			Throwable cause = e.getCause();
-			if (cause instanceof RuntimeException)
-				throw (RuntimeException) cause;
-			if (cause instanceof Error)
-				throw (Error) cause;
-			throw new RuntimeException("Exception in fiber computation", cause);
+		while (true) {
+			try {
+				return result.get(64, TimeUnit.MILLISECONDS);
+			} catch (TimeoutException e) {
+				// keep waiting, but refuse a stably dead drive
+				strandCheckStabilized();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				close();
+				throw new RuntimeException("ForkJoinScheduler.get() interrupted", e);
+			} catch (ExecutionException e) {
+				Throwable cause = e.getCause();
+				if (cause instanceof RuntimeException)
+					throw (RuntimeException) cause;
+				if (cause instanceof Error)
+					throw (Error) cause;
+				throw new RuntimeException("Exception in fiber computation", cause);
+			}
 		}
 	}
 
@@ -261,7 +303,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (TimeoutException e) {
-			// not done yet — keep driving
+			// not done yet — keep driving, but refuse a stably dead drive
+			strandCheckStabilized();
 		} catch (CancellationException e) {
 			// closed underneath us — done by decree
 		} catch (ExecutionException e) {

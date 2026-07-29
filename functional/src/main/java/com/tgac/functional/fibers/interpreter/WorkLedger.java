@@ -41,29 +41,14 @@ final class WorkLedger<S, P> {
 
 	/** Blocked pieces of this scope, mapped to the place each waits at. */
 	private final Map<S, P> blocked = new HashMap<>();
-	/** Who holds each open started/finished pair — diagnostic for refusals. */
-	private final Map<Object, Integer> open = new HashMap<>();
 
 
 	public synchronized void started() {
 		started++;
 	}
 
-	public synchronized void started(Object holder) {
-		started++;
-		open.merge(holder, 1, Integer::sum);
-	}
-
 	public synchronized void finished() {
 		finished++;
-	}
-
-	public synchronized void finished(Object holder) {
-		finished++;
-		open.merge(holder, -1, Integer::sum);
-		if (Integer.valueOf(0).equals(open.get(holder))) {
-			open.remove(holder);
-		}
 	}
 
 	public synchronized void blocked(S sleeper, P at) {
@@ -89,6 +74,11 @@ final class WorkLedger<S, P> {
 		return new ArrayList<>(blocked.values());
 	}
 
+	/** Diagnostic state for refusal messages — one monitor hold. */
+	public synchronized String describe() {
+		return "started=" + started + " finished=" + finished + " blockedAt=" + blocked.values();
+	}
+
 	/**
 	 * The group walk's admission read: drained-ness, the started counter, and the
 	 * blocked places, in ONE monitor hold. Atomicity is load-bearing: read
@@ -101,12 +91,6 @@ final class WorkLedger<S, P> {
 	 *
 	 * @return the snapshot, or null when the counters are not drained
 	 */
-	/** Diagnostic state for refusal messages — one monitor hold. */
-	public synchronized String describe() {
-		return "started=" + started + " finished=" + finished + " blockedAt=" + blocked.values()
-				+ " open=" + open;
-	}
-
 	public synchronized Snapshot<P> drainedSnapshot() {
 		if (started == 0 || finished != started) {
 			return null;

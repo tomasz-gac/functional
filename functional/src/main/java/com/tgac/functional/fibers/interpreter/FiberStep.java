@@ -38,8 +38,6 @@ public final class FiberStep {
 	public static final class Frame {
 		Fiber<Object> computation;
 		Scope scope;
-		/** Diagnostic: how many tasks have driven this frame. */
-		public volatile int runs;
 		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
 		public Frame(Fiber<?> computation) {
@@ -51,7 +49,7 @@ public final class FiberStep {
 			this.computation = (Fiber<Object>) computation;
 			this.scope = scope;
 			if (this.scope != null) {
-				this.scope.started(this);
+				this.scope.started();
 			}
 		}
 
@@ -73,7 +71,7 @@ public final class FiberStep {
 		@Override
 		public String toString() {
 			return "frame#" + Integer.toHexString(System.identityHashCode(this))
-					+ "[" + computation.getClass().getSimpleName() + " runs=" + runs + "]";
+					+ "[" + computation.getClass().getSimpleName() + "]";
 		}
 	}
 
@@ -148,7 +146,7 @@ public final class FiberStep {
 					// whatever it emits
 					Scope owner = frame.scope;
 					frame.scope = null;
-					frame.computation = owner.finished(frame).map(__ -> value);
+					frame.computation = owner.finished().map(__ -> value);
 					return true;
 				}
 				listener.onCompleted(value);
@@ -186,7 +184,7 @@ public final class FiberStep {
 				// the pair closes AFTER the offer: an inline completion's
 				// resumed() lands inside this frame's still-open pair, so the
 				// counters are never transiently drained
-				effects.detached(entry, owner.finished(frame), null);
+				effects.detached(entry, owner.finished(), null);
 			}
 			return false;
 		}
