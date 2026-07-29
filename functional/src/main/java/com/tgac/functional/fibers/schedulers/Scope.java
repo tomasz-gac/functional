@@ -242,11 +242,19 @@ public final class Scope {
 					continue;
 				}
 				if (w.sealOnly) {
-					// A DRAIN-EDGE IS NOT A RING EDGE: its waiter is woken by
-					// the target's seal itself, so sealing the group would wake
-					// a member with pending work on a sealed scope. The target
-					// seals by its own cascade (or its own cell-wait ring) and
-					// the waiter's home seals later, at true quiescence.
+					// A DRAIN-EDGE POISONS ITS HOLDER, wherever it points. A
+					// cell-edge is neutralized by INCLUSION: annex the target
+					// and the seal hands the waiter its terminal EOF. A
+					// drain-edge cannot be neutralized by any closure: if the
+					// target is inside, the group's own seal is the waiter's
+					// wake - a member resumes with pending work on its sealed
+					// home; if outside, that seal may still land later and
+					// wake the member just as unsoundly. So no membership
+					// check: refuse on contact. The refusal is a deferral -
+					// when the target seals by its own machinery, the resumed
+					// member's finished() retries this cascade with the edge
+					// gone. A drain-wait on a target that never seals strands
+					// its holder, exactly as a cell-wait on a dead place does.
 					return;
 				}
 				if (w.at == null || w.at.isSealed()) {

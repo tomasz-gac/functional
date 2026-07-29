@@ -210,6 +210,29 @@ production into one cell forced it. The plant-once rule generalizes the
 idiom tabling already needed; the produceTo CAS absorbs `tryBecomeMaster`
 (§5).
 
+**Nested workforces and the seal rule.** A workforce planted from within
+another and awaited by `drained` is a NESTING, and nestings resolve
+BOTTOM-UP by singleton cascades: the inner scope drains, seals itself,
+wakes the waiter, and the outer scope seals later at true quiescence. The
+group seal (group-seal.md) exists only for the genuinely unrelated peer
+rings of tabling, and its ring argument quantifies over wake conditions —
+so the blocked entry must carry the wake condition. In graph terms, the
+walk treats the two edge kinds oppositely. A CELL-EDGE is neutralized by
+inclusion: annex the target into the closure, and sealing it hands the
+waiter its terminal EOF — no new work for the holder. A DRAIN-EDGE
+poisons its holder wherever it points and no closure can neutralize it:
+if the target is inside, the group's own seal is the waiter's wake — a
+member resumes with pending work on its sealed home; if outside, that
+seal may land later and wake the member just as unsoundly. So the walk
+refuses on contact, with no membership check — the refusal is a deferral,
+retried by the resumed member's own finished() once the target seals by
+its own machinery. A drain-wait on a target that never seals strands its
+holder (reported at exhaustion), exactly as a cell-wait on a dead place
+does; its degenerate form — draining your own workforce — is refused at
+the await. The invariant in one line: a pending drain-wait marks its
+holder unfinished; unfinished members refuse their group; refusals retry
+on the very wake that resolves them.
+
 The temporal summary: READS ARE TIME-FREE by monotonicity — a late awaiter
 of a sealed cell completes immediately with `sealed(finalValue)`, losing
 nothing; an awaiter of a never-planted cell is stranded and named loudly at
