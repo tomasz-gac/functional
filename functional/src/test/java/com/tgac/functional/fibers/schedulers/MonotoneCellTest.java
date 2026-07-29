@@ -21,8 +21,9 @@ public class MonotoneCellTest {
 	public void growSwapsTheValueAndWakesSatisfiedWaiters() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		List<Await.Result<MaxInt>> completions = new ArrayList<>();
-		assertThat(cell.suspend(v -> v.value > 0, recording(completions))).isNull();
-		assertThat(cell.suspend(v -> v.value > 0, recording(completions))).isNull();
+		cell.suspend(v -> v.value > 0, recording(completions));
+		cell.suspend(v -> v.value > 0, recording(completions));
+		assertThat(completions).isEmpty();
 
 		cell.grow(MaxInt.of(1));
 
@@ -50,10 +51,12 @@ public class MonotoneCellTest {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		cell.grow(MaxInt.of(1));
 
-		// the waiter believes the value is still 0 — it must keep reading
-		Await.Result<MaxInt> immediate = cell.suspend(v -> v.value > 0, recording(new ArrayList<>()));
-		assertThat(immediate).isNotNull();
-		assertThat(immediate.getValue()).isEqualTo(MaxInt.of(1));
+		// the waiter believes the value is still 0 — the completion arrives
+		// at once, possibly synchronously: an await always yields
+		List<Await.Result<MaxInt>> completions = new ArrayList<>();
+		cell.suspend(v -> v.value > 0, recording(completions));
+		assertThat(completions).hasSize(1);
+		assertThat(completions.get(0).getValue()).isEqualTo(MaxInt.of(1));
 	}
 
 	@Test

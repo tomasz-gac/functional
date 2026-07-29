@@ -23,8 +23,7 @@ public class SearchSnapshotTest {
 			UnfairBreadthFirstScheduler::of);
 
 	private Fiber<Nothing> forkOfThree() {
-		return Fiber.fork(Arrays.asList(done(1), done(2), done(3)), v -> {
-				})
+		return Fiber.fork(Arrays.asList(done(1), done(2), done(3)))
 				.map(_0 -> Nothing.nothing());
 	}
 

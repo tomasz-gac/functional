@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: The simplest scheduler: a flat list of frames stepped in rotation.
-// ABOUTME: A driver over FiberStep — all it owns is the queue and the fork join.
+// ABOUTME: A driver over FiberStep — all it owns is the queue and the fork countdown.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
@@ -21,6 +21,9 @@ import lombok.RequiredArgsConstructor;
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<RoundRobin.Entry>, SearchInspectable {
+
+	private static final Consumer<Object> DISCARD = value -> {
+	};
 
 	private final List<Entry> entries;
 	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
@@ -103,7 +106,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 		} else {
 			rootSink.accept((A) value);
 		}
-		entry.joined();
+		entry.yielded();
 		currentCompleted = true;
 	}
 
@@ -111,8 +114,8 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		// the join counts CONTROL YIELDS - a suspended child joins without a value
-		Runnable childJoined = () -> {
+		// the countdown counts CONTROL YIELDS - a suspended child yields without a value
+		Runnable childYielded = () -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
 				entries.add(parent);
@@ -121,7 +124,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 		};
 
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), fork.getSink(), childJoined));
+			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD, childYielded));
 		}
 		index = -1;
 	}
@@ -129,8 +132,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	@Override
 	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child, into), value -> {
-		}, null));
+		entries.add(new Entry(new FiberStep.Frame(child, into), DISCARD, null));
 	}
 
 	@Override
@@ -139,10 +141,9 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	}
 
 	@Override
-	public boolean suspended(Entry entry, Source<?> at, ResumeHandle handle) {
-		boolean held = handle.heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
-		entry.joined();
-		return held;
+	public void suspended(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
+		entry.yielded();
 	}
 
 	private static Fiber<Object> doneNothing() {
@@ -167,17 +168,17 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
-		final Runnable join; // the fork's countdown - control-yield, not value
-		private boolean joined;
+		final Runnable countdown; // the fork's countdown - control-yield, not value
+		private boolean yielded;
 
-		/** Fire the join exactly once: completion and suspension both yield control. */
-		void joined() {
-			if (joined) {
+		/** Fire the countdown exactly once: completion and suspension both yield control. */
+		void yielded() {
+			if (yielded) {
 				return;
 			}
-			joined = true;
-			if (join != null) {
-				join.run();
+			yielded = true;
+			if (countdown != null) {
+				countdown.run();
 			}
 		}
 	}

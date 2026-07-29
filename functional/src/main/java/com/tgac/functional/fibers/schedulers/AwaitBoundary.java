@@ -34,12 +34,11 @@ final class AwaitBoundary<E> {
 	private final Map<E, Source<?>> outstanding = Collections.synchronizedMap(new LinkedHashMap<E, Source<?>>());
 
 	/**
-	 * The resume handle for {@code entry}: calls owner.started() BEFORE
-	 * owner.unblocked(frame) — a racing seal never reads quiescence in the
-	 * gap — then hands the frame its result and injects the entry.
+	 * The resume handle for {@code entry}: records the resume, hands the
+	 * frame its result, and injects the entry.
 	 */
 	ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner) {
-		return new ResumeHandle(frame, owner, recorded -> {
+		return new ResumeHandle(frame, owner, () -> {
 			outstanding.remove(entry);
 			injections.add(entry);
 		});

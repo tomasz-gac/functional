@@ -26,6 +26,9 @@ import lombok.RequiredArgsConstructor;
 @SuppressWarnings("unchecked")
 public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<BreadthFirstScheduler.Entry>, SearchInspectable {
 
+	private static final Consumer<Object> DISCARD = value -> {
+	};
+
 	private final PriorityQueue<Bucket> buckets;
 	private final int iterationsForPromotion;
 	private StepListener stepListener = StepListener.NO_OP;
@@ -127,7 +130,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		} else {
 			rootSink.accept((A) value);
 		}
-		entry.joined();
+		entry.yielded();
 		currentCompleted = true;
 	}
 
@@ -135,9 +138,9 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		// the join counts CONTROL YIELDS - a suspended child has yielded and
-		// joins without a value; its frame lives on with the Source
-		Runnable childJoined = () -> {
+		// the countdown counts CONTROL YIELDS - a suspended child has yielded
+		// without a value; its frame lives on with the Source
+		Runnable childYielded = () -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
 				add(parent);
@@ -145,7 +148,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		};
 
 		addAll(currentDepth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), fork.getSink(), childJoined))
+				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD, childYielded))
 				.collect(Collectors.toList()));
 	}
 
@@ -154,8 +157,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		// runs independently; its result is discarded
 		addAll(currentDepth,
 				new ArrayList<>(Collections.singletonList(
-						new Entry(new FiberStep.Frame(child, into), value -> {
-						}, null))));
+						new Entry(new FiberStep.Frame(child, into), DISCARD, null))));
 	}
 
 	@Override
@@ -164,10 +166,9 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public boolean suspended(Entry entry, Source<?> at, ResumeHandle handle) {
-		boolean held = handle.heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
-		entry.joined();
-		return held;
+	public void suspended(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
+		entry.yielded();
 	}
 
 	private void tryPromote() {
@@ -226,17 +227,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
-		final Runnable join; // the fork's countdown - control-yield, not value
-		private boolean joined;
+		final Runnable countdown; // the fork's countdown - control-yield, not value
+		private boolean yielded;
 
-		/** Fire the join exactly once: completion and suspension both yield control. */
-		void joined() {
-			if (joined) {
+		/** Fire the countdown exactly once: completion and suspension both yield control. */
+		void yielded() {
+			if (yielded) {
 				return;
 			}
-			joined = true;
-			if (join != null) {
-				join.run();
+			yielded = true;
+			if (countdown != null) {
+				countdown.run();
 			}
 		}
 	}

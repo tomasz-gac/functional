@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 /**
  * Runs a fiber tree in parallel on a {@link ForkJoinPool}. Each frame is a
  * task; a {@code Forked} node forks its options onto the pool (work-stealing),
- * and the frame's continuation resumes as a fresh task once the options join.
+ * and the frame's continuation resumes as a fresh task once every option has yielded.
  *
  * Unlike the sequential schedulers, this one is eager and runs each frame's
  * trampoline uninterrupted — the pool provides interleaving. The computation
@@ -39,7 +39,7 @@ import java.util.function.Consumer;
 @SuppressWarnings("unchecked")
 public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
-	private static final Runnable NO_JOIN = () -> {
+	private static final Runnable NO_COUNTDOWN = () -> {
 	};
 	private static final Consumer<Object> DISCARD = value -> {
 	};
@@ -89,7 +89,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			this.started = true;
 		}
 		pending.incrementAndGet();
-		pool.execute(new Task(new FiberStep.Frame(initialFiber), this::deliverRoot, NO_JOIN));
+		pool.execute(new Task(new FiberStep.Frame(initialFiber), this::deliverRoot, NO_COUNTDOWN));
 	}
 
 	private void deliverRoot(Object value) {
@@ -132,20 +132,20 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private final class Task extends RecursiveAction implements FiberStep.Effects<Task> {
 		private final FiberStep.Frame frame;
 		private final Consumer<Object> valueSink;
-		private final Runnable joinCallback;
-		private final AtomicBoolean joined = new AtomicBoolean();
+		private final Runnable countdown;
+		private final AtomicBoolean yielded = new AtomicBoolean();
 
-		/** Fire the join exactly once: completion and suspension both yield control. */
-		private void joined() {
-			if (joined.compareAndSet(false, true)) {
-				joinCallback.run();
+		/** Fire the countdown exactly once: completion and suspension both yield control. */
+		private void yielded() {
+			if (yielded.compareAndSet(false, true)) {
+				countdown.run();
 			}
 		}
 
-		Task(FiberStep.Frame frame, Consumer<Object> valueSink, Runnable joinCallback) {
+		Task(FiberStep.Frame frame, Consumer<Object> valueSink, Runnable countdown) {
 			this.frame = frame;
 			this.valueSink = valueSink;
-			this.joinCallback = joinCallback;
+			this.countdown = countdown;
 		}
 
 		@Override
@@ -166,28 +166,27 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		@Override
 		public void completed(Task task, Object value) {
 			task.valueSink.accept(value);
-			task.joined();
+			task.yielded();
 		}
 
 		@Override
 		public void forked(Task task, Fiber.Forked<Object> fork) {
 			List<Fiber<Object>> options = fork.getOptions();
-			Consumer<Object> childSink = fork.getSink();
 
-			// the continuation resumes this frame once every option has joined
+			// the continuation resumes this frame once every option has yielded
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
-			Runnable contJoin = task.joinCallback;
+			Runnable contCountdown = task.countdown;
 			AtomicInteger latch = new AtomicInteger(options.size());
-			Runnable childDone = () -> {
+			Runnable childYielded = () -> {
 				if (latch.decrementAndGet() == 0) {
 					contFrame.computation = doneNothing();
-					spawn(new Task(contFrame, contSink, contJoin));
+					spawn(new Task(contFrame, contSink, contCountdown));
 				}
 			};
 
 			for (Fiber<Object> option : options) {
-				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope), childSink, childDone));
+				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope), DISCARD, childYielded));
 			}
 		}
 
@@ -195,40 +194,33 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		public void detached(Task task, Fiber<?> child, Source<?> into) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
-			task.spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_JOIN));
+			task.spawn(new Task(new FiberStep.Frame(child, into), DISCARD, NO_COUNTDOWN));
 		}
 
 		@Override
 		public ResumeHandle resumeHandle(Task task, Scope owner) {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
-			return new ResumeHandle(contFrame, owner, recorded -> {
+			return new ResumeHandle(contFrame, owner, () -> {
 				// remove-then-spawn-then-release: the strand check reads p >
 				// size for a mid-flight resume, never a false equality. The
-				// held unit is released only if heldAt placed one - a
-				// completion that outran heldAt must not steal the resumed
-				// task's own unit. The resumed task carries NO join: the
-				// logical child joined when it suspended - a fresh Task's
-				// fresh latch must not fire the fork's countdown again
+				// resumed task carries NO join: a child joins once, at its
+				// first yield - a fresh Task's fresh latch must not fire the
+				// fork's countdown again
 				outstanding.remove(contFrame);
 				pending.incrementAndGet();
-				pool.execute(new Task(contFrame, contSink, NO_JOIN));
-				if (recorded) {
-					taskFinished();
-				}
+				pool.execute(new Task(contFrame, contSink, NO_COUNTDOWN));
+				taskFinished();
 			});
 		}
 
 		@Override
-		public boolean suspended(Task task, Source<?> at, ResumeHandle handle) {
-			boolean held = handle.heldAt(FiberStep.Frame.own(at), () -> {
-				// the held unit lands BEFORE the map entry so a concurrent
-				// strand check can only read p > size, never a false equality
-				pending.incrementAndGet();
-				outstanding.put(task.frame, at);
-			});
-			task.joined();
-			return held;
+		public void suspended(Task task, Source<?> at) {
+			// the held unit lands BEFORE the map entry so a concurrent
+			// strand check can only read p > size, never a false equality
+			pending.incrementAndGet();
+			outstanding.put(task.frame, at);
+			task.yielded();
 		}
 
 		private void spawn(Task task) {

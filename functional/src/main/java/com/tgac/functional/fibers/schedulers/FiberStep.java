@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: The single-step interpreter shared by every scheduler: one dispatch over the Fiber ADT.
-// ABOUTME: Schedulers are drivers — queues, joins and granularity live there; step semantics live here.
+// ABOUTME: Schedulers are drivers — queues, countdowns and granularity live there; step semantics live here.
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -98,14 +98,12 @@ final class FiberStep {
 		}
 
 		/**
-		 * The suspension STUCK — the frame has yielded control. The handle
-		 * referees placement against a racing completion (ResumeHandle.heldAt):
-		 * the blocked record and the scheduler's registration land in one
-		 * guarded step, or not at all if a completion already won. This is
-		 * also where the fork's join fires: an immediately answered await
-		 * never yields, so the join never rides the attempt.
+		 * The frame is yielding into {@code at}: register it as held and fire
+		 * the fork's countdown — BEFORE the offer, so no completion can
+		 * outrun the registration. Every await yields; a child fires its
+		 * countdown at its first yield.
 		 */
-		default boolean suspended(E entry, Source<?> at, ResumeHandle handle) {
+		default void suspended(E entry, Source<?> at) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -162,24 +160,22 @@ final class FiberStep {
 			Fiber.Awaiting<Object> awaiting = (Fiber.Awaiting<Object>) (Fiber<?>) computation;
 			Source<Object> source = awaiting.getSource();
 			Scope owner = frame.scope;
-			// hand the frame off BEFORE offering the waiter: once the source
-			// holds it, another thread may resume the frame at any moment, so
-			// nothing here may touch the frame after a held suspend
+			// AN AWAIT ALWAYS YIELDS. Every record is placed BEFORE the offer,
+			// so no completion can outrun the bookkeeping; nothing here may
+			// touch the frame after the offer
 			frame.scope = null;
 			ResumeHandle handle = effects.resumeHandle(entry, owner);
-			Await.Result<Object> immediate = source.suspend(awaiting.getReady(), handle);
-			if (immediate != null) {
-				// nothing was recorded, nothing to undo — the frame continues
-				frame.scope = owner;
-				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(immediate);
-				return true;
+			if (owner != null) {
+				// the blocked record shields the owner's counters until the
+				// resume is billed
+				owner.blocked(frame, Frame.own(source));
 			}
-			// held: the handle referees the record-vs-completion race; the
-			// pair closes ONLY if the records were placed — record lands
-			// first, so a racing seal never sees drained counters with no
-			// blocked record. A completion that outran the hold inherits the
-			// original quantum instead: no tick, no window
-			if (effects.suspended(entry, source, handle) && owner != null) {
+			effects.suspended(entry, source);
+			source.suspend(awaiting.getReady(), handle);
+			// the pair closes AFTER the offer: an inline completion's
+			// resumed() lands inside this frame's still-open pair, so the
+			// counters are never transiently drained
+			if (owner != null) {
 				effects.detached(entry, owner.finished(), null);
 			}
 			return false;

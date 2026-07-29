@@ -42,9 +42,7 @@ public class AmbientScopeTest {
 		Fiber<Nothing> work = Fiber.fork(Arrays.asList(
 						Fiber.defer(() -> done(childrenRun.incrementAndGet())),
 						Fiber.defer(() -> done(childrenRun.incrementAndGet())),
-						Fiber.defer(() -> done(childrenRun.incrementAndGet()))),
-				v -> {
-				});
+						Fiber.defer(() -> done(childrenRun.incrementAndGet()))));
 
 		Fiber.detachTo(cell, work).get();
 
@@ -81,8 +79,7 @@ public class AmbientScopeTest {
 				tasks.add(Fiber.defer(() -> done(sum.incrementAndGet())));
 			}
 			Fiber<Nothing> work = Fiber.detachTo(cell,
-					Fiber.fork(tasks, v -> {
-					}));
+					Fiber.fork(tasks));
 
 			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(work)) {
 				engine.get();

@@ -3,6 +3,7 @@ package com.tgac.functional.fibers;
 import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.tgac.functional.fibers.Tapped.tapped;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
@@ -60,9 +61,9 @@ public class SchedulerEquivalenceTest {
 	public void shouldCollectAllForkedResults() {
 		onEachScheduler(factory -> () -> {
 			List<Integer> results = new CopyOnWriteArrayList<>();
-			Fiber<Nothing> program = Fiber.fork(
+			Fiber<Nothing> program = Fiber.fork(tapped(
 					Arrays.asList(done(1), defer(() -> done(2)), countdown(100).map(v -> v + 3)),
-					results::add);
+					results::add));
 
 			factory.apply(program).get();
 
@@ -76,11 +77,11 @@ public class SchedulerEquivalenceTest {
 			List<Integer> inner = new CopyOnWriteArrayList<>();
 			List<Integer> outer = new CopyOnWriteArrayList<>();
 
-			Fiber<Nothing> program = Fiber.fork(Arrays.asList(
-							Fiber.<Integer> fork(Arrays.asList(done(1), done(2)), inner::add)
+			Fiber<Nothing> program = Fiber.fork(tapped(Arrays.asList(
+							Fiber.fork(tapped(Arrays.asList(done(1), done(2)), inner::add))
 									.map(n -> 10),
 							done(20)),
-					outer::add);
+					outer::add));
 
 			factory.apply(program).get();
 
@@ -95,13 +96,13 @@ public class SchedulerEquivalenceTest {
 			List<Integer> sideEffects = new CopyOnWriteArrayList<>();
 			List<Integer> results = new CopyOnWriteArrayList<>();
 
-			Fiber<Nothing> program = Fiber.fork(Arrays.asList(
+			Fiber<Nothing> program = Fiber.fork(tapped(Arrays.asList(
 							Fiber.detach(countdown(50).map(v -> {
 								sideEffects.add(v + 100);
 								return v;
 							})).map(n -> 1),
 							done(2)),
-					results::add);
+							results::add));
 
 			factory.apply(program).get();
 
@@ -114,7 +115,7 @@ public class SchedulerEquivalenceTest {
 	public void shouldHandleEmptyForks() {
 		onEachScheduler(factory -> () -> {
 			List<Object> results = new CopyOnWriteArrayList<>();
-			Fiber<Nothing> program = Fiber.fork(Arrays.asList(), results::add);
+			Fiber<Nothing> program = Fiber.fork(tapped(Arrays.asList(), results::add));
 
 			factory.apply(program).get();
 
@@ -127,8 +128,7 @@ public class SchedulerEquivalenceTest {
 		// forking zero tasks is vacuously complete — the continuation must run
 		onEachScheduler(factory -> () -> {
 			List<Integer> results = new CopyOnWriteArrayList<>();
-			Fiber<Nothing> program = Fiber.<Integer> fork(Arrays.asList(), v -> {
-					})
+			Fiber<Nothing> program = Fiber.<Integer> fork(Arrays.asList())
 					.flatMap(__ -> {
 						results.add(42);
 						return done(Nothing.nothing());
@@ -145,9 +145,9 @@ public class SchedulerEquivalenceTest {
 		// a deep branch must not prevent a shallow sibling from producing
 		onEachScheduler(factory -> () -> {
 			List<Integer> results = new CopyOnWriteArrayList<>();
-			Fiber<Nothing> program = Fiber.fork(
+			Fiber<Nothing> program = Fiber.fork(tapped(
 					Arrays.asList(countdown(5_000).map(v -> 1), done(2)),
-					results::add);
+					results::add));
 
 			factory.apply(program).get();
 

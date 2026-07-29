@@ -3,6 +3,7 @@ package com.tgac.functional.fibers;
 import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static com.tgac.functional.fibers.Tapped.tapped;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
@@ -237,7 +238,7 @@ public class FiberTest {
 	@Test
 	public void shouldFork() {
 		List<Integer> results = new ArrayList<>();
-		Fiber.fork(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+		Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
 				.get();
 
 		Assertions.assertThat(results)
@@ -258,7 +259,7 @@ public class FiberTest {
 	public void shouldFlatMapAfterFork() {
 		List<Integer> results = new ArrayList<>();
 		Assertions.assertThat(
-						Fiber.fork(Arrays.asList(counter(100), counter(50), counter(10)), results::add)
+						Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
 								.flatMap(_0 -> done(1))
 								.get())
 				.isEqualTo(1);
@@ -269,14 +270,14 @@ public class FiberTest {
 	@Test
 	public void shouldProcessNestedFork() {
 		List<Integer> results = new CopyOnWriteArrayList<>();
-		Fiber<String> n = Fiber.fork(Arrays.asList(counter(50), counter(30), counter(20)), results::add)
+		Fiber<String> n = Fiber.fork(tapped(Arrays.asList(counter(50), counter(30), counter(20)), results::add))
 				.flatMap(_0 -> done("1"));
-		Fiber<String> n1 = Fiber.fork(Arrays.asList(counter(60), counter(40), counter(10)), results::add)
+		Fiber<String> n1 = Fiber.fork(tapped(Arrays.asList(counter(60), counter(40), counter(10)), results::add))
 				.flatMap(_0 -> done("2"));
 		List<String> ns = new CopyOnWriteArrayList<>();
 		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Fiber.forEach(Arrays.asList(n, n1), ns::add),
 		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
-		Scheduler<Nothing> e = new BreadthFirstScheduler(Fiber.fork(Arrays.asList(n, n1), ns::add));
+		Scheduler<Nothing> e = new BreadthFirstScheduler(Fiber.fork(tapped(Arrays.asList(n, n1), ns::add)));
 		System.out.println(e.get());
 		System.out.println(results);
 		System.out.println(ns);

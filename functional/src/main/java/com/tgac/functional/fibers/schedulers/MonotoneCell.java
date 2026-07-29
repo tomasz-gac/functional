@@ -74,17 +74,23 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 	}
 
 	@Override
-	public synchronized Await.Result<V> suspend(Predicate<V> ready, Await.Waiter<V> waiter) {
-		// the seal read is atomic and upward-closed; a stale false parks a
-		// waiter the seal's drain then completes — never a lost waiter
-		if (scope.isSealed()) {
-			return Await.Result.sealed(value);
+	public void suspend(Predicate<V> ready, Await.Waiter<V> waiter) {
+		Await.Result<V> immediate;
+		synchronized (this) {
+			// the seal read is atomic and upward-closed; a stale false parks a
+			// waiter the seal's drain then completes — never a lost waiter
+			if (scope.isSealed()) {
+				immediate = Await.Result.sealed(value);
+			} else if (ready.test(value)) {
+				immediate = Await.Result.more(value);
+			} else {
+				held.add(new Held<>(ready, waiter));
+				return;
+			}
 		}
-		if (ready.test(value)) {
-			return Await.Result.more(value);
-		}
-		held.add(new Held<>(ready, waiter));
-		return null;
+		// completed outside the monitor - the cell is a leaf; synchronous is
+		// fine: the suspending frame's own open pair shields the counters
+		waiter.complete(immediate);
 	}
 
 	/**

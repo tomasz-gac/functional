@@ -4,6 +4,7 @@ import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.detach;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.tgac.functional.fibers.Tapped.tapped;
 
 import com.tgac.functional.category.Nothing;
 import java.util.List;
@@ -109,10 +110,9 @@ public class DetachedTest {
 		Fiber<Nothing> task2 = detach(done("task2").map(results::add));
 		Fiber<Nothing> task3 = detach(done("task3").map(results::add));
 
-		Fiber.fork(
+		Fiber.fork(tapped(
 				java.util.Arrays.asList(task1, task2, task3),
-				_0 -> results.add("fork-done")
-		).get();
+				_0 -> results.add("fork-done"))).get();
 
 		assertThat(results).contains("task1", "task2", "task3");
 		assertThat(results.stream().filter(s -> s.equals("fork-done")).count()).isEqualTo(3);

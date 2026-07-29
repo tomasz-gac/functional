@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers;
 
-// ABOUTME: A monotone value fibers can await: suspend answers immediately or holds
-// ABOUTME: the waiter; growth and the seal of its workforce complete held waiters.
+// ABOUTME: A monotone value fibers can await: suspend takes the waiter and completes
+// ABOUTME: it exactly once - immediately when ready or sealed, at growth, or at seal.
 
 import java.util.function.Predicate;
 
@@ -32,12 +32,13 @@ import java.util.function.Predicate;
 public interface Source<V> {
 
 	/**
-	 * Attempt to suspend a waiter. Atomic with growth and seal: either the
-	 * answer is already available — {@code ready} holds of the current value,
-	 * or the source is sealed — and the immediate result is returned, or the
-	 * waiter is HELD and null is returned. A held waiter is completed exactly
-	 * once — at the first growth satisfying its predicate, or at seal — and
-	 * never synchronously inside this call. Must not block.
+	 * Take the waiter and complete it EXACTLY ONCE: immediately — possibly
+	 * synchronously, before this call returns — when {@code ready} holds of
+	 * the current value or the source is sealed; otherwise at the first
+	 * growth satisfying the predicate, or at the seal, with the final value.
+	 * An await always yields; there is no immediate-answer path. The
+	 * decision must be atomic with growth and seal, and this call must not
+	 * block.
 	 */
-	Await.Result<V> suspend(Predicate<V> ready, Await.Waiter<V> waiter);
+	void suspend(Predicate<V> ready, Await.Waiter<V> waiter);
 }

@@ -23,6 +23,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<DepthFirstScheduler.Entry>, SearchInspectable {
 
+	private static final Consumer<Object> DISCARD = value -> {
+	};
+
 	private final Deque<Entry> entries;
 	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
 	private StepListener stepListener = StepListener.NO_OP;
@@ -102,7 +105,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 		} else {
 			rootSink.accept((A) value);
 		}
-		entry.joined();
+		entry.yielded();
 		currentCompleted = true;
 	}
 
@@ -110,8 +113,8 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
 		Entry parent = entry;
 		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		// the join counts CONTROL YIELDS - a suspended child joins without a value
-		Runnable childJoined = () -> {
+		// the countdown counts CONTROL YIELDS - a suspended child yields without a value
+		Runnable childYielded = () -> {
 			if (pending.decrementAndGet() == 0) {
 				parent.frame.computation = doneNothing();
 				entries.addFirst(parent); // re-introduce the parent node
@@ -121,15 +124,14 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 		// push options so the first is stepped first — depth-first, in clause order
 		List<Fiber<Object>> options = fork.getOptions();
 		for (int i = options.size() - 1; i >= 0; i--) {
-			entries.addFirst(new Entry(new FiberStep.Frame(options.get(i), entry.frame.scope), fork.getSink(), childJoined, entry.depth + 1));
+			entries.addFirst(new Entry(new FiberStep.Frame(options.get(i), entry.frame.scope), DISCARD, childYielded, entry.depth + 1));
 		}
 	}
 
 	@Override
 	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
 		// runs independently; its result is discarded, and it does not preempt the current branch
-		entries.addLast(new Entry(new FiberStep.Frame(child, into), value -> {
-		}, null, entry.depth));
+		entries.addLast(new Entry(new FiberStep.Frame(child, into), DISCARD, null, entry.depth));
 	}
 
 	@Override
@@ -138,10 +140,9 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public boolean suspended(Entry entry, Source<?> at, ResumeHandle handle) {
-		boolean held = handle.heldAt(FiberStep.Frame.own(at), () -> awaits.held(entry, at));
-		entry.joined();
-		return held;
+	public void suspended(Entry entry, Source<?> at) {
+		awaits.held(entry, at);
+		entry.yielded();
 	}
 
 	private static Fiber<Object> doneNothing() {
@@ -166,17 +167,17 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
-		final Runnable join; // the fork's countdown - control-yield, not value
-		private boolean joined;
+		final Runnable countdown; // the fork's countdown - control-yield, not value
+		private boolean yielded;
 
-		/** Fire the join exactly once: completion and suspension both yield control. */
-		void joined() {
-			if (joined) {
+		/** Fire the countdown exactly once: completion and suspension both yield control. */
+		void yielded() {
+			if (yielded) {
 				return;
 			}
-			joined = true;
-			if (join != null) {
-				join.run();
+			yielded = true;
+			if (countdown != null) {
+				countdown.run();
 			}
 		}
 		@Getter

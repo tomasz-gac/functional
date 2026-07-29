@@ -34,15 +34,19 @@ public class AwaitTest {
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public synchronized Await.Result<Integer> suspend(Predicate<Integer> ready, Await.Waiter<Integer> waiter) {
-			if (sealed) {
-				return Await.Result.sealed(value);
+		public void suspend(Predicate<Integer> ready, Await.Waiter<Integer> waiter) {
+			Await.Result<Integer> immediate;
+			synchronized (this) {
+				if (sealed) {
+					immediate = Await.Result.sealed(value);
+				} else if (ready.test(value)) {
+					immediate = Await.Result.more(value);
+				} else {
+					held.add(new Object[] { ready, waiter });
+					return;
+				}
 			}
-			if (ready.test(value)) {
-				return Await.Result.more(value);
-			}
-			held.add(new Object[] { ready, waiter });
-			return null;
+			waiter.complete(immediate);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -318,8 +322,7 @@ public class AwaitTest {
 					return done(nothing());
 				});
 		Fiber<Nothing> program = Fiber.fork(
-						Collections.singletonList(child), v -> {
-						})
+						Collections.singletonList(child))
 				.flatMap(__ -> Fiber.defer(() -> {
 					order.add("parent");
 					return done(nothing());

@@ -92,8 +92,19 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 				.map(r -> r.map(v -> v));
 	}
 
-	static <A> Fiber<Nothing> fork(List<Fiber<A>> tasks, Consumer<A> sink) {
-		return new Forked<A>(tasks, sink)
+	/**
+	 * Fork the tasks as independent frames in the calling fiber's scope. A
+	 * CONTROL primitive: the fork completes when control has drained out of
+	 * every child — each has either finished or parked itself at a
+	 * {@link Source}, fully recorded (a child yields exactly once, and done
+	 * is the final yield). Completion promises NOTHING about the children's
+	 * values: a parked child lives on, resumed by its source, and may keep
+	 * producing after the fork has completed. Work that must observe "all
+	 * results are in" awaits a source's seal instead — quiescence of the
+	 * producing workforce is the only honest end-of-stream.
+	 */
+	static <A> Fiber<Nothing> fork(List<Fiber<A>> tasks) {
+		return new Forked<A>(tasks)
 				.map(_0 -> Nothing.nothing());
 	}
 
@@ -168,7 +179,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor(staticName = "of")
 	class Forked<A> implements Fiber<A> {
 		private final List<Fiber<A>> options;
-		private final Consumer<A> sink;
 	}
 
 	/**
