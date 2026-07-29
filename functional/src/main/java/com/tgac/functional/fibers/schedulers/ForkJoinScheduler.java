@@ -147,6 +147,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		protected void compute() {
+			frame.runs++;
 			try {
 				while (!cancelled && frame.step(this, this, stepListener)) {
 					// run this frame's trampoline uninterrupted

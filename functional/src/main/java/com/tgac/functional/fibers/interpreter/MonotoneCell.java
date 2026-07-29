@@ -161,4 +161,9 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 		}
 	}
 
+
+	@Override
+	public String toString() {
+		return "cell#" + Integer.toHexString(System.identityHashCode(this)) + " closedBy " + scope.describe();
+	}
 }
