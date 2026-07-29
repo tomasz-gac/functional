@@ -47,15 +47,28 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 
 	private V value;
 	private final ArrayList<Held<V>> held = new ArrayList<>();
-	private final Scope scope = new Scope();
+	private final Scope scope;
 
+	/** A channel closed by its own private workforce. */
 	public MonotoneCell(V initial) {
+		this(initial, Scope.scope());
+	}
+
+	/**
+	 * A channel CLOSED BY the given workforce (emit.md): several cells may
+	 * share one scope, sealing together at its quiescence. The cell registers
+	 * its EOF translation — the seal completes value-waiters with
+	 * sealed(value).
+	 */
+	public MonotoneCell(V initial, Scope closedBy) {
 		this.value = initial;
-		this.scope.completeWaitersOnSeal(this::completeAllSealed);
+		this.scope = closedBy;
+		this.scope.onSeal(this::completeAllSealed);
 	}
 
 	/** The workforce — for the interpreter's token resolution. */
-	Scope scope() {
+	@Override
+	public Scope scope() {
 		return scope;
 	}
 

@@ -15,7 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -53,7 +52,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	public BreadthFirstScheduler(Fiber<A> fiber, int iterationsForPromotion) {
 		this.buckets = new PriorityQueue<>(Comparator.comparingInt(Bucket::getDepth));
 		ArrayList<Entry> entries = new ArrayList<>(1);
-		entries.add(new Entry(new FiberStep.Frame(fiber), null, null));
+		entries.add(new Entry(new FiberStep.Frame(fiber), null));
 		buckets.add(new Bucket(entries, 0, -1, 0));
 		this.iterationsForPromotion = iterationsForPromotion;
 	}
@@ -130,34 +129,22 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		} else {
 			rootSink.accept((A) value);
 		}
-		entry.yielded();
 		currentCompleted = true;
 	}
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		Entry parent = entry;
-		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		// the countdown counts CONTROL YIELDS - a suspended child has yielded
-		// without a value; its frame lives on with the Source
-		Runnable childYielded = () -> {
-			if (pending.decrementAndGet() == 0) {
-				parent.frame.computation = doneNothing();
-				add(parent);
-			}
-		};
-
 		addAll(currentDepth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD, childYielded))
+				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD))
 				.collect(Collectors.toList()));
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
+	public void detached(Entry entry, Fiber<?> child, Scope into) {
 		// runs independently; its result is discarded
 		addAll(currentDepth,
 				new ArrayList<>(Collections.singletonList(
-						new Entry(new FiberStep.Frame(child, into), DISCARD, null))));
+						new Entry(new FiberStep.Frame(child, into), DISCARD))));
 	}
 
 	@Override
@@ -168,7 +155,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	@Override
 	public void suspended(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		entry.yielded();
 	}
 
 	private void tryPromote() {
@@ -203,10 +189,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 		}
 	}
 
-	private static Fiber<Object> doneNothing() {
-		return (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
-	}
-
 	@Override
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
@@ -227,19 +209,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
-		final Runnable countdown; // the fork's countdown - control-yield, not value
-		private boolean yielded;
-
-		/** Fire the countdown exactly once: completion and suspension both yield control. */
-		void yielded() {
-			if (yielded) {
-				return;
-			}
-			yielded = true;
-			if (countdown != null) {
-				countdown.run();
-			}
-		}
 	}
 
 	@AllArgsConstructor

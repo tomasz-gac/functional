@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: The simplest scheduler: a flat list of frames stepped in rotation.
-// ABOUTME: A driver over FiberStep — all it owns is the queue and the fork countdown.
+// ABOUTME: A driver over FiberStep — all it owns is the queue.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Await;
@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
@@ -41,7 +40,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 
 	public static <A> RoundRobin<A> of(Fiber<A> fiber) {
 		ArrayList<Entry> entries = new ArrayList<>();
-		entries.add(new Entry(new FiberStep.Frame(fiber), null, null));
+		entries.add(new Entry(new FiberStep.Frame(fiber), null));
 		return new RoundRobin<>(entries);
 	}
 
@@ -106,33 +105,21 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 		} else {
 			rootSink.accept((A) value);
 		}
-		entry.yielded();
 		currentCompleted = true;
 	}
 
 	@Override
 	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		Entry parent = entry;
-		AtomicInteger pending = new AtomicInteger(fork.getOptions().size());
-		// the countdown counts CONTROL YIELDS - a suspended child yields without a value
-		Runnable childYielded = () -> {
-			if (pending.decrementAndGet() == 0) {
-				parent.frame.computation = doneNothing();
-				entries.add(parent);
-				index = entries.size() - 1;
-			}
-		};
-
 		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD, childYielded));
+			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope), DISCARD));
 		}
 		index = -1;
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Source<?> into) {
+	public void detached(Entry entry, Fiber<?> child, Scope into) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child, into), DISCARD, null));
+		entries.add(new Entry(new FiberStep.Frame(child, into), DISCARD));
 	}
 
 	@Override
@@ -143,11 +130,6 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	@Override
 	public void suspended(Entry entry, Source<?> at) {
 		awaits.held(entry, at);
-		entry.yielded();
-	}
-
-	private static Fiber<Object> doneNothing() {
-		return (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
 	}
 
 	@Override
@@ -168,18 +150,5 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	static final class Entry {
 		final FiberStep.Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
-		final Runnable countdown; // the fork's countdown - control-yield, not value
-		private boolean yielded;
-
-		/** Fire the countdown exactly once: completion and suspension both yield control. */
-		void yielded() {
-			if (yielded) {
-				return;
-			}
-			yielded = true;
-			if (countdown != null) {
-				countdown.run();
-			}
-		}
 	}
 }

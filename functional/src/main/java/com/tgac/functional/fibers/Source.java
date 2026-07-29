@@ -3,6 +3,7 @@ package com.tgac.functional.fibers;
 // ABOUTME: A monotone value fibers can await: suspend takes the waiter and completes
 // ABOUTME: it exactly once - immediately when ready or sealed, at growth, or at seal.
 
+import com.tgac.functional.fibers.schedulers.Scope;
 import java.util.function.Predicate;
 
 /**
@@ -41,4 +42,13 @@ public interface Source<V> {
 	 * block.
 	 */
 	void suspend(Predicate<V> ready, Await.Waiter<V> waiter);
+
+	/**
+	 * The workforce that closes this source — the producer set whose
+	 * quiescence seals it. Null for a FOREIGN source: no workforce the
+	 * runtime can count, hence never sealed from within (fiber-external.md).
+	 */
+	default Scope scope() {
+		return null;
+	}
 }

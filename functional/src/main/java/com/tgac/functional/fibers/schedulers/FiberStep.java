@@ -18,14 +18,14 @@ import java.util.function.Function;
  * the current computation plus the stack of pending continuations, plus the
  * AMBIENT SCOPE the frame's work is recorded in (null = unowned).
  *
- * <p>The WorkScope calls are the interpreter's, not the schedulers': a
+ * <p>The Scope calls are the interpreter's, not the schedulers': a
  * frame constructed with a scope calls started() at construction (no gap
  * for a racing seal); on completion finished() runs and the seal attempt
  * it returns runs as the frame's own continuation — same scheduler, same
  * fairness. {@link Fiber.Detached} carries the one legal escape from
  * inheritance: an explicit re-parenting scope, or null for unowned.
  * Exactly-once holds by construction — consumer code never calls the
- * WorkScope methods.
+ * Scope methods.
  *
  * The rare events — a frame completing, forking, or detaching a child — are
  * reported through {@link Effects}; the common path (unwrap a deferred,
@@ -53,18 +53,9 @@ final class FiberStep {
 			}
 		}
 
-		Frame(Fiber<?> computation, Source<?> into) {
-			this(computation, own(into));
-		}
-
 		/** Step this frame once as {@code entry}, reporting events to {@code effects}. */
 		<E> boolean step(E entry, Effects<E> effects, StepListener listener) {
 			return FiberStep.step(this, entry, effects, listener);
-		}
-
-		/** The workforce of a runtime source; a foreign source has none - unowned. */
-		static Scope own(Source<?> into) {
-			return into instanceof MonotoneCell ? ((MonotoneCell<?>) into).scope() : null;
 		}
 	}
 
@@ -78,13 +69,15 @@ final class FiberStep {
 		void completed(E entry, Object value);
 
 		/**
-		 * The fork always carries at least one option: empty forks are
-		 * vacuously complete and never reach the scheduler. Child frames
-		 * inherit the forking frame's ambient scope.
+		 * Inject the fork's children as independent frames; the forking
+		 * frame continues in the same step, so the children must be queued
+		 * before it runs again. Always carries at least one option - empty
+		 * forks never reach the scheduler. Child frames inherit the forking
+		 * frame's ambient scope.
 		 */
 		void forked(E entry, Fiber.Forked<Object> fork);
 
-		void detached(E entry, Fiber<?> child, Source<?> into);
+		void detached(E entry, Fiber<?> child, Scope into);
 
 		/**
 		 * The resume handle for the current frame, bound to its queue entry.
@@ -168,7 +161,7 @@ final class FiberStep {
 			if (owner != null) {
 				// the blocked record shields the owner's counters until the
 				// resume is billed
-				owner.blocked(frame, Frame.own(source));
+				owner.blocked(frame, source.scope());
 			}
 			effects.suspended(entry, source);
 			source.suspend(awaiting.getReady(), handle);
@@ -182,14 +175,15 @@ final class FiberStep {
 		}
 		if (computation instanceof Fiber.Forked) {
 			Fiber.Forked<Object> fork = (Fiber.Forked<Object>) computation;
-			if (fork.getOptions() == null || fork.getOptions().isEmpty()) {
-				// forking zero tasks is vacuously complete; the frame continues
-				frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
-				return true;
+			if (fork.getOptions() != null && !fork.getOptions().isEmpty()) {
+				listener.onForked(fork);
+				effects.forked(entry, fork);
 			}
-			listener.onForked(fork);
-			effects.forked(entry, fork);
-			return false;
+			// fork completes immediately: the children are injected into the
+			// ambient scope and the frame continues - a fork is a CONTROL
+			// scatter, its completion carries nothing
+			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+			return true;
 		}
 		throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
 	}

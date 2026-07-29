@@ -7,11 +7,16 @@ import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Source;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 /**
  * The workforce half of a {@link MonotoneCell}: a {@link WorkLedger}
@@ -35,17 +40,69 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * each resumed waiter's own {@code finished()} retries its scope's seal — no
  * cascade queue.
  */
-final class Scope {
+public final class Scope {
 
 	private final WorkLedger<Object, Scope> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
+	private final AtomicBoolean planted = new AtomicBoolean(false);
+	/** Each closed channel's completion of its held value-waiters, run once the flag is set. */
+	private final List<Runnable> onSeal = new ArrayList<>();
+	/** Drain-waiters: the control audience, completed with Nothing at the seal. Guarded by this. */
+	private final ArrayList<Await.Waiter<Nothing>> drainWaiters = new ArrayList<>();
+	/** The valueless read face drained() parks at. */
+	private final Drain drain = new Drain();
 
-	/** The cell's completion of its held waiters, run once the flag is set. */
-	private Runnable completeWaitersOnSeal = () -> {
-	};
+	Scope() {
+	}
 
-	void completeWaitersOnSeal(Runnable complete) {
-		this.completeWaitersOnSeal = complete;
+	/** Mint a workforce. */
+	public static Scope scope() {
+		return new Scope();
+	}
+
+	/** The plant-once CAS: a workforce is planted exactly once (emit.md). */
+	public void claimPlant() {
+		if (!planted.compareAndSet(false, true)) {
+			throw new IllegalStateException("workforce already planted: " + this);
+		}
+	}
+
+	void onSeal(Runnable complete) {
+		synchronized (this) {
+			onSeal.add(complete);
+		}
+	}
+
+	/** The read face for {@link Fiber#drained}: completes only at the seal. */
+	public Source<Nothing> drainSource() {
+		return drain;
+	}
+
+	/**
+	 * The control audience's suspend: hold the waiter, or complete it at once
+	 * when the seal has already landed. Atomic with the seal by this monitor.
+	 */
+	private final class Drain implements Source<Nothing> {
+		@Override
+		public void suspend(Predicate<Nothing> ready, Await.Waiter<Nothing> waiter) {
+			synchronized (Scope.this) {
+				if (!isSealed()) {
+					drainWaiters.add(waiter);
+					return;
+				}
+			}
+			waiter.complete(Await.Result.sealed(nothing()));
+		}
+
+		@Override
+		public Scope scope() {
+			return Scope.this;
+		}
+
+		@Override
+		public String toString() {
+			return "drain of " + Scope.this;
+		}
 	}
 
 	// ---- the ledger writes ----
@@ -105,8 +162,29 @@ final class Scope {
 		if (!sealed.compareAndSet(false, true)) {
 			return false;
 		}
-		completeWaitersOnSeal.run();
+		completeOnSeal();
 		return true;
+	}
+
+	/**
+	 * The seal speaks to each audience on its own channel: drain-waiters get
+	 * Nothing (the control event), each closed cell translates the seal into
+	 * sealed(value) for its value-waiters (EOF on the data channel).
+	 */
+	private void completeOnSeal() {
+		List<Await.Waiter<Nothing>> control;
+		List<Runnable> channels;
+		synchronized (this) {
+			control = new ArrayList<>(drainWaiters);
+			drainWaiters.clear();
+			channels = new ArrayList<>(onSeal);
+		}
+		for (Await.Waiter<Nothing> waiter : control) {
+			waiter.complete(Await.Result.sealed(nothing()));
+		}
+		for (Runnable channel : channels) {
+			channel.run();
+		}
 	}
 
 	/**
@@ -162,7 +240,7 @@ final class Scope {
 			}
 		}
 		for (Scope member : won) {
-			member.completeWaitersOnSeal.run();
+			member.completeOnSeal();
 		}
 	}
 }

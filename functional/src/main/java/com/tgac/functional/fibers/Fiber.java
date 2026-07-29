@@ -4,6 +4,7 @@ import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
+import com.tgac.functional.fibers.schedulers.Scope;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Stream;
@@ -128,7 +129,31 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * runtime can count: the child runs unowned.
 	 */
 	static <A> Fiber<Nothing> detachTo(Source<?> into, Fiber<A> fiber) {
-		return new Detached<>(fiber, into);
+		return new Detached<>(fiber, into.scope());
+	}
+
+	/**
+	 * PLANT a workforce: detach {@code tree} as {@code into}'s membership,
+	 * ONCE — the plant-once CAS (emit.md): a second plant throws,
+	 * deterministically, racing the first plant and never the seal. All
+	 * later membership grows from within (a running member forks or
+	 * detaches into its own scope, shielded by its open started/finished
+	 * pair).
+	 */
+	static <A> Fiber<Nothing> plant(Scope into, Fiber<A> tree) {
+		into.claimPlant();
+		return new Detached<>(tree, into);
+	}
+
+	/**
+	 * The control await: completes with Nothing when {@code scope} seals —
+	 * its workforce has drained and nothing it closes can ever grow again.
+	 * For NON-READERS (exhaustion consumers); readers await the source,
+	 * whose sealed arm is EOF on the data channel (emit.md).
+	 */
+	static Fiber<Nothing> drained(Scope scope) {
+		return new Awaiting<>(scope.drainSource(), v -> false)
+				.map(r -> Nothing.nothing());
 	}
 
 	/**
@@ -189,7 +214,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor
 	class Detached<A> implements Fiber<Nothing> {
 		private final Fiber<A> fiber;
-		private final Source<?> into;
+		private final Scope into;
 	}
 
 	/** A fiber suspended on a {@link Source} until ready or sealed. */
