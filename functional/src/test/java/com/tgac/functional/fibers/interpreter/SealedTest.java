@@ -51,13 +51,22 @@ public class SealedTest {
 	}
 
 	@Test
-	public void aWorkforceIsPlantedExactlyOnce() {
+	public void aWorkforceIsPlantedAtMostOnce() {
 		Scope sub = Scope.scope();
-		Fiber.plant(sub, done(nothing()));
+		List<String> ran = new ArrayList<>();
 
-		assertThatThrownBy(() -> Fiber.plant(sub, done(nothing())))
-				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("already planted");
+		// the plant CAS runs at the step: the first spawn wins, a racing or
+		// re-stepped plant no-ops
+		Fiber.plant(sub, Fiber.defer(() -> {
+			ran.add("first");
+			return done(nothing());
+		})).get();
+		Fiber.plant(sub, Fiber.defer(() -> {
+			ran.add("second");
+			return done(nothing());
+		})).get();
+
+		assertThat(ran).containsExactly("first");
 	}
 
 	@Test

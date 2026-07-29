@@ -6,7 +6,6 @@ import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import com.tgac.functional.fibers.interpreter.Scope;
-import io.vavr.control.Option;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.List;
@@ -114,15 +113,16 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	/**
 	 * PLANT a workforce: detach {@code tree} as {@code into}'s membership,
-	 * ONCE — the plant-once CAS (emit.md): a second plant throws,
-	 * deterministically, racing the first plant and never the seal. All
-	 * later membership grows from within (a running member forks or
-	 * detaches into its own scope, shielded by its open started/finished
-	 * pair).
+	 * AT MOST ONCE — the plant CAS runs at the STEP, the only place
+	 * planting actually happens, so racing planters are welcome and every
+	 * loser (a re-stepped fiber value included) no-ops. All later
+	 * membership grows from within (a running member forks or detaches
+	 * into its own scope, shielded by its open started/finished pair).
 	 */
 	static <A> Fiber<Nothing> plant(Scope into, Fiber<A> tree) {
-		into.claimPlant();
-		return new Detached<>(tree, into);
+		return defer(() -> into.tryClaimPlant()
+				? new Detached<>(tree, into)
+				: done(Nothing.nothing()));
 	}
 
 	/**
@@ -142,26 +142,17 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * PLANT {@code cell}'s workforce and hand it the cell's typed emitter —
 	 * the handler shape (emit.md): emits inside the tree fold into the
 	 * cell; the tree stays {@code Fiber<Nothing>} and values travel only
-	 * through emits. Once-only per scope, CAS-guarded: a second plant
-	 * throws, racing the first plant and never the seal.
+	 * through emits. AT MOST ONCE per scope: the plant CAS runs at the
+	 * STEP — the only place planting happens — so racing callers are
+	 * welcome (tabling's master selection IS this race) and every loser
+	 * no-ops and reads the cell as a consumer. The loser's body is never
+	 * built.
 	 */
 	static <V extends Semilattice<V>> Fiber<Nothing> produceTo(MonotoneCell<V> cell,
 			Function<Emitter<V>, Fiber<Nothing>> body) {
-		cell.scope().claimPlant();
-		return new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope());
-	}
-
-	/**
-	 * The try-form of {@link #produceTo} for legitimate plant races
-	 * (tabling's master selection): the winner gets the planted tree, the
-	 * loser gets none and consumes instead.
-	 */
-	static <V extends Semilattice<V>> Option<Fiber<Nothing>> tryProduceTo(MonotoneCell<V> cell,
-			Function<Emitter<V>, Fiber<Nothing>> body) {
-		if (!cell.scope().tryClaimPlant()) {
-			return Option.none();
-		}
-		return Option.of(new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope()));
+		return defer(() -> cell.scope().tryClaimPlant()
+				? new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope())
+				: done(Nothing.nothing()));
 	}
 
 	/**

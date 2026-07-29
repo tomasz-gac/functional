@@ -67,14 +67,26 @@ public class ProduceToTest {
 	}
 
 	@Test
-	public void aSecondPlantThrowsAndTheTryFormLosesQuietly() {
+	public void racingPlantersResolveAtTheStepAndLosersNoOp() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
-		Fiber.produceTo(cell, emit -> done(nothing()));
+		List<String> ran = new ArrayList<>();
 
-		assertThatThrownBy(() -> Fiber.produceTo(cell, emit -> done(nothing())))
-				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("already planted");
-		assertThat(Fiber.tryProduceTo(cell, emit -> done(nothing())).isEmpty()).isTrue();
+		// constructing a plant claims nothing - the CAS runs at the step, so
+		// racing callers are welcome and only the first spawn builds a body
+		Fiber<Nothing> first = Fiber.produceTo(cell, emit -> {
+			ran.add("first");
+			return done(nothing());
+		});
+		Fiber<Nothing> second = Fiber.produceTo(cell, emit -> {
+			ran.add("second");
+			return done(nothing());
+		});
+		first.get();
+		second.get();
+		// a RE-STEPPED plant fiber is a loser too: one claim, one spawn
+		first.get();
+
+		assertThat(ran).containsExactly("first");
 	}
 
 	@Test

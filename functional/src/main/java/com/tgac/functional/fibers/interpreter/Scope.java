@@ -58,14 +58,11 @@ public final class Scope {
 		return new Scope();
 	}
 
-	/** The plant-once CAS: a workforce is planted exactly once (emit.md). */
-	public void claimPlant() {
-		if (!tryClaimPlant()) {
-			throw new IllegalStateException("workforce already planted: " + this);
-		}
-	}
-
-	/** The try-form: true exactly once — tabling's master selection. */
+	/**
+	 * The plant CAS, run at the STEP a planting fiber spawns its tree —
+	 * true exactly once; racing planters and re-stepped plant fibers lose
+	 * quietly and no-op (emit.md).
+	 */
 	public boolean tryClaimPlant() {
 		return planted.compareAndSet(false, true);
 	}
