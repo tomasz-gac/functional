@@ -46,8 +46,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private final CompletableFuture<A> result = new CompletableFuture<>();
 	private final AtomicInteger pending = new AtomicInteger(0);
 	/** Frames held by a Source; each keeps one pending unit open until its resume. */
-	private final Map<FiberStep.Frame, Source<?>> outstanding =
-			Collections.synchronizedMap(new LinkedHashMap<FiberStep.Frame, Source<?>>());
+	private final Map<FiberStep.Frame, Object> outstanding =
+			Collections.synchronizedMap(new LinkedHashMap<FiberStep.Frame, Object>());
 
 	private volatile boolean started = false;
 	private volatile boolean cancelled = false;
@@ -180,7 +180,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void suspended(Task task, Source<?> at) {
+		public void suspended(Task task, Object at) {
 			// the held unit lands BEFORE the map entry so a concurrent
 			// strand check can only read p > size, never a false equality
 			pending.incrementAndGet();

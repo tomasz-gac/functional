@@ -31,7 +31,7 @@ import java.util.function.Consumer;
 final class AwaitBoundary<E> {
 
 	private final ConcurrentLinkedQueue<E> injections = new ConcurrentLinkedQueue<>();
-	private final Map<E, Source<?>> outstanding = Collections.synchronizedMap(new LinkedHashMap<E, Source<?>>());
+	private final Map<E, Object> outstanding = Collections.synchronizedMap(new LinkedHashMap<E, Object>());
 
 	/**
 	 * The resume handle for {@code entry}: records the resume, hands the
@@ -45,7 +45,7 @@ final class AwaitBoundary<E> {
 	}
 
 	/** The entry is about to be offered to {@code at}. */
-	void held(E entry, Source<?> at) {
+	void held(E entry, Object at) {
 		outstanding.put(entry, at);
 	}
 

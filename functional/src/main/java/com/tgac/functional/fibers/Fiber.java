@@ -155,8 +155,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * still its home's work — the home cannot drain past it.
 	 */
 	static Fiber<Nothing> sealed(Scope scope) {
-		return new Awaiting<>(scope.drainSource(), v -> false)
-				.map(r -> Nothing.nothing());
+		return new Sealed(scope);
 	}
 
 	/**
@@ -226,6 +225,13 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	class Awaiting<V> implements Fiber<Await.Result<V>> {
 		private final Source<V> source;
 		private final Predicate<V> ready;
+	}
+
+	/** A fiber suspended until a {@link Scope} seals — billed through the wait. */
+	@Value
+	@RequiredArgsConstructor
+	class Sealed implements Fiber<Nothing> {
+		private final Scope scope;
 	}
 
 	@Getter

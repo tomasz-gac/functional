@@ -7,16 +7,13 @@ import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.Source;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  * The workforce half of a {@link MonotoneCell}: a {@link WorkLedger}
@@ -51,8 +48,7 @@ public final class Scope {
 	 * registers its completion at park. Guarded by this.
 	 */
 	private final List<Runnable> onSeal = new ArrayList<>();
-	/** The degenerate channel drained() parks at. */
-	private final Drain drain = new Drain();
+
 
 	Scope() {
 	}
@@ -80,46 +76,22 @@ public final class Scope {
 		complete.run();
 	}
 
-	/** The read face for {@link Fiber#drained}: completes only at the seal. */
-	public Source<Nothing> drainSource() {
-		return drain;
-	}
-
 	/**
-	 * The DEGENERATE CHANNEL — the scope as a source over the one-point
-	 * lattice. A value that cannot ascend satisfies no readiness predicate,
-	 * so the only completion this channel can ever deliver is EOF:
-	 * sealed(nothing()), the seal spoken in value vocabulary with the only
-	 * value there is. This is aggregation over the trivial lattice reaching
-	 * the substrate (emit.md §5); drained() is an await on it.
+	 * Park a seal-waiter: resumed with Nothing at the seal — immediately
+	 * when the seal has already landed. Atomic with the seal by this
+	 * monitor. The waiter stays billed to its home for the whole wait
+	 * (the Sealed node's contract): no blocked entry, no re-billing.
 	 */
-	private final class Drain implements Source<Nothing> {
-		@Override
-		public void suspend(Predicate<Nothing> ready, Await.Waiter<Nothing> waiter) {
-			synchronized (Scope.this) {
-				if (!isSealed()) {
-					onSeal.add(() -> waiter.complete(Await.Result.sealed(nothing())));
-					return;
-				}
+	public void awaitSeal(ResumeHandle waiter) {
+		synchronized (this) {
+			if (!isSealed()) {
+				onSeal.add(() -> waiter.resume(nothing()));
+				return;
 			}
-			waiter.complete(Await.Result.sealed(nothing()));
 		}
-
-		@Override
-		public Scope scope() {
-			return Scope.this;
-		}
-
-		@Override
-		public boolean sealOnly() {
-			return true;
-		}
-
-		@Override
-		public String toString() {
-			return "drain of " + Scope.this;
-		}
+		waiter.resume(nothing());
 	}
+
 
 	// ---- the ledger writes ----
 

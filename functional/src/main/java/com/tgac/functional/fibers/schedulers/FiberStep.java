@@ -91,12 +91,11 @@ final class FiberStep {
 		}
 
 		/**
-		 * The frame is yielding into {@code at}: register it as held and fire
-		 * the fork's countdown — BEFORE the offer, so no completion can
-		 * outrun the registration. Every await yields; a child fires its
-		 * countdown at its first yield.
+		 * The frame is parking at {@code at} — a {@link Source} for a value
+		 * wait, a {@link Scope} for a seal wait: register it as held BEFORE
+		 * the offer, so no completion can outrun the registration.
 		 */
-		default void suspended(E entry, Source<?> at) {
+		default void suspended(E entry, Object at) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -157,31 +156,38 @@ final class FiberStep {
 			// so no completion can outrun the bookkeeping; nothing here may
 			// touch the frame after the offer
 			frame.scope = null;
-			boolean sealOnly = source.sealOnly();
-			if (owner != null && sealOnly && owner == source.scope()) {
-				throw new IllegalStateException(
-						"awaits the seal of its own workforce - a wait for yourself: " + source);
-			}
-			ResumeHandle handle = effects.resumeHandle(entry, owner, sealOnly);
-			if (owner != null && !sealOnly) {
+			ResumeHandle handle = effects.resumeHandle(entry, owner, false);
+			if (owner != null) {
 				// the blocked record shields the owner's counters until the
 				// resume is billed
 				owner.blocked(frame, source.scope());
 			}
 			effects.suspended(entry, source);
 			source.suspend(awaiting.getReady(), handle);
-			if (owner != null && !sealOnly) {
+			if (owner != null) {
 				// the pair closes AFTER the offer: an inline completion's
 				// resumed() lands inside this frame's still-open pair, so the
 				// counters are never transiently drained
 				effects.detached(entry, owner.finished(), null);
 			}
-			// a SEAL-WAITER'S PAIR STAYS OPEN: the ledger is the work, and a
-			// member that will wake with a green light is still its home's
-			// work for the whole nap - the home cannot drain, so no seal
+			return false;
+		}
+		if ((Fiber<?>) computation instanceof Fiber.Sealed) {
+			Fiber.Sealed sealedOn = (Fiber.Sealed) (Fiber<?>) computation;
+			Scope target = sealedOn.getScope();
+			if (frame.scope == target) {
+				throw new IllegalStateException(
+						"awaits the seal of its own workforce - a wait for yourself: " + target);
+			}
+			// THE PAIR STAYS OPEN: the ledger is the work, and a member that
+			// will wake with a green light is still its home's work for the
+			// whole wait - the home cannot drain past it, so no seal
 			// (singleton or group) can pass it by. No blocked entry, no
 			// re-billing at resume; the wait is visible only as an unfinished
 			// unit and in the scheduler's held registry.
+			ResumeHandle handle = effects.resumeHandle(entry, frame.scope, true);
+			effects.suspended(entry, target);
+			target.awaitSeal(handle);
 			return false;
 		}
 		if (computation instanceof Fiber.Forked) {

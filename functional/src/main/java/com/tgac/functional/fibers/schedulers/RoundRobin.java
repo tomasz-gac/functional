@@ -128,7 +128,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	}
 
 	@Override
-	public void suspended(Entry entry, Source<?> at) {
+	public void suspended(Entry entry, Object at) {
 		awaits.held(entry, at);
 	}
 

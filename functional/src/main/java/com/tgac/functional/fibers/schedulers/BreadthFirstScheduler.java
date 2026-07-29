@@ -153,7 +153,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public void suspended(Entry entry, Source<?> at) {
+	public void suspended(Entry entry, Object at) {
 		awaits.held(entry, at);
 	}
 

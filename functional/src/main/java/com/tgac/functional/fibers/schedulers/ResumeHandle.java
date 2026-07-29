@@ -41,13 +41,18 @@ final class ResumeHandle implements Await.Waiter<Object> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public void complete(Await.Result<Object> result) {
+		resume(result);
+	}
+
+	/** Hand the frame {@code value} as its computation's result and requeue. */
+	@SuppressWarnings("unchecked")
+	void resume(Object value) {
 		if (owner != null && !billedThrough) {
 			owner.resumed(frame);
 		}
 		frame.scope = owner;
-		frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(result);
+		frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(value);
 		requeue.run();
 	}
 }

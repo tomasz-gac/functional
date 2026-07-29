@@ -124,7 +124,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public void suspended(Entry entry, Source<?> at) {
+	public void suspended(Entry entry, Object at) {
 		awaits.held(entry, at);
 	}
 
