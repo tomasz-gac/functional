@@ -1,9 +1,12 @@
 package com.tgac.functional.fibers;
 
+import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
+import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import com.tgac.functional.fibers.interpreter.Scope;
+import io.vavr.control.Option;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.List;
@@ -136,6 +139,32 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
+	 * PLANT {@code cell}'s workforce and hand it the cell's typed emitter —
+	 * the handler shape (emit.md): emits inside the tree fold into the
+	 * cell; the tree stays {@code Fiber<Nothing>} and values travel only
+	 * through emits. Once-only per scope, CAS-guarded: a second plant
+	 * throws, racing the first plant and never the seal.
+	 */
+	static <V extends Semilattice<V>> Fiber<Nothing> produceTo(MonotoneCell<V> cell,
+			Function<Emitter<V>, Fiber<Nothing>> body) {
+		cell.scope().claimPlant();
+		return new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope());
+	}
+
+	/**
+	 * The try-form of {@link #produceTo} for legitimate plant races
+	 * (tabling's master selection): the winner gets the planted tree, the
+	 * loser gets none and consumes instead.
+	 */
+	static <V extends Semilattice<V>> Option<Fiber<Nothing>> tryProduceTo(MonotoneCell<V> cell,
+			Function<Emitter<V>, Fiber<Nothing>> body) {
+		if (!cell.scope().tryClaimPlant()) {
+			return Option.none();
+		}
+		return Option.of(new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope()));
+	}
+
+	/**
 	 * Suspend until {@code ready} holds of {@code source}'s value or the
 	 * source's scope seals — the condition variable over a monotone source
 	 * (docs/design/await.md). The fiber does not end while blocked: its
@@ -209,6 +238,18 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@RequiredArgsConstructor
 	class Sealed implements Fiber<Nothing> {
 		private final Scope scope;
+	}
+
+	/**
+	 * Production as an instruction: fold {@code delta} into {@code cell},
+	 * lawful only from the workforce that closes it — the interpreter
+	 * verifies the emitting frame's scope at the step (emit.md).
+	 */
+	@Value
+	@RequiredArgsConstructor
+	class Emit<V extends Semilattice<V>> implements Fiber<Nothing> {
+		private final MonotoneCell<V> cell;
+		private final V delta;
 	}
 
 	@Getter

@@ -182,6 +182,22 @@ public final class FiberStep {
 			}
 			return false;
 		}
+		if ((Fiber<?>) computation instanceof Fiber.Emit) {
+			@SuppressWarnings("rawtypes")
+			Fiber.Emit emit = (Fiber.Emit) (Fiber<?>) computation;
+			@SuppressWarnings("rawtypes")
+			MonotoneCell cell = emit.getCell();
+			// production is lawful only from the closing workforce: billing
+			// and production are the same statement (emit.md). The one
+			// identity check at the only place production executes.
+			if (frame.scope != cell.scope()) {
+				throw new IllegalStateException(
+						"emit into a channel closed by a foreign workforce: " + cell);
+			}
+			cell.grow(emit.getDelta());
+			frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(Nothing.nothing());
+			return true;
+		}
 		if ((Fiber<?>) computation instanceof Fiber.Sealed) {
 			Fiber.Sealed sealedOn = (Fiber.Sealed) (Fiber<?>) computation;
 			Scope target = sealedOn.getScope();

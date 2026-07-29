@@ -60,9 +60,14 @@ public final class Scope {
 
 	/** The plant-once CAS: a workforce is planted exactly once (emit.md). */
 	public void claimPlant() {
-		if (!planted.compareAndSet(false, true)) {
+		if (!tryClaimPlant()) {
 			throw new IllegalStateException("workforce already planted: " + this);
 		}
+	}
+
+	/** The try-form: true exactly once — tabling's master selection. */
+	public boolean tryClaimPlant() {
+		return planted.compareAndSet(false, true);
 	}
 
 	/** Register a seal action — run at once when the seal has already landed. */

@@ -85,7 +85,9 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	@Override
 	public boolean step(Consumer<? super A> sink) {
 		// injected resumes do not preempt the current branch - like detached
-		awaits.drainInto(entries::addLast);
+		// a resumed frame PREEMPTS, like a planted one: the woken box's
+		// delivery must finish before its spawner's siblings run
+		awaits.drainInto(entries::addFirst);
 		if (entries.isEmpty()) {
 			awaits.refuseStranded();
 			return true;
@@ -123,8 +125,10 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 
 	@Override
 	public void detached(Entry entry, Fiber<?> child, Scope into) {
-		// runs independently; its result is discarded, and it does not preempt the current branch
-		entries.addLast(new Entry(new FiberStep.Frame(child, into), DISCARD, entry.depth));
+		// a planted workforce PREEMPTS: depth-first order must descend into
+		// the detached body (a traced box's exploration, a master's produce)
+		// before the spawner's siblings run - Prolog order for the trace
+		entries.addFirst(new Entry(new FiberStep.Frame(child, into), DISCARD, entry.depth));
 	}
 
 	@Override
