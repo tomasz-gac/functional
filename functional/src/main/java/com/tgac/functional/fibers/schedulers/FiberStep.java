@@ -85,7 +85,7 @@ final class FiberStep {
 		 * that order is internal, no caller can misorder it — hands the frame
 		 * its result and re-queues it through the scheduler's injections.
 		 */
-		default ResumeHandle resumeHandle(E entry, Scope owner) {
+		default ResumeHandle resumeHandle(E entry, Scope owner, boolean billedThrough) {
 			throw new UnsupportedOperationException(
 					"Fiber.await is not supported by this scheduler yet");
 		}
@@ -157,24 +157,31 @@ final class FiberStep {
 			// so no completion can outrun the bookkeeping; nothing here may
 			// touch the frame after the offer
 			frame.scope = null;
-			ResumeHandle handle = effects.resumeHandle(entry, owner);
-			if (owner != null) {
-				if (source.sealOnly() && owner == source.scope()) {
-					throw new IllegalStateException(
-							"drained its own workforce - a wait for yourself: " + source);
-				}
+			boolean sealOnly = source.sealOnly();
+			if (owner != null && sealOnly && owner == source.scope()) {
+				throw new IllegalStateException(
+						"awaits the seal of its own workforce - a wait for yourself: " + source);
+			}
+			ResumeHandle handle = effects.resumeHandle(entry, owner, sealOnly);
+			if (owner != null && !sealOnly) {
 				// the blocked record shields the owner's counters until the
 				// resume is billed
-				owner.blocked(frame, source.scope(), source.sealOnly());
+				owner.blocked(frame, source.scope());
 			}
 			effects.suspended(entry, source);
 			source.suspend(awaiting.getReady(), handle);
-			// the pair closes AFTER the offer: an inline completion's
-			// resumed() lands inside this frame's still-open pair, so the
-			// counters are never transiently drained
-			if (owner != null) {
+			if (owner != null && !sealOnly) {
+				// the pair closes AFTER the offer: an inline completion's
+				// resumed() lands inside this frame's still-open pair, so the
+				// counters are never transiently drained
 				effects.detached(entry, owner.finished(), null);
 			}
+			// a SEAL-WAITER'S PAIR STAYS OPEN: the ledger is the work, and a
+			// member that will wake with a green light is still its home's
+			// work for the whole nap - the home cannot drain, so no seal
+			// (singleton or group) can pass it by. No blocked entry, no
+			// re-billing at resume; the wait is visible only as an unfinished
+			// unit and in the scheduler's held registry.
 			return false;
 		}
 		if (computation instanceof Fiber.Forked) {

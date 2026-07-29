@@ -26,17 +26,24 @@ final class ResumeHandle implements Await.Waiter<Object> {
 	private final FiberStep.Frame frame;
 	private final Scope owner;
 	private final Runnable requeue;
+	/**
+	 * A SEAL-WAITER never closed its started/finished pair: the ledger is
+	 * the work, and a member that will wake with a green light stays billed
+	 * for the whole nap. Its resume must therefore not bill again.
+	 */
+	private final boolean billedThrough;
 
-	ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue) {
+	ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue, boolean billedThrough) {
 		this.frame = frame;
 		this.owner = owner;
 		this.requeue = requeue;
+		this.billedThrough = billedThrough;
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
 	public void complete(Await.Result<Object> result) {
-		if (owner != null) {
+		if (owner != null && !billedThrough) {
 			owner.resumed(frame);
 		}
 		frame.scope = owner;

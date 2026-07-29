@@ -42,18 +42,7 @@ import java.util.function.Predicate;
  */
 public final class Scope {
 
-	private final WorkLedger<Object, Wait> ledger = new WorkLedger<>();
-
-	/** One blocked record: where the member waits, and how it can be woken. */
-	static final class Wait {
-		final Scope at;          // null: a foreign source, no workforce
-		final boolean sealOnly;  // a drain-wait - woken by the seal alone
-
-		Wait(Scope at, boolean sealOnly) {
-			this.at = at;
-			this.sealOnly = sealOnly;
-		}
-	}
+	private final WorkLedger<Object, Scope> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final AtomicBoolean planted = new AtomicBoolean(false);
 	/**
@@ -143,8 +132,8 @@ public final class Scope {
 		return Fiber.defer(this::sealCascade);
 	}
 
-	public void blocked(Object sleeper, Scope at, boolean sealOnly) {
-		ledger.blocked(sleeper, new Wait(at, sealOnly));
+	public void blocked(Object sleeper, Scope at) {
+		ledger.blocked(sleeper, at);
 	}
 
 	/**
@@ -183,7 +172,7 @@ public final class Scope {
 	}
 
 	private boolean sealIfQuiescent() {
-		if (!ledger.quiescent(w -> w.at == this)) {
+		if (!ledger.quiescent(at -> at == this)) {
 			return false;
 		}
 		if (!sealed.compareAndSet(false, true)) {
@@ -232,36 +221,20 @@ public final class Scope {
 			if (members.containsKey(scope) || scope.isSealed()) {
 				continue;
 			}
-			WorkLedger.Snapshot<Wait> snapshot = scope.ledger.drainedSnapshot();
+			WorkLedger.Snapshot<Scope> snapshot = scope.ledger.drainedSnapshot();
 			if (snapshot == null) {
 				return;
 			}
 			members.put(scope, snapshot.started);
-			for (Wait w : snapshot.blockedAt) {
-				if (w.at == scope) {
+			for (Scope at : snapshot.blockedAt) {
+				if (at == scope) {
 					continue;
 				}
-				if (w.sealOnly) {
-					// A DRAIN-EDGE POISONS ITS HOLDER, wherever it points. A
-					// cell-edge is neutralized by INCLUSION: annex the target
-					// and the seal hands the waiter its terminal EOF. A
-					// drain-edge cannot be neutralized by any closure: if the
-					// target is inside, the group's own seal is the waiter's
-					// wake - a member resumes with pending work on its sealed
-					// home; if outside, that seal may still land later and
-					// wake the member just as unsoundly. So no membership
-					// check: refuse on contact. The refusal is a deferral -
-					// when the target seals by its own machinery, the resumed
-					// member's finished() retries this cascade with the edge
-					// gone. A drain-wait on a target that never seals strands
-					// its holder, exactly as a cell-wait on a dead place does.
-					return;
-				}
-				if (w.at == null || w.at.isSealed()) {
+				if (at == null || at.isSealed()) {
 					// no workforce, or a resume in flight — defer
 					return;
 				}
-				frontier.add(w.at);
+				frontier.add(at);
 			}
 		}
 		for (Map.Entry<Scope, Long> m : members.entrySet()) {

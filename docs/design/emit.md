@@ -71,16 +71,18 @@ make production an act that cannot disagree with membership.
   belongs in-band on the data channel (read() returns −1 on the stream,
   Rx delivers onComplete to the subscriber): a parked reader whose cell
   seals must be completed, or it is abandoned — a permanent blocked record
-  that deadlocks its owner's seal in turn. `drained` cannot replace this
-  arm; it serves non-readers. The two-arm completion is also the minimal
+  that deadlocks its owner's seal in turn. `sealed(scope)` cannot replace
+  this arm; it serves non-readers. The two-arm completion is also the minimal
   race primitive between "data arrived" and "data ended" — removing it
   forces a select primitive that would reinvent the same atomicity.
 
-- **`drained(scope)`** — the ONE control-await: completes `Nothing` when the
-  scope seals. The control question asked on the control object. The scope
-  tracks its drain-waiters separately from any cell's value-waiters: different
-  payload (`Nothing` vs `V`), different wake condition (seal-only vs
-  growth-or-seal), different audience.
+- **`sealed(scope)`** — the ONE control-await: completes `Nothing` when the
+  scope seals. The control question asked on the control object. A
+  seal-waiter's started/finished pair STAYS OPEN for the whole wait — the
+  ledger is the work, and a member that will wake with a green light is
+  still its home's work, so the home cannot drain past it. (Value-waiters
+  differ: their seal-wake is the terminal EOF arm, so their pair closes at
+  the park and the seal may pass them by.)
 
 - **`fork`** — the control scatter, as already landed: inject children into
   the ambient scope, complete immediately, promise nothing.
@@ -108,7 +110,7 @@ public interface Emitter<V> {
 
 // Fiber statics
 static <A> Fiber<Nothing> plant(Scope into, Fiber<A> tree);       // channel-less plant, ONCE per scope
-static Fiber<Nothing> drained(Scope scope);                        // Nothing at the seal
+static Fiber<Nothing> sealed(Scope scope);                         // Nothing at the seal
 static <V> Fiber<Nothing> produceTo(MonotoneCell<V> cell,
 		Function<Emitter<V>, Fiber<Nothing>> body);                // the plant, ONCE per cell's scope
 ```
@@ -120,7 +122,7 @@ it races the first plant, never the seal (§3's membership passage). A second
 produceTo on the same cell is also never *needed*: inside the tree the
 emitter is already in scope, and forks inherit the workforce — "more
 production" is spelled `fork`, from within. The channel-less form (`plant`)
-carries the same once-CAS for pure `drained` workforces. The tree is
+carries the same once-CAS for pure `sealed`-awaited workforces. The tree is
 `Fiber<Nothing>` throughout — fork, Conde, all existing control plumbing
 untouched; values travel only through emits.
 
@@ -210,28 +212,24 @@ production into one cell forced it. The plant-once rule generalizes the
 idiom tabling already needed; the produceTo CAS absorbs `tryBecomeMaster`
 (§5).
 
-**Nested workforces and the seal rule.** A workforce planted from within
-another and awaited by `drained` is a NESTING, and nestings resolve
-BOTTOM-UP by singleton cascades: the inner scope drains, seals itself,
-wakes the waiter, and the outer scope seals later at true quiescence. The
-group seal (group-seal.md) exists only for the genuinely unrelated peer
-rings of tabling, and its ring argument quantifies over wake conditions —
-so the blocked entry must carry the wake condition. In graph terms, the
-walk treats the two edge kinds oppositely. A CELL-EDGE is neutralized by
-inclusion: annex the target into the closure, and sealing it hands the
-waiter its terminal EOF — no new work for the holder. A DRAIN-EDGE
-poisons its holder wherever it points and no closure can neutralize it:
-if the target is inside, the group's own seal is the waiter's wake — a
-member resumes with pending work on its sealed home; if outside, that
-seal may land later and wake the member just as unsoundly. So the walk
-refuses on contact, with no membership check — the refusal is a deferral,
-retried by the resumed member's own finished() once the target seals by
-its own machinery. A drain-wait on a target that never seals strands its
-holder (reported at exhaustion), exactly as a cell-wait on a dead place
-does; its degenerate form — draining your own workforce — is refused at
-the await. The invariant in one line: a pending drain-wait marks its
-holder unfinished; unfinished members refuse their group; refusals retry
-on the very wake that resolves them.
+**Nested workforces and the seal rule: THE LEDGER IS THE WORK.** A
+workforce planted from within another and awaited by `sealed` is a
+NESTING, and nestings resolve BOTTOM-UP by singleton cascades: the inner
+scope finishes, seals itself, wakes the waiter, and the outer scope seals
+later at true quiescence. The mechanism is billing, not a graph rule: a
+seal-waiter keeps its started/finished pair OPEN for the whole wait,
+because a member that will wake with a green light — its continuation is
+arbitrary further work of its home — is still its home's work. The home's
+counters cannot drain past it, so no seal, singleton or group, can pass
+it by; there is no blocked entry to classify and no edge-kind check in
+the group walk. Value-waiters close their pair at the park precisely
+because their seal-wake is the terminal EOF arm — a verdict about a
+finished world, not a green light — which is what licenses the group
+seal's treatment of tabling's peer rings, its only remaining
+constituency. A seal-wait on a target that never seals keeps its home
+unfinished forever and strands both (reported at exhaustion); its
+degenerate form — awaiting the seal of your own workforce — is refused
+at the await.
 
 The temporal summary: READS ARE TIME-FREE by monotonicity — a late awaiter
 of a sealed cell completes immediately with `sealed(finalValue)`, losing
@@ -282,7 +280,7 @@ lattice per construct:
   bug). Consumers are unchanged (`await` on the cell, `more`/`sealed` arms
   as today).
 - **findall / count / fold** (`Aggregate`): produce the sub-search into a
-  fresh channel (bag/counter/fold lattice), `drained`, read the fold. This
+  fresh channel (bag/counter/fold lattice), `sealed`, read the fold. This
   is #76's aggregation-folds-on-seal, landed at the fiber layer. A
   sub-search that parks at a tabled entry keeps the scope open until the
   entry seals — findall over a tabled goal waits for the table instead of
@@ -294,7 +292,7 @@ lattice per construct:
   decision — §8.
 - **Trace**: the exploration's box-model Exit/Fail ports fire after
   `drained` on the exploration's scope.
-- **Pure exhaustion** (`drained` alone): the degenerate instance — a scope
+- **Pure exhaustion** (`sealed` alone): the degenerate instance — a scope
   with no channel at all. No dumb cell.
 
 ## 6. The external door

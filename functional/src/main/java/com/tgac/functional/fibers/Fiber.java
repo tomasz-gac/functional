@@ -147,11 +147,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	/**
 	 * The control await: completes with Nothing when {@code scope} seals —
-	 * its workforce has drained and nothing it closes can ever grow again.
+	 * its workforce has finished and nothing it closes can ever grow again.
 	 * For NON-READERS (exhaustion consumers); readers await the source,
-	 * whose sealed arm is EOF on the data channel (emit.md).
+	 * whose sealed arm is EOF on the data channel (emit.md). The waiting
+	 * frame's started/finished pair stays OPEN for the whole wait: the
+	 * ledger is the work, and a member that will wake with a green light is
+	 * still its home's work — the home cannot drain past it.
 	 */
-	static Fiber<Nothing> drained(Scope scope) {
+	static Fiber<Nothing> sealed(Scope scope) {
 		return new Awaiting<>(scope.drainSource(), v -> false)
 				.map(r -> Nothing.nothing());
 	}

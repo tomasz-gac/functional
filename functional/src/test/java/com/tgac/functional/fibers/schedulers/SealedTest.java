@@ -15,10 +15,10 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-public class DrainedTest {
+public class SealedTest {
 
 	@Test
-	public void drainedCompletesWhenTheWorkforceDrains() {
+	public void sealedCompletesWhenTheWorkforceFinishes() {
 		Scope sub = Scope.scope();
 		List<String> order = new ArrayList<>();
 
@@ -31,7 +31,7 @@ public class DrainedTest {
 							order.add("child-2");
 							return done(nothing());
 						}))))
-				.flatMap(__ -> Fiber.drained(sub))
+				.flatMap(__ -> Fiber.sealed(sub))
 				.flatMap(__ -> {
 					order.add("exhausted");
 					return done(nothing());
@@ -43,11 +43,11 @@ public class DrainedTest {
 	}
 
 	@Test
-	public void drainedOnASealedScopeCompletesImmediately() {
+	public void sealedOnASealedScopeCompletesImmediately() {
 		Scope sub = Scope.scope();
 		sub.seal();
 
-		assertThat(Fiber.drained(sub).get()).isEqualTo(nothing());
+		assertThat(Fiber.sealed(sub).get()).isEqualTo(nothing());
 	}
 
 	@Test
@@ -77,14 +77,14 @@ public class DrainedTest {
 									seen.add(2);
 									return done(nothing());
 								}))))))))
-				.flatMap(__ -> Fiber.drained(sub));
+				.flatMap(__ -> Fiber.sealed(sub));
 
 		program.get();
 
 		assertThat(seen).containsExactlyInAnyOrder(1, 2);
 	}
 	@Test
-	public void aNestedDrainedInsideAPlantedTreeResolvesBottomUp() {
+	public void aNestedSealedInsideAPlantedTreeResolvesBottomUp() {
 		Scope outer = Scope.scope();
 		List<String> order = new ArrayList<>();
 
@@ -97,7 +97,7 @@ public class DrainedTest {
 		Fiber<Nothing> tree = Fiber.defer(() -> {
 			Scope inner = Scope.scope();
 			return Fiber.plant(inner, innerWork)
-					.flatMap(__ -> Fiber.drained(inner))
+					.flatMap(__ -> Fiber.sealed(inner))
 					.flatMap(__ -> {
 						order.add("inner-drained");
 						return done(nothing());
@@ -105,7 +105,7 @@ public class DrainedTest {
 		});
 
 		Fiber.plant(outer, tree)
-				.flatMap(__ -> Fiber.drained(outer))
+				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");
 					return done(nothing());
@@ -116,7 +116,7 @@ public class DrainedTest {
 	}
 
 	@Test
-	public void aForkedChildsNestedDrainedHoldsTheOuterSealOpen() {
+	public void aForkedChildsNestedSealedWaitHoldsTheOuterSealOpen() {
 		Scope outer = Scope.scope();
 		List<String> order = new ArrayList<>();
 
@@ -133,7 +133,7 @@ public class DrainedTest {
 								order.add("inner-work");
 								return done(nothing());
 							}))
-							.flatMap(__ -> Fiber.drained(inner))
+							.flatMap(__ -> Fiber.sealed(inner))
 							.flatMap(__ -> {
 								order.add("inner-drained");
 								return done(nothing());
@@ -141,7 +141,7 @@ public class DrainedTest {
 				})));
 
 		Fiber.plant(outer, tree)
-				.flatMap(__ -> Fiber.drained(outer))
+				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");
 					return done(nothing());
