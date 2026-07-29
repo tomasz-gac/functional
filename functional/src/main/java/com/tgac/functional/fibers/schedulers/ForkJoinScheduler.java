@@ -106,6 +106,16 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private void taskFinished() {
 		int p = pending.decrementAndGet();
 		if (p == 0 && !result.isDone()) {
+			// completing with parked frames is ALWAYS a bug: every held frame
+			// keeps a pending unit open, so p == 0 with outstanding entries
+			// means a unit was lost - refuse loudly rather than hand back a
+			// partial fixpoint
+			if (!outstanding.isEmpty()) {
+				result.completeExceptionally(new IllegalStateException(
+						"drive drained with " + outstanding.size()
+								+ " frame(s) still parked: " + outstanding.values()));
+				return;
+			}
 			result.complete(rootValue);
 			return;
 		}
