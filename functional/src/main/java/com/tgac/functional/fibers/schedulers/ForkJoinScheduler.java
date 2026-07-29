@@ -259,8 +259,23 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			result.get(iterations, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-		} catch (ExecutionException | CancellationException | TimeoutException e) {
-			// completed exceptionally, cancelled, or timed out — fall through to the check
+		} catch (TimeoutException e) {
+			// not done yet — keep driving
+		} catch (CancellationException e) {
+			// closed underneath us — done by decree
+		} catch (ExecutionException e) {
+			// an exceptional completion is a REFUSAL, not a completion:
+			// swallowing it here converted every loud invariant (stranded
+			// frames, grow-on-sealed, drained-with-parked-frames) into a
+			// silent partial answer stream
+			Throwable cause = e.getCause();
+			if (cause instanceof RuntimeException) {
+				throw (RuntimeException) cause;
+			}
+			if (cause instanceof Error) {
+				throw (Error) cause;
+			}
+			throw new RuntimeException(cause);
 		}
 		return result.isDone() || cancelled;
 	}
