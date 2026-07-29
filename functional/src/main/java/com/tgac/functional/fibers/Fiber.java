@@ -1,16 +1,12 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.Reference;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.interpreter.Scope;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
-import io.vavr.collection.Stream;
-import io.vavr.control.Option;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -72,25 +68,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {
 		return lhs.flatMap(l -> rhs.map(r -> Tuple.of(l, r)));
-	}
-
-	static <T> Fiber<T> cache(Supplier<Fiber<T>> r) {
-		Reference<T> cache = Reference.empty();
-		return (Fiber<T>) defer(() -> done(cache.get()))
-				.flatMap(h -> Objects.nonNull(h) ? done(h) : r.get())
-				.map(v -> {
-					cache.set(v);
-					return v;
-				});
-	}
-
-	static <A> Option<Fiber<Iterable<A>>> lift(Iterable<Fiber<A>> iterable) {
-		return Stream.ofAll(iterable)
-				.map(v -> v.map(Stream::of))
-				.reduceOption((acc, item) -> Fiber.zip(acc, item.map(Stream::head))
-						.map(lr -> lr.apply(Stream::append)))
-				// cast
-				.map(r -> r.map(v -> v));
 	}
 
 	/**
