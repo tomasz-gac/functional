@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +18,9 @@ import lombok.experimental.FieldDefaults;
  * Termination detection for one scope of work whose pieces are either
  * RUNNING (live fibers — counted by the Dijkstra–Scholten pair
  * {@code started}/{@code finished}, both monotone), BLOCKED (waiting at
- * some place {@code P}, wakeable), or dead (silence). {@link #quiescent}
- * is both halves reading empty: all fibers ended and every blocked piece
- * waits where the caller's predicate says it can never wake.
+ * some place {@code P}, wakeable), or dead (silence). The quiescence
+ * judgment lives in the group walk ({@code Scope}): {@link #drainedSnapshot}
+ * hands it one member's atomically-read state.
  *
  * <p>{@link #counted} is the ONE pairing discipline: started() runs
  * synchronously at wrap time (no gap for a racing quiescence check),
@@ -29,9 +28,7 @@ import lombok.experimental.FieldDefaults;
  * leaked pair never completes (sound, useless); a doubled one completes
  * early (unsound) — every unit of work must pass through here exactly once.
  *
- * <p>Counters and blocked records guarded by this monitor; the quiescence
- * predicate may read foreign state lock-free when that state is
- * upward-closed (a stale false only defers).
+ * <p>Counters and blocked records guarded by this monitor.
  */
 final class WorkLedger<S, P> {
 
@@ -67,11 +64,6 @@ final class WorkLedger<S, P> {
 		return started > 0 && finished == started;
 	}
 
-	/** The places this scope's blocked pieces wait at — a snapshot. */
-	public synchronized List<P> blockedAt() {
-		return new ArrayList<>(blocked.values());
-	}
-
 	/**
 	 * The group walk's admission read: drained-ness, the started counter, and the
 	 * blocked places, in ONE monitor hold. Atomicity is load-bearing: read
@@ -97,18 +89,6 @@ final class WorkLedger<S, P> {
 	public static final class Snapshot<P> {
 		long started;
 		List<P> blockedAt;
-	}
-
-	public synchronized boolean quiescent(Predicate<P> cannotWake) {
-		if (started == 0 || finished != started) {
-			return false;
-		}
-		for (P at : blocked.values()) {
-			if (!cannotWake.test(at)) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	/**

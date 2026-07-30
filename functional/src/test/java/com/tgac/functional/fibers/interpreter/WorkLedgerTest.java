@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: Pins the work ledger: quiescence = counters drained AND every sleeper
-// ABOUTME: where it cannot wake; counted() ticks start at wrap time, not run time.
+// ABOUTME: Pins the work ledger: drainedSnapshot is the walk's admission read —
+// ABOUTME: null while work runs, else counters plus the places sleepers wait at.
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,34 +13,37 @@ import org.junit.jupiter.api.Test;
 public class WorkLedgerTest {
 
 	@Test
-	public void aFreshLedgerIsNotQuiescent() {
+	public void aFreshLedgerHasNoSnapshot() {
 		// started == 0 means the region's work has not begun — completing an
 		// entry whose master is about to run would be unsound
 		WorkLedger<String, String> ledger = new WorkLedger<>();
-		assertThat(ledger.quiescent(at -> true)).isFalse();
+		assertThat(ledger.drainedSnapshot()).isNull();
 	}
 
 	@Test
-	public void quiescenceNeedsEveryStartMatchedByAFinish() {
+	public void aSnapshotNeedsEveryStartMatchedByAFinish() {
 		WorkLedger<String, String> ledger = new WorkLedger<>();
 		ledger.started();
-		assertThat(ledger.quiescent(at -> true)).isFalse();
+		assertThat(ledger.drainedSnapshot()).isNull();
 		ledger.started();
 		ledger.finished();
-		assertThat(ledger.quiescent(at -> true)).isFalse();
+		assertThat(ledger.drainedSnapshot()).isNull();
 		ledger.finished();
-		assertThat(ledger.quiescent(at -> true)).isTrue();
+		assertThat(ledger.drainedSnapshot()).isNotNull();
 	}
 
 	@Test
-	public void aSleeperBlocksQuiescenceUnlessItCannotWake() {
+	public void theSnapshotCarriesTheSleepersPlacesForTheWalkToJudge() {
 		WorkLedger<String, String> ledger = new WorkLedger<>();
 		ledger.started();
 		ledger.finished();
 		ledger.blocked("consumer", "someEntry");
 
-		assertThat(ledger.quiescent(at -> false)).isFalse();
-		assertThat(ledger.quiescent(at -> at.equals("someEntry"))).isTrue();
+		// the ledger does not judge wakeability - it hands the walk the
+		// places, and membership decides which records are home
+		WorkLedger.Snapshot<String> snapshot = ledger.drainedSnapshot();
+		assertThat(snapshot).isNotNull();
+		assertThat(snapshot.blockedAt).containsExactly("someEntry");
 	}
 
 	@Test
@@ -51,7 +54,22 @@ public class WorkLedgerTest {
 		ledger.blocked("consumer", "someEntry");
 		ledger.unblocked("consumer");
 
-		assertThat(ledger.quiescent(at -> false)).isTrue();
+		assertThat(ledger.drainedSnapshot().blockedAt).isEmpty();
+	}
+
+	@Test
+	public void theSnapshotCounterIsTheReVerifyHandle() {
+		WorkLedger<String, String> ledger = new WorkLedger<>();
+		ledger.started();
+		ledger.finished();
+
+		WorkLedger.Snapshot<String> snapshot = ledger.drainedSnapshot();
+		assertThat(snapshot.started).isEqualTo(ledger.startedCount());
+
+		// a spawn after the snapshot moves the monotone counter: the walk's
+		// two-phase re-verify sees the mismatch and aborts
+		ledger.started();
+		assertThat(ledger.startedCount()).isNotEqualTo(snapshot.started);
 	}
 
 	@Test
@@ -69,12 +87,12 @@ public class WorkLedgerTest {
 
 		// started ticked synchronously at wrap time: no gap for a racing
 		// quiescence check to fall into
-		assertThat(ledger.quiescent(at -> true)).isFalse();
+		assertThat(ledger.drainedSnapshot()).isNull();
 		assertThat(hookRan.get()).isFalse();
 
 		counted.get();
 
 		assertThat(hookRan.get()).isTrue();
-		assertThat(ledger.quiescent(at -> true)).isTrue();
+		assertThat(ledger.drainedSnapshot()).isNotNull();
 	}
 }

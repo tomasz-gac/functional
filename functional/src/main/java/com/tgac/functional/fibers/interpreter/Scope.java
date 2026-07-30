@@ -130,32 +130,23 @@ public final class Scope {
 	}
 
 	/**
-	 * Seal this scope if quiescent. Waiter completions inject their frames,
-	 * and each resumed frame's own {@code finished()} retries its scope —
-	 * EVERY walk abort is owned that way: a verify mismatch means an
-	 * unsealed member's counter moved (the walk never snapshots sealed
-	 * scopes), and a sealed-place record's resumed waiter bills its own
-	 * home, an unsealed member. The return value exists only to satisfy
-	 * {@link #finished}'s shape.
+	 * Seal this scope if quiescent — ONE rule in code: the group walk, of
+	 * which the singleton seal is the membership-of-one case (the walk that
+	 * collects nobody but its start; home records are its internal edges).
+	 * The drained() guard keeps the hot path — every frame finish — to one
+	 * monitor read. Waiter completions inject their frames, and each
+	 * resumed frame's own {@code finished()} retries its scope — EVERY walk
+	 * abort is owned that way: a verify mismatch means an unsealed member's
+	 * counter moved (the walk never snapshots sealed scopes), and a
+	 * sealed-place record's resumed waiter bills its own home, an unsealed
+	 * member. The return value exists only to satisfy {@link #finished}'s
+	 * shape.
 	 */
 	Fiber<Nothing> sealCascade() {
-		if (!sealIfQuiescent() && !isSealed() && ledger.drained()) {
-			// the singleton rule refused on a drained scope: the obstruction
-			// is a record at a foreign scope — try the ring
+		if (!isSealed() && ledger.drained()) {
 			groupSeal(this);
 		}
 		return done(nothing());
-	}
-
-	private boolean sealIfQuiescent() {
-		if (!ledger.quiescent(at -> at == this)) {
-			return false;
-		}
-		if (!sealed.compareAndSet(false, true)) {
-			return false;
-		}
-		completeOnSeal();
-		return true;
 	}
 
 	/**
