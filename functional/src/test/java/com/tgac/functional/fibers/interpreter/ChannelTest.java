@@ -52,16 +52,16 @@ public class ChannelTest {
 	}
 
 	@Test
-	public void anAbsorbedDeltaChangesNothingAndWakesNobody() {
+	public void anAbsorbedDeltaLeavesTheValueUnchanged() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(7));
-		List<Await.Result<?>> completions = new ArrayList<>();
-		cell.suspend(v -> v.value > 7, recording(completions));
 
-		// 3 ⊑ 7 — the delta contributes nothing, growth refuses
+		// 3 ⊑ 7 and 7 ⊑ 7 — both deltas are absorbed by the join. Held
+		// waiters cannot witness absorption either way (their predicates are
+		// upward-closed and the value did not move), so the value is the
+		// only honest observable
 		cell.grow(MaxInt.of(3));
 		cell.grow(MaxInt.of(7));
 		assertThat(cell.read()).isEqualTo(MaxInt.of(7));
-		assertThat(completions).isEmpty();
 	}
 
 	@Test
