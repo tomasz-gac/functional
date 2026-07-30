@@ -49,7 +49,6 @@ public final class Scope {
 	 */
 	private final List<Runnable> onSeal = new ArrayList<>();
 
-
 	Scope() {
 	}
 
@@ -94,7 +93,6 @@ public final class Scope {
 		waiter.resume(nothing());
 	}
 
-
 	// ---- the ledger writes ----
 
 	void started() {
@@ -133,36 +131,20 @@ public final class Scope {
 
 	/**
 	 * Seal this scope if quiescent. Waiter completions inject their frames,
-	 * and each resumed frame's own {@code finished()} retries its scope; a
-	 * TRANSIENT walk abort retries ITSELF as a requeued fiber — the abort's
-	 * mover may be billed to an already-sealed scope, whose cascade is a
-	 * no-op, and counting on it strands rings drained-and-unsealed (the
-	 * deep-chain stress signature). The requeued retry runs after the
-	 * transient's own task, so it converges without spinning.
+	 * and each resumed frame's own {@code finished()} retries its scope —
+	 * EVERY walk abort is owned that way: a verify mismatch means an
+	 * unsealed member's counter moved (the walk never snapshots sealed
+	 * scopes), and a sealed-place record's resumed waiter bills its own
+	 * home, an unsealed member. The return value exists only to satisfy
+	 * {@link #finished}'s shape.
 	 */
 	Fiber<Nothing> sealCascade() {
 		if (!sealIfQuiescent() && !isSealed() && ledger.drained()) {
 			// the singleton rule refused on a drained scope: the obstruction
 			// is a record at a foreign scope — try the ring
-			if (groupSeal(this) == WalkResult.RETRY) {
-				return Fiber.defer(this::sealCascade);
-			}
+			groupSeal(this);
 		}
 		return done(nothing());
-	}
-
-	private enum WalkResult {
-		SEALED, DEFER, RETRY
-	}
-
-	/** Diagnostic state for refusal messages. */
-	public String describe() {
-		return this + "{sealed=" + isSealed() + " planted=" + planted.get() + " " + ledger.describe() + "}";
-	}
-
-	@Override
-	public String toString() {
-		return "scope#" + Integer.toHexString(System.identityHashCode(this));
 	}
 
 	private boolean sealIfQuiescent() {
@@ -206,7 +188,7 @@ public final class Scope {
 	 * waiters are completed, so the first resumed frame reads the whole ring
 	 * as sealed.
 	 */
-	private static WalkResult groupSeal(Scope start) {
+	private static void groupSeal(Scope start) {
 		LinkedHashMap<Scope, Long> members = new LinkedHashMap<>();
 		ArrayDeque<Scope> frontier = new ArrayDeque<>();
 		frontier.add(start);
@@ -217,33 +199,23 @@ public final class Scope {
 			}
 			WorkLedger.Snapshot<Scope> snapshot = scope.ledger.drainedSnapshot();
 			if (snapshot == null) {
-				// a member still runs: its own finished() walks from a LIVE
-				// unsealed scope — an owned retry
-				return WalkResult.DEFER;
+				return;
 			}
 			members.put(scope, snapshot.started);
 			for (Scope at : snapshot.blockedAt) {
 				if (at == scope) {
 					continue;
 				}
-				if (at == null) {
-					// a wait with no workforce: stranded, reported at exhaustion
-					return WalkResult.DEFER;
-				}
-				if (at.isSealed()) {
-					// a resume in flight: TRANSIENT — the resumed frame may be
-					// billed to a sealed scope whose cascade no-ops, so retry
-					// ourselves rather than count on it
-					return WalkResult.RETRY;
+				if (at == null || at.isSealed()) {
+					// no workforce, or a resume in flight — defer
+					return;
 				}
 				frontier.add(at);
 			}
 		}
 		for (Map.Entry<Scope, Long> m : members.entrySet()) {
 			if (m.getKey().ledger.startedCount() != m.getValue()) {
-				// state moved mid-walk: TRANSIENT — the mover may already be
-				// billed to a sealed scope; retry ourselves
-				return WalkResult.RETRY;
+				return;
 			}
 		}
 		// mark EVERY member before completing any waiter: at each resume the
@@ -257,6 +229,5 @@ public final class Scope {
 		for (Scope member : won) {
 			member.completeOnSeal();
 		}
-		return WalkResult.SEALED;
 	}
 }

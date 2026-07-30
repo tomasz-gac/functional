@@ -3,13 +3,12 @@ package com.tgac.functional.fibers;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -212,23 +211,23 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Value
 	@RequiredArgsConstructor
 	class Detached<A> implements Fiber<Nothing> {
-		private final Fiber<A> fiber;
-		private final Scope into;
+		Fiber<A> fiber;
+		Scope into;
 	}
 
 	/** A fiber suspended on a {@link Source} until ready or sealed. */
 	@Value
 	@RequiredArgsConstructor
 	class Awaiting<V> implements Fiber<Await.Result<V>> {
-		private final Source<V> source;
-		private final Predicate<V> ready;
+		Source<V> source;
+		Predicate<V> ready;
 	}
 
 	/** A fiber suspended until a {@link Scope} seals — billed through the wait. */
 	@Value
 	@RequiredArgsConstructor
 	class Sealed implements Fiber<Nothing> {
-		private final Scope scope;
+		Scope scope;
 	}
 
 	/**
@@ -239,8 +238,8 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Value
 	@RequiredArgsConstructor
 	class Emit<V extends Semilattice<V>> implements Fiber<Nothing> {
-		private final MonotoneCell<V> cell;
-		private final V delta;
+		MonotoneCell<V> cell;
+		V delta;
 	}
 
 	@Getter

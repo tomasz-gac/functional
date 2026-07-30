@@ -153,8 +153,8 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public ResumeHandle resumeHandle(Entry entry, Scope owner, boolean billedThrough) {
-		return awaits.resumeHandle(entry, entry.frame, owner, billedThrough);
+	public ResumeHandle resumeHandle(Entry entry, Scope owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override

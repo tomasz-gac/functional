@@ -160,10 +160,4 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 			h.waiter.complete(Await.Result.sealed(finalValue));
 		}
 	}
-
-
-	@Override
-	public String toString() {
-		return "cell#" + Integer.toHexString(System.identityHashCode(this)) + " closedBy " + scope.describe();
-	}
 }

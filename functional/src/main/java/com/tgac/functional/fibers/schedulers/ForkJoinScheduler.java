@@ -214,7 +214,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public ResumeHandle resumeHandle(Task task, Scope owner, boolean billedThrough) {
+		public ResumeHandle resumeHandle(Task task, Scope owner) {
 			FiberStep.Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
 			return new ResumeHandle(contFrame, owner, () -> {
@@ -224,7 +224,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 				pendingOp(1);
 				pool.execute(new Task(contFrame, contSink));
 				taskFinished();
-			}, billedThrough);
+			});
 		}
 
 		@Override

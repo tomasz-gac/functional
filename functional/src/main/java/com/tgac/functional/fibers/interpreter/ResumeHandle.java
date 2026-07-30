@@ -1,16 +1,24 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: The runtime's Await.Waiter: complete() records the frame resumed in its
-// ABOUTME: owner's ledger, hands the frame its result, and re-queues it.
+// ABOUTME: The runtime's Await.Waiter: hands the frame its result, restores its
+// ABOUTME: scope, and re-queues it - billing the resume only for value waiters.
 
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 
 /**
- * The resume handle bound to one suspended frame. {@link #complete} records
- * the resume — {@link Scope#resumed}, started-before-unblocked — hands the
- * frame its result, and re-queues it through the scheduler-supplied
- * {@code requeue}.
+ * The resume handle bound to one suspended frame. Its two entry points are
+ * its two callers, and the billing difference between them is the two parks'
+ * whole difference (emit.md):
+ * <ul>
+ * <li>{@link #complete} — the cells' door, for VALUE waiters
+ * ({@link Fiber.Awaiting}): the park closed the frame's started/finished
+ * pair, so the resume re-bills it ({@link Scope#resumed},
+ * started-before-unblocked);</li>
+ * <li>{@link #resume} — the scope's door, for SEAL waiters
+ * ({@link Fiber.Sealed}): the pair stayed open through the wait (the ledger
+ * is the work), so the resume must not bill again.</li>
+ * </ul>
  *
  * <p>No referee lives here, because no race exists: every record is placed
  * BEFORE the source is offered this handle, and a completion can only
@@ -26,33 +34,29 @@ public final class ResumeHandle implements Await.Waiter<Object> {
 	private final FiberStep.Frame frame;
 	private final Scope owner;
 	private final Runnable requeue;
-	/**
-	 * A SEAL-WAITER never closed its started/finished pair: the ledger is
-	 * the work, and a member that will wake with a green light stays billed
-	 * for the whole nap. Its resume must therefore not bill again.
-	 */
-	private final boolean billedThrough;
 
-	public ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue, boolean billedThrough) {
+	public ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue) {
 		this.frame = frame;
 		this.owner = owner;
 		this.requeue = requeue;
-		this.billedThrough = billedThrough;
 	}
 
 	@Override
 	public void complete(Await.Result<Object> result) {
-		resume(result);
-	}
-
-	/** Hand the frame {@code value} as its computation's result and requeue. */
-	@SuppressWarnings("unchecked")
-	void resume(Object value) {
-		if (owner != null && !billedThrough) {
+		if (owner != null) {
 			owner.resumed(frame);
 		}
+		deliver(result);
+	}
+
+	/** The seal's completion of a billed-through waiter — no re-billing. */
+	void resume(Object value) {
+		deliver(value);
+	}
+
+	private void deliver(Object value) {
 		frame.scope = owner;
-		frame.computation = (Fiber<Object>) (Fiber<?>) Fiber.done(value);
+		frame.computation = Fiber.done(value);
 		requeue.run();
 	}
 }

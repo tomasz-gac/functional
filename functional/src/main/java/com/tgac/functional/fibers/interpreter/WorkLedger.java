@@ -74,11 +74,6 @@ final class WorkLedger<S, P> {
 		return new ArrayList<>(blocked.values());
 	}
 
-	/** Diagnostic state for refusal messages — one monitor hold. */
-	public synchronized String describe() {
-		return "started=" + started + " finished=" + finished + " blockedAt=" + blocked.values();
-	}
-
 	/**
 	 * The group walk's admission read: drained-ness, the started counter, and the
 	 * blocked places, in ONE monitor hold. Atomicity is load-bearing: read

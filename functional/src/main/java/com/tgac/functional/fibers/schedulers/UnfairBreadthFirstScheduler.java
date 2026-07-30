@@ -124,8 +124,8 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public ResumeHandle resumeHandle(Entry entry, Scope owner, boolean billedThrough) {
-		return awaits.resumeHandle(entry, entry.frame, owner, billedThrough);
+	public ResumeHandle resumeHandle(Entry entry, Scope owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
 	}
 
 	@Override
