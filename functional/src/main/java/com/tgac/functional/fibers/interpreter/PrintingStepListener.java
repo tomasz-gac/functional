@@ -4,6 +4,9 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: A ready-made scheduler trace; subclass or filter for less noise.
 
 import com.tgac.functional.fibers.Fiber;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import java.util.function.Consumer;
 
 /**
@@ -11,16 +14,14 @@ import java.util.function.Consumer;
  * with {@code scheduler.withListener(new PrintingStepListener())}. Every fiber
  * step is verbose by design; override or wrap to filter.
  */
+@RequiredArgsConstructor
+@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public final class PrintingStepListener implements StepListener {
 
-	private final Consumer<String> out;
+	Consumer<String> out;
 
 	public PrintingStepListener() {
 		this(System.out::println);
-	}
-
-	public PrintingStepListener(Consumer<String> out) {
-		this.out = out;
 	}
 
 	@Override
@@ -41,5 +42,20 @@ public final class PrintingStepListener implements StepListener {
 	@Override
 	public void onDetached(Fiber<?> child) {
 		out.accept("detached");
+	}
+
+	@Override
+	public void onAwaiting(Fiber.Awaiting<?> awaiting) {
+		out.accept("awaiting " + awaiting.getSource());
+	}
+
+	@Override
+	public void onSealed(Fiber.Sealed sealedOn) {
+		out.accept("sealed-wait " + sealedOn.getScope());
+	}
+
+	@Override
+	public void onEmit(Fiber.Emit<?> emit) {
+		out.accept("emit     " + emit.getDelta());
 	}
 }

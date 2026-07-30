@@ -147,12 +147,15 @@ public final class FiberStep {
 			return stepDetached(frame, entry, effects, listener, (Fiber.Detached<?>) computation);
 		}
 		if (computation instanceof Fiber.Awaiting) {
+			listener.onAwaiting((Fiber.Awaiting<?>) computation);
 			return stepAwaiting(frame, entry, effects, (Fiber.Awaiting<Object>) computation);
 		}
 		if (computation instanceof Fiber.Emit) {
+			listener.onEmit((Fiber.Emit<?>) computation);
 			return stepEmit(frame, (Fiber.Emit<?>) computation);
 		}
 		if (computation instanceof Fiber.Sealed) {
+			listener.onSealed((Fiber.Sealed) computation);
 			return stepSealed(frame, entry, effects, (Fiber.Sealed) computation);
 		}
 		if (computation instanceof Fiber.Forked) {

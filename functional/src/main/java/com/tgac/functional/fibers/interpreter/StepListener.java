@@ -36,4 +36,16 @@ public interface StepListener {
 	/** A frame spawned an independent child. */
 	default void onDetached(Fiber<?> child) {
 	}
+
+	/** A frame parked at a source, awaiting growth or the seal. */
+	default void onAwaiting(Fiber.Awaiting<?> awaiting) {
+	}
+
+	/** A frame parked awaiting a scope's seal, billed through the wait. */
+	default void onSealed(Fiber.Sealed sealedOn) {
+	}
+
+	/** A frame folded a delta into its workforce's channel. */
+	default void onEmit(Fiber.Emit<?> emit) {
+	}
 }

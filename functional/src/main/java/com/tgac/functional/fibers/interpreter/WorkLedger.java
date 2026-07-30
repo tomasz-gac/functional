@@ -8,6 +8,9 @@ import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -94,14 +97,11 @@ final class WorkLedger<S, P> {
 	}
 
 	/** One member's atomically-read admission state for the group walk. */
+	@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+	@FieldDefaults(makeFinal = true, level = AccessLevel.PUBLIC)
 	public static final class Snapshot<P> {
-		public final long started;
-		public final List<P> blockedAt;
-
-		Snapshot(long started, List<P> blockedAt) {
-			this.started = started;
-			this.blockedAt = blockedAt;
-		}
+		long started;
+		List<P> blockedAt;
 	}
 
 	public synchronized boolean quiescent(Predicate<P> cannotWake) {

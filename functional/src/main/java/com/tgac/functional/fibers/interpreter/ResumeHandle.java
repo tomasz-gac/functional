@@ -5,6 +5,10 @@ package com.tgac.functional.fibers.interpreter;
 
 import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.Value;
+import lombok.experimental.FieldDefaults;
 
 /**
  * The resume handle bound to one suspended frame. Its two entry points are
@@ -29,17 +33,13 @@ import com.tgac.functional.fibers.Fiber;
  * holds structurally: the source removes a held waiter under its monitor
  * before completing it.
  */
-public final class ResumeHandle implements Await.Waiter<Object> {
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class ResumeHandle implements Await.Waiter<Object> {
 
-	private final FiberStep.Frame frame;
-	private final Scope owner;
-	private final Runnable requeue;
-
-	public ResumeHandle(FiberStep.Frame frame, Scope owner, Runnable requeue) {
-		this.frame = frame;
-		this.owner = owner;
-		this.requeue = requeue;
-	}
+	FiberStep.Frame frame;
+	Scope owner;
+	Runnable requeue;
 
 	@Override
 	public void complete(Await.Result<Object> result) {

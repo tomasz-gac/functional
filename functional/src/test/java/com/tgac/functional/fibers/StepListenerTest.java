@@ -1,12 +1,15 @@
 package com.tgac.functional.fibers;
 
 import static com.tgac.functional.fibers.Fiber.defer;
+import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
+import com.tgac.functional.fibers.interpreter.MaxInt;
+import com.tgac.functional.fibers.interpreter.MonotoneCell;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,6 +25,9 @@ public class StepListenerTest {
 		final AtomicInteger steps = new AtomicInteger();
 		final AtomicInteger forks = new AtomicInteger();
 		final AtomicInteger detaches = new AtomicInteger();
+		final AtomicInteger awaits = new AtomicInteger();
+		final AtomicInteger sealedWaits = new AtomicInteger();
+		final AtomicInteger emits = new AtomicInteger();
 		final java.util.List<Object> completed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 		@Override
@@ -42,6 +48,21 @@ public class StepListenerTest {
 		@Override
 		public void onDetached(Fiber<?> child) {
 			detaches.incrementAndGet();
+		}
+
+		@Override
+		public void onAwaiting(Fiber.Awaiting<?> awaiting) {
+			awaits.incrementAndGet();
+		}
+
+		@Override
+		public void onSealed(Fiber.Sealed sealedOn) {
+			sealedWaits.incrementAndGet();
+		}
+
+		@Override
+		public void onEmit(Fiber.Emit<?> emit) {
+			emits.incrementAndGet();
 		}
 	}
 
@@ -112,5 +133,24 @@ public class StepListenerTest {
 
 	private Fiber<Long> sum(long n, long acc) {
 		return n == 0 ? done(acc) : defer(() -> sum(n - 1, acc + n));
+	}
+
+	@Test
+	public void theParkersAndTheProducerReportTheirNodes() {
+		Recorder recorder = new Recorder();
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+
+		Fiber<Nothing> consumer = Fiber.await(cell, v -> v.value >= 1)
+				.flatMap(r -> done(nothing()));
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(
+						consumer,
+						Fiber.produceTo(cell, emit -> emit.emit(MaxInt.of(1)))))
+				.flatMap(__ -> Fiber.sealed(cell.scope()));
+
+		new BreadthFirstScheduler<>(program).withListener(recorder).get();
+
+		assertThat(recorder.awaits.get()).isEqualTo(1);
+		assertThat(recorder.emits.get()).isEqualTo(1);
+		assertThat(recorder.sealedWaits.get()).isEqualTo(1);
 	}
 }
