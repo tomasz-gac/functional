@@ -9,6 +9,7 @@ import com.tgac.functional.fibers.interpreter.AwaitBoundary;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.SearchSnapshot;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.Comparator;
 import java.util.List;
@@ -135,7 +136,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Entry entry : entries) {
-			b.add(entry.getDepth(), entry.frame.computation());
+			b.add(entry.getDepth(), entry.frame);
 		}
 		return b.build();
 	}

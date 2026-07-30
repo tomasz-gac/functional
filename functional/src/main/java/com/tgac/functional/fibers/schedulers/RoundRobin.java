@@ -9,6 +9,7 @@ import com.tgac.functional.fibers.interpreter.AwaitBoundary;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.SearchSnapshot;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -138,7 +139,7 @@ public final class RoundRobin<A> implements Scheduler<A>, Frame.Effects<RoundRob
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Entry entry : entries) {
-			b.add(0, entry.frame.computation());
+			b.add(0, entry.frame);
 		}
 		return b.build();
 	}

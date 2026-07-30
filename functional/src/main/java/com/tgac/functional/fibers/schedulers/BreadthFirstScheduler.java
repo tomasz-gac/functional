@@ -9,6 +9,7 @@ import com.tgac.functional.fibers.interpreter.AwaitBoundary;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.SearchSnapshot;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -195,7 +196,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
 		for (Bucket bucket : buckets) {
 			for (Entry entry : bucket.entries) {
-				b.add(bucket.depth, entry.frame.computation());
+				b.add(bucket.depth, entry.frame);
 			}
 		}
 		return b.build();

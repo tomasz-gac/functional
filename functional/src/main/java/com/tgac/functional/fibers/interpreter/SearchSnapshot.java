@@ -1,12 +1,12 @@
-package com.tgac.functional.fibers.schedulers;
+package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: An immutable photograph of a scheduler's live search — the frames currently alive.
 // ABOUTME: The static counterpart to StepListener's per-step film: breadth, depth, node shape.
 
-import com.tgac.functional.fibers.Fiber;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
+import lombok.Value;
 
 /**
  * A snapshot of the frames alive in a scheduler at one instant: how many
@@ -17,31 +17,20 @@ import java.util.TreeMap;
  * {@code run(iterations, sink)} and snapshot in between), not concurrently
  * with a running {@code run}.
  */
-public final class SearchSnapshot {
+@Value
+public class SearchSnapshot {
 
-	private final int frameCount;
-	private final Map<Integer, Integer> framesByDepth;
-	private final Map<String, Integer> nodeTypes;
+	/** Total live branches. */
+	int frameCount;
+	/** Live frame count per search depth (all at depth 0 for depth-agnostic schedulers). */
+	Map<Integer, Integer> framesByDepth;
+	/** Live frame count per current fiber node kind (Deferred, FlatMap, Done, Forked, Detached). */
+	Map<String, Integer> nodeTypes;
 
 	SearchSnapshot(int frameCount, Map<Integer, Integer> framesByDepth, Map<String, Integer> nodeTypes) {
 		this.frameCount = frameCount;
 		this.framesByDepth = Collections.unmodifiableMap(framesByDepth);
 		this.nodeTypes = Collections.unmodifiableMap(nodeTypes);
-	}
-
-	/** Total live branches. */
-	public int getFrameCount() {
-		return frameCount;
-	}
-
-	/** Live frame count per search depth (all at depth 0 for depth-agnostic schedulers). */
-	public Map<Integer, Integer> getFramesByDepth() {
-		return framesByDepth;
-	}
-
-	/** Live frame count per current fiber node kind (Deferred, FlatMap, Done, Forked, Detached). */
-	public Map<String, Integer> getNodeTypes() {
-		return nodeTypes;
 	}
 
 	@Override
@@ -52,18 +41,18 @@ public final class SearchSnapshot {
 	}
 
 	/** Accumulates frames as a scheduler walks its live queue. */
-	static final class Builder {
+	public static final class Builder {
 		private int count = 0;
 		private final Map<Integer, Integer> byDepth = new TreeMap<>();
 		private final Map<String, Integer> byType = new TreeMap<>();
 
-		void add(int depth, Fiber<?> node) {
+		public void add(int depth, Frame frame) {
 			count++;
 			byDepth.merge(depth, 1, Integer::sum);
-			byType.merge(node.getClass().getSimpleName(), 1, Integer::sum);
+			byType.merge(frame.computation.getClass().getSimpleName(), 1, Integer::sum);
 		}
 
-		SearchSnapshot build() {
+		public SearchSnapshot build() {
 			return new SearchSnapshot(count, byDepth, byType);
 		}
 	}

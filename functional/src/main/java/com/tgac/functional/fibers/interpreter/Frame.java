@@ -51,16 +51,6 @@ public final class Frame {
 		}
 	}
 
-	/** The workforce this frame is billed to — children inherit it at a fork. */
-	public Scope scope() {
-		return scope;
-	}
-
-	/** The computation as of now — the drivers' snapshot read. */
-	public Fiber<?> computation() {
-		return computation;
-	}
-
 	/**
 	 * Scheduling policy hooks. {@code completed} and {@code forked} mean the
 	 * frame yielded control and must leave the run queue; {@code detached}

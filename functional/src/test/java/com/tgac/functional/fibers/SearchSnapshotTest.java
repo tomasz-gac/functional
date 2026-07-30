@@ -8,7 +8,7 @@ import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import com.tgac.functional.fibers.schedulers.RoundRobin;
 import com.tgac.functional.fibers.schedulers.SearchInspectable;
-import com.tgac.functional.fibers.schedulers.SearchSnapshot;
+import com.tgac.functional.fibers.interpreter.SearchSnapshot;
 import com.tgac.functional.fibers.schedulers.UnfairBreadthFirstScheduler;
 import java.util.Arrays;
 import java.util.List;
