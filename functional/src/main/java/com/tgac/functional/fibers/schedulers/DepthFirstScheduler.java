@@ -83,7 +83,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, Frame.Effects
 	@Override
 	public boolean step(Consumer<? super A> sink) {
 		// injected resumes do not preempt the current branch - like detached
-		// a resumed frame PREEMPTS, like a planted one: the woken box's
+		// a resumed frame PREEMPTS, like a claimed tree: the woken box's
 		// delivery must finish before its spawner's siblings run
 		awaits.drainInto(entries::addFirst);
 		if (entries.isEmpty()) {
@@ -122,7 +122,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, Frame.Effects
 
 	@Override
 	public void detached(Entry entry, Frame child) {
-		// a planted workforce PREEMPTS: depth-first order must descend into
+		// a claimed workforce PREEMPTS: depth-first order must descend into
 		// the detached body (a traced box's exploration, a master's produce)
 		// before the spawner's siblings run - Prolog order for the trace
 		entries.addFirst(new Entry(child, DISCARD, entry.depth));

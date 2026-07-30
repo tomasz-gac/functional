@@ -90,7 +90,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/**
 	 * Detach a fiber to run independently without blocking the caller's completion.
 	 * The detached fiber runs in the background and the caller continues immediately.
-	 * The child runs UNOWNED — no scope records it; use {@link #plant} to re-parent.
+	 * The child runs UNOWNED — no scope records it; use {@link #claim} to re-parent.
 	 *
 	 * @param fiber The fiber to detach
 	 * @return A fiber that completes immediately while the detached fiber runs independently
@@ -100,17 +100,29 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
-	 * PLANT a workforce: detach {@code tree} as {@code into}'s membership,
-	 * AT MOST ONCE — the plant CAS runs at the STEP, the only place
-	 * planting actually happens, so racing planters are welcome and every
-	 * loser (a re-stepped fiber value included) no-ops. All later
+	 * CLAIM a workforce: detach {@code tree} as {@code into}'s membership,
+	 * AT MOST ONCE — the claim CAS runs at the STEP, the only place
+	 * claiming actually happens, so racing claimants are welcome and every
+	 * loser (a re-stepped fiber value included) SILENTLY NO-OPS; use
+	 * {@link #claimOrElse} when the loser has work of its own. All later
 	 * membership grows from within (a running member forks or detaches
 	 * into its own scope, shielded by its open started/finished pair).
 	 */
-	static <A> Fiber<Nothing> plant(Scope into, Fiber<A> tree) {
-		return defer(() -> into.tryClaimPlant()
+	static <A> Fiber<Nothing> claim(Scope into, Fiber<A> tree) {
+		return claimOrElse(into, tree, done(Nothing.nothing()));
+	}
+
+	/**
+	 * {@link #claim} with a loser's branch: the first claimant to STEP wins
+	 * and detaches {@code tree}; every other claimant — racing, later, or a
+	 * re-stepped claim fiber — runs {@code orElse} INLINE instead (in its
+	 * own frame, not detached). The claim is a CAS, not a lock: nobody
+	 * waits, nothing throws, there are just the two branches.
+	 */
+	static <A> Fiber<Nothing> claimOrElse(Scope into, Fiber<A> tree, Fiber<Nothing> orElse) {
+		return defer(() -> into.tryClaim()
 				? new Detached<>(tree, into)
-				: done(Nothing.nothing()));
+				: orElse);
 	}
 
 	/**
@@ -127,20 +139,32 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
-	 * PLANT {@code cell}'s workforce and hand it the cell's typed emitter —
+	 * CLAIM {@code cell}'s workforce and hand it the cell's typed emitter —
 	 * the handler shape (emit.md): emits inside the tree fold into the
 	 * cell; the tree stays {@code Fiber<Nothing>} and values travel only
-	 * through emits. AT MOST ONCE per scope: the plant CAS runs at the
-	 * STEP — the only place planting happens — so racing callers are
+	 * through emits. AT MOST ONCE per scope: the claim CAS runs at the
+	 * STEP — the only place claiming happens — so racing callers are
 	 * welcome (tabling's master selection IS this race) and every loser
-	 * no-ops and reads the cell as a consumer. The loser's body is never
-	 * built.
+	 * SILENTLY NO-OPS and reads the cell as a consumer; the loser's body
+	 * is never built. Use {@link #produceOrElse} when the loser has work
+	 * of its own.
 	 */
-	static <V extends Semilattice<V>> Fiber<Nothing> produceTo(MonotoneCell<V> cell,
+	static <V extends Semilattice<V>> Fiber<Nothing> produce(MonotoneCell<V> cell,
 			Function<Emitter<V>, Fiber<Nothing>> body) {
-		return defer(() -> cell.scope().tryClaimPlant()
+		return produceOrElse(cell, body, done(Nothing.nothing()));
+	}
+
+	/**
+	 * {@link #produce} with a loser's branch: the first claimant to STEP
+	 * wins the cell's workforce and runs its body; every other claimant
+	 * runs {@code orElse} INLINE instead (in its own frame, not detached) —
+	 * the loser's {@code body} is never built.
+	 */
+	static <V extends Semilattice<V>> Fiber<Nothing> produceOrElse(MonotoneCell<V> cell,
+			Function<Emitter<V>, Fiber<Nothing>> body, Fiber<Nothing> orElse) {
+		return defer(() -> cell.scope().tryClaim()
 				? new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope())
-				: done(Nothing.nothing()));
+				: orElse);
 	}
 
 	/**

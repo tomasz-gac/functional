@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: The produceTo/emit contract: emits fold and wake consumers, abort is
-// ABOUTME: silence, plants race deterministically, foreign emits refuse loudly.
+// ABOUTME: The produce/emit contract: emits fold and wake consumers, abort is
+// ABOUTME: silence, claims race deterministically, foreign emits refuse loudly.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -17,14 +17,14 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
-public class ProduceToTest {
+public class ProduceTest {
 
 	@Test
 	public void emitsFoldIntoTheCellAndTheSealDeliversTheFold() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		List<Integer> seen = new ArrayList<>();
 
-		Fiber.produceTo(cell, emit -> emit.emit(MaxInt.of(3)).flatMap(__ -> emit.emit(MaxInt.of(7))))
+		Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)).flatMap(__ -> emit.emit(MaxInt.of(7))))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.flatMap(__ -> {
 					seen.add(cell.read().value);
@@ -47,7 +47,7 @@ public class ProduceToTest {
 				});
 		Fiber.fork(Arrays.asList(
 						consumer,
-						Fiber.produceTo(cell, emit -> emit.emit(MaxInt.of(3)))))
+						Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.get();
 
@@ -58,7 +58,7 @@ public class ProduceToTest {
 	public void abortIsSilence() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 
-		Fiber.produceTo(cell, emit -> done(nothing()))
+		Fiber.produce(cell, emit -> done(nothing()))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.get();
 
@@ -67,26 +67,47 @@ public class ProduceToTest {
 	}
 
 	@Test
-	public void racingPlantersResolveAtTheStepAndLosersNoOp() {
+	public void racingClaimantsResolveAtTheStepAndLosersNoOp() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		List<String> ran = new ArrayList<>();
 
-		// constructing a plant claims nothing - the CAS runs at the step, so
+		// constructing a produce claims nothing - the CAS runs at the step, so
 		// racing callers are welcome and only the first spawn builds a body
-		Fiber<Nothing> first = Fiber.produceTo(cell, emit -> {
+		Fiber<Nothing> first = Fiber.produce(cell, emit -> {
 			ran.add("first");
 			return done(nothing());
 		});
-		Fiber<Nothing> second = Fiber.produceTo(cell, emit -> {
+		Fiber<Nothing> second = Fiber.produce(cell, emit -> {
 			ran.add("second");
 			return done(nothing());
 		});
 		first.get();
 		second.get();
-		// a RE-STEPPED plant fiber is a loser too: one claim, one spawn
+		// a RE-STEPPED produce fiber is a loser too: one claim, one spawn
 		first.get();
 
 		assertThat(ran).containsExactly("first");
+	}
+
+	@Test
+	public void aLosingProducerRunsItsAlternative() {
+		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		List<String> ran = new ArrayList<>();
+
+		Fiber.produce(cell, emit -> {
+					ran.add("master");
+					return done(nothing());
+				})
+				.flatMap(__ -> Fiber.produceOrElse(cell, emit -> {
+					ran.add("second master");
+					return done(nothing());
+				}, Fiber.defer(() -> {
+					ran.add("reader");
+					return done(nothing());
+				})))
+				.get();
+
+		assertThat(ran).containsExactly("master", "reader");
 	}
 
 	@Test
@@ -94,7 +115,7 @@ public class ProduceToTest {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
 		AtomicReference<Emitter<MaxInt>> leaked = new AtomicReference<>();
 
-		Fiber<Nothing> program = Fiber.produceTo(cell, emit -> {
+		Fiber<Nothing> program = Fiber.produce(cell, emit -> {
 					leaked.set(emit);
 					return done(nothing());
 				})

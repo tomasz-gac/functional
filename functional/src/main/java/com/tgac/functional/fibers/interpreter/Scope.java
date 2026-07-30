@@ -41,7 +41,7 @@ public final class Scope {
 
 	private final WorkLedger<Object, Scope> ledger = new WorkLedger<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
-	private final AtomicBoolean planted = new AtomicBoolean(false);
+	private final AtomicBoolean claimed = new AtomicBoolean(false);
 	/**
 	 * The seal actions, one list, two registration sites: each closed cell
 	 * registers its EOF translation at construction; each drained() waiter
@@ -58,12 +58,12 @@ public final class Scope {
 	}
 
 	/**
-	 * The plant CAS, run at the STEP a planting fiber spawns its tree —
-	 * true exactly once; racing planters and re-stepped plant fibers lose
-	 * quietly and no-op (emit.md).
+	 * The claim CAS, run at the STEP a claiming fiber spawns its tree —
+	 * true exactly once; racing claimants and re-stepped claim fibers lose
+	 * quietly (emit.md).
 	 */
-	public boolean tryClaimPlant() {
-		return planted.compareAndSet(false, true);
+	public boolean tryClaim() {
+		return claimed.compareAndSet(false, true);
 	}
 
 	/** Register a seal action — run at once when the seal has already landed. */

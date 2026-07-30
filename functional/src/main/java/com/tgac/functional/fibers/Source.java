@@ -14,7 +14,7 @@ import java.util.function.Predicate;
  * triggered it only reveals more.
  *
  * <p>THE SOURCE IS THE TOKEN: a source is a monotone value plus the
- * workforce producing it. {@link Fiber#produceTo} records work as producing
+ * workforce producing it. {@link Fiber#produce} records work as producing
  * into a source; a suspended frame is held by the source it waits at; the
  * negative completion — {@code sealed}, provably no further growth — is the
  * quiescence of the source's own workforce. A foreign implementation of

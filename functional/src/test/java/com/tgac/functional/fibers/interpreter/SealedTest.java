@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: The control await: drained(scope) completes with Nothing when the
-// ABOUTME: workforce seals; plant is once-only; readers keep the sealed arm.
+// ABOUTME: workforce seals; claim is once-only; readers keep the sealed arm.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -22,7 +22,7 @@ public class SealedTest {
 		Scope sub = Scope.scope();
 		List<String> order = new ArrayList<>();
 
-		Fiber<Nothing> program = Fiber.plant(sub, Fiber.fork(Arrays.asList(
+		Fiber<Nothing> program = Fiber.claim(sub, Fiber.fork(Arrays.asList(
 						Fiber.defer(() -> {
 							order.add("child-1");
 							return done(nothing());
@@ -51,17 +51,17 @@ public class SealedTest {
 	}
 
 	@Test
-	public void aWorkforceIsPlantedAtMostOnce() {
+	public void aWorkforceIsClaimedAtMostOnce() {
 		Scope sub = Scope.scope();
 		List<String> ran = new ArrayList<>();
 
-		// the plant CAS runs at the step: the first spawn wins, a racing or
-		// re-stepped plant no-ops
-		Fiber.plant(sub, Fiber.defer(() -> {
+		// the claim CAS runs at the step: the first spawn wins, a racing or
+		// re-stepped claim no-ops
+		Fiber.claim(sub, Fiber.defer(() -> {
 			ran.add("first");
 			return done(nothing());
 		})).get();
-		Fiber.plant(sub, Fiber.defer(() -> {
+		Fiber.claim(sub, Fiber.defer(() -> {
 			ran.add("second");
 			return done(nothing());
 		})).get();
@@ -70,13 +70,36 @@ public class SealedTest {
 	}
 
 	@Test
-	public void aForkInsideThePlantedTreeGrowsTheWorkforceFromWithin() {
+	public void aLosingClaimantRunsItsAlternative() {
+		Scope sub = Scope.scope();
+		List<String> ran = new ArrayList<>();
+
+		// the plain claim's loser no-ops silently; the OrElse loser runs its
+		// alternative inline, in its own frame
+		Fiber.claim(sub, Fiber.defer(() -> {
+					ran.add("winner");
+					return done(nothing());
+				}))
+				.flatMap(__ -> Fiber.claimOrElse(sub, Fiber.defer(() -> {
+					ran.add("second winner");
+					return done(nothing());
+				}), Fiber.defer(() -> {
+					ran.add("loser");
+					return done(nothing());
+				})))
+				.get();
+
+		assertThat(ran).containsExactly("winner", "loser");
+	}
+
+	@Test
+	public void aForkInsideTheClaimedTreeGrowsTheWorkforceFromWithin() {
 		Scope sub = Scope.scope();
 		List<Integer> seen = new ArrayList<>();
 
-		// the planted tree forks mid-flight: membership grows from within,
+		// the claimed tree forks mid-flight: membership grows from within,
 		// and the seal waits for the late children too
-		Fiber<Nothing> program = Fiber.plant(sub, Fiber.defer(() ->
+		Fiber<Nothing> program = Fiber.claim(sub, Fiber.defer(() ->
 						Fiber.fork(Arrays.asList(
 								Fiber.defer(() -> {
 									seen.add(1);
@@ -93,11 +116,11 @@ public class SealedTest {
 		assertThat(seen).containsExactlyInAnyOrder(1, 2);
 	}
 	@Test
-	public void aNestedSealedInsideAPlantedTreeResolvesBottomUp() {
+	public void aNestedSealedInsideAClaimedTreeResolvesBottomUp() {
 		Scope outer = Scope.scope();
 		List<String> order = new ArrayList<>();
 
-		// the planted tree itself plants a sub-workforce and drains it -
+		// the claimed tree itself claims a sub-workforce and drains it -
 		// the outer seal must wait for the inner chain to resolve
 		Fiber<Nothing> innerWork = Fiber.defer(() -> {
 			order.add("inner-work");
@@ -105,7 +128,7 @@ public class SealedTest {
 		});
 		Fiber<Nothing> tree = Fiber.defer(() -> {
 			Scope inner = Scope.scope();
-			return Fiber.plant(inner, innerWork)
+			return Fiber.claim(inner, innerWork)
 					.flatMap(__ -> Fiber.sealed(inner))
 					.flatMap(__ -> {
 						order.add("inner-drained");
@@ -113,7 +136,7 @@ public class SealedTest {
 					});
 		});
 
-		Fiber.plant(outer, tree)
+		Fiber.claim(outer, tree)
 				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");
@@ -129,7 +152,7 @@ public class SealedTest {
 		Scope outer = Scope.scope();
 		List<String> order = new ArrayList<>();
 
-		// one forked child plants and drains a sub-workforce; the outer
+		// one forked child claims and drains a sub-workforce; the outer
 		// drain must wait for the whole chain, not seal past the parked child
 		Fiber<Nothing> tree = Fiber.fork(Arrays.asList(
 				Fiber.defer(() -> {
@@ -138,7 +161,7 @@ public class SealedTest {
 				}),
 				Fiber.defer(() -> {
 					Scope inner = Scope.scope();
-					return Fiber.plant(inner, Fiber.defer(() -> {
+					return Fiber.claim(inner, Fiber.defer(() -> {
 								order.add("inner-work");
 								return done(nothing());
 							}))
@@ -149,7 +172,7 @@ public class SealedTest {
 							});
 				})));
 
-		Fiber.plant(outer, tree)
+		Fiber.claim(outer, tree)
 				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");

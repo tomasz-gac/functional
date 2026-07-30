@@ -144,7 +144,7 @@ public class StepListenerTest {
 				.flatMap(r -> done(nothing()));
 		Fiber<Nothing> program = Fiber.fork(Arrays.asList(
 						consumer,
-						Fiber.produceTo(cell, emit -> emit.emit(MaxInt.of(1)))))
+						Fiber.produce(cell, emit -> emit.emit(MaxInt.of(1)))))
 				.flatMap(__ -> Fiber.sealed(cell.scope()));
 
 		new BreadthFirstScheduler<>(program).withListener(recorder).get();

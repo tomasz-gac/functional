@@ -103,7 +103,7 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 	 * Join {@code delta} into the value. An absorbed delta is inert; strict
 	 * growth completes every held frame whose predicate the grown value
 	 * satisfies (outside the cell monitor — the cell is a leaf). Production
-	 * runs through {@link com.tgac.functional.fibers.Fiber#produceTo} and the
+	 * runs through {@link com.tgac.functional.fibers.Fiber#produce} and the
 	 * emit step — only the interpreter grows a cell.
 	 *
 	 * @throws IllegalStateException on a sealed cell — no new value is
