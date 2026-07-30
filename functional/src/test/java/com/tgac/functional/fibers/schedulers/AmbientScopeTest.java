@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Ambient billing: detached work seals its cell with no manual recording —
-// ABOUTME: forks inherit, detachTo re-parents, and the parallel scheduler is race-free.
+// ABOUTME: forks inherit, plant re-parents, and the parallel scheduler is race-free.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -30,7 +30,7 @@ public class AmbientScopeTest {
 					return done(nothing());
 				});
 
-		Fiber.detachTo(cell, work).get();
+		Fiber.plant(cell.scope(), work).get();
 
 		assertThat(events).containsExactly("worked");
 		assertThat(cell.isSealed()).isTrue();
@@ -46,7 +46,7 @@ public class AmbientScopeTest {
 						Fiber.defer(() -> done(childrenRun.incrementAndGet())),
 						Fiber.defer(() -> done(childrenRun.incrementAndGet()))));
 
-		Fiber.detachTo(cell, work).get();
+		Fiber.plant(cell.scope(), work).get();
 
 		// the seal fired, and only after every forked child completed
 		assertThat(cell.isSealed()).isTrue();
@@ -54,17 +54,17 @@ public class AmbientScopeTest {
 	}
 
 	@Test
-	public void detachToReParentsAcrossCells() {
+	public void plantReParentsAcrossCells() {
 		MonotoneCell<MaxInt> caller = new MonotoneCell<>(MaxInt.of(0));
 		MonotoneCell<MaxInt> entry = new MonotoneCell<>(MaxInt.of(0));
 
-		// the caller detaches a "master" into the entry's cell and finishes at
+		// the caller plants a "master" into the entry's cell and finishes at
 		// once; the entry seals only when the master's work completes
 		AtomicInteger masterSteps = new AtomicInteger();
 		Fiber<Nothing> master = Fiber.defer(() -> done(masterSteps.incrementAndGet()))
 				.flatMap(__ -> Fiber.defer(() -> done(nothing())));
 
-		Fiber.detachTo(caller, Fiber.detachTo(entry, master)).get();
+		Fiber.plant(caller.scope(), Fiber.plant(entry.scope(), master)).get();
 
 		assertThat(caller.isSealed()).isTrue();
 		assertThat(entry.isSealed()).isTrue();
@@ -80,7 +80,7 @@ public class AmbientScopeTest {
 			for (int i = 0; i < 32; i++) {
 				tasks.add(Fiber.defer(() -> done(sum.incrementAndGet())));
 			}
-			Fiber<Nothing> work = Fiber.detachTo(cell,
+			Fiber<Nothing> work = Fiber.plant(cell.scope(),
 					Fiber.fork(tasks));
 
 			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(work)) {

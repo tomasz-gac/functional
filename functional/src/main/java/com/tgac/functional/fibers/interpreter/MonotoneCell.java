@@ -18,17 +18,10 @@ import java.util.function.Predicate;
  * the WORKFORCE is the private {@link Scope} that work detached into this
  * cell is recorded in, whose quiescence SEALS the value.
  *
- * <p>Two kinds of waiter, one completion discipline:
- * <ul>
- * <li>frames, via {@link com.tgac.functional.fibers.Fiber#await}: held by
- * {@link #suspend}, completed with {@code more(value)} by the first
+ * <p>Waiters are frames, via {@link com.tgac.functional.fibers.Fiber#await}:
+ * held by {@link #suspend}, completed with {@code more(value)} by the first
  * satisfying growth, or with {@code sealed(value)} — the FINAL value — at
- * the seal. The seal path calls {@link ResumeHandle#markRunning} on EVERY
- * resumed frame before delivering any result, so no blocked record can be
- * read as dead while its sealed-arm work is pending;</li>
- * <li>data subscribers S (the interim {@link Fixpoint} path): parked by
- * {@link #park}, drained wholesale by the next growth or by the seal.</li>
- * </ul>
+ * the seal.
  *
  * <p>{@link #grow} on a sealed cell THROWS: growing past a delivered
  * sealed result would falsify it.
@@ -109,13 +102,15 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 	/**
 	 * Join {@code delta} into the value. An absorbed delta is inert; strict
 	 * growth completes every held frame whose predicate the grown value
-	 * satisfies (outside the cell monitor — the cell is a leaf).
+	 * satisfies (outside the cell monitor — the cell is a leaf). Production
+	 * runs through {@link com.tgac.functional.fibers.Fiber#produceTo} and the
+	 * emit step — only the interpreter grows a cell.
 	 *
 	 * @throws IllegalStateException on a sealed cell — no new value is
 	 * 		derivable at a seal, and growing past a delivered sealed result
 	 * 		would falsify it
 	 */
-	public void grow(V delta) {
+	void grow(V delta) {
 		ArrayList<Held<V>> woken = new ArrayList<>();
 		V grown;
 		synchronized (this) {
@@ -143,10 +138,7 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 
 	/**
 	 * The seal's completion of held frames, run by {@link Scope} once the
-	 * flag is set: FIRST mark every runtime waiter running
-	 * ({@link ResumeHandle#markRunning} — its owner's ledger reads it as
-	 * running before any blocked record can satisfy a quiescence predicate),
-	 * THEN deliver the final value.
+	 * flag is set: every held frame receives the final value.
 	 */
 	private void completeAllSealed() {
 		ArrayList<Held<V>> rest;

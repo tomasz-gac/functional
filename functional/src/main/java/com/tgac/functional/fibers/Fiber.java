@@ -90,24 +90,13 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/**
 	 * Detach a fiber to run independently without blocking the caller's completion.
 	 * The detached fiber runs in the background and the caller continues immediately.
-	 * The child runs UNOWNED — no scope records it; use {@link #detachTo} to re-parent.
+	 * The child runs UNOWNED — no scope records it; use {@link #plant} to re-parent.
 	 *
 	 * @param fiber The fiber to detach
 	 * @return A fiber that completes immediately while the detached fiber runs independently
 	 */
 	static <A> Fiber<Nothing> detach(Fiber<A> fiber) {
 		return new Detached<>(fiber, null);
-	}
-
-	/**
-	 * Detach a fiber PRODUCING INTO {@code into}: the child runs independently
-	 * and its work is recorded in the source's workforce — the one legal escape
-	 * from ambient inheritance (a tabling master belongs to its entry, not to
-	 * whichever caller spawned it). A foreign Source has no workforce the
-	 * runtime can count: the child runs unowned.
-	 */
-	static <A> Fiber<Nothing> detachTo(Source<?> into, Fiber<A> fiber) {
-		return new Detached<>(fiber, into.scope());
 	}
 
 	/**

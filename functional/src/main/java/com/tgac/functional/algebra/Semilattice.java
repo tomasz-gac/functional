@@ -1,7 +1,7 @@
 package com.tgac.functional.algebra;
 
 // ABOUTME: The direction-neutral semilattice: one idempotent commutative associative
-// ABOUTME: op and the ACCUMULATION ORDER it induces — what a Fixpoint requires of its value.
+// ABOUTME: op and the ACCUMULATION ORDER it induces — what a fixpoint loop requires of its value.
 
 /**
  * The one semilattice algebra, direction unnamed: {@link #combine} is

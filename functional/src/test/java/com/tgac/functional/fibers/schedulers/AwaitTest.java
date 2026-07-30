@@ -199,13 +199,10 @@ public class AwaitTest {
 					seen.add(r.getValue().value);
 					return done(nothing());
 				});
-		Fiber<Nothing> producer = Fiber.defer(() -> {
-			producers.grow(MaxInt.of(4));
-			return done(nothing());
-		});
+		Fiber<Nothing> producer = Fiber.produceTo(producers, emit -> emit.emit(MaxInt.of(4)));
 
-		Fiber.detachTo(consumers, consumer)
-				.flatMap(__ -> Fiber.detachTo(producers, producer)).get();
+		Fiber.plant(consumers.scope(), consumer)
+				.flatMap(__ -> producer).get();
 
 		assertThat(seen).containsExactly(4);
 		assertThat(consumers.isSealed()).isTrue();
@@ -224,28 +221,27 @@ public class AwaitTest {
 					log.add(r.isSealed() + "@" + r.getValue().value);
 					return done(nothing());
 				});
-		Fiber<Nothing> master = Fiber.defer(() -> {
-			cell.grow(MaxInt.of(4));
-			return done(nothing());
-		});
+		Fiber<Nothing> master = Fiber.produceTo(cell, emit -> emit.emit(MaxInt.of(4)));
 
 		Fiber.detach(consumer)
-				.flatMap(__ -> Fiber.detachTo(cell, master)).get();
+				.flatMap(__ -> master).get();
 
 		assertThat(log).containsExactly("true@4");
 		assertThat(cell.isSealed()).isTrue();
 	}
 
 	@Test
-	public void growOnASealedCellRefusesLoudly() {
+	public void anEmitOnASealedCellRefusesLoudly() {
 		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
-		Fiber.detachTo(cell, Fiber.defer(() -> {
-			cell.grow(MaxInt.of(1));
-			return done(nothing());
-		})).get();
 
-		assertThat(cell.isSealed()).isTrue();
-		assertThatThrownBy(() -> cell.grow(MaxInt.of(2)))
+		// a manual seal lands while the producer still runs: the late emit
+		// must refuse - growing past a delivered sealed result would falsify it
+		Fiber<Nothing> program = Fiber.produceTo(cell, emit -> Fiber.defer(() -> {
+			cell.seal();
+			return emit.emit(MaxInt.of(2));
+		}));
+
+		assertThatThrownBy(program::get)
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("sealed");
 	}
@@ -293,15 +289,12 @@ public class AwaitTest {
 			MonotoneCell<MaxInt> producers = new MonotoneCell<>(MaxInt.of(0));
 			List<Integer> seen = Collections.synchronizedList(new ArrayList<Integer>());
 
-			Fiber<Nothing> program = Fiber.detachTo(consumers, Fiber.await(producers, v -> v.value >= 1)
+			Fiber<Nothing> program = Fiber.plant(consumers.scope(), Fiber.await(producers, v -> v.value >= 1)
 							.flatMap(r -> {
 								seen.add(r.getValue().value);
 								return done(nothing());
 							}))
-					.flatMap(__ -> Fiber.detachTo(producers, Fiber.defer(() -> {
-						producers.grow(MaxInt.of(4));
-						return done(nothing());
-					})));
+					.flatMap(__ -> Fiber.produceTo(producers, emit -> emit.emit(MaxInt.of(4))));
 
 			try (ForkJoinScheduler<Nothing> engine = new ForkJoinScheduler<>(program)) {
 				engine.get();
