@@ -1,9 +1,15 @@
 # Fiber.external — external completions in a cooperative-fiber engine
 
-**STATUS: DESIGN (July 2026, from conversations with Tom). Not built. The
-Region machinery this doc leans on IS shipped (`com.tgac.functional.fibers.primitives`,
-whose package javadoc carries the same doctrine in short form). This document
-is the full rationale and the decision guide.**
+**STATUS: DESIGN (July 2026, from conversations with Tom). Not built
+(task #64). The wait-for-graph doctrine here stands; the machinery it
+leans on has since evolved — "Region" is today's `Scope`/`Channel` pair in
+`fibers.interpreter`, the internal-wait unification §4 forecast HAS
+happened (`Fiber.await` — `await.md`, `completion.md`), and the
+speculative external seam (a public `Source` interface) was withdrawn
+unexercised (`emit.md` §6). When this node is built, it designs its own
+boundary against the real use case, plus the external exhaustion rule
+`completion.md` §8 names. This document is the rationale and the decision
+guide.**
 
 ---
 
@@ -71,7 +77,7 @@ exactly three cases and one absolute rule:
 | you are waiting on… | use | on cycle |
 |---|---|---|
 | the outside world (I/O, another process) | `Fiber.external` + timeout | cycles are invisible by construction; the timeout fails one branch — incompleteness, never unsoundness |
-| in-engine state that GROWS monotonically (accumulating answers, widening knowledge — any upward-closed wake condition over a grow-only substrate) | enroll in a `Region`: park the continuation as data (a sleeper in a ledger, a subscriber in a cell) | a FIXPOINT, not an error: quiescence detection completes it soundly ("no more growth is possible") |
+| in-engine state that GROWS monotonically (accumulating answers, widening knowledge — any upward-closed wake condition over a grow-only substrate) | `Fiber.await` on a `Channel`: the live frame is held, its wait a blocked record in the workforce's ledger | a FIXPOINT, not an error: quiescence detection completes it soundly ("no more growth is possible") |
 | a COMPLETED sub-computation through a non-monotone operator (aggregation over the wait's own progress, negation) | nothing — forbidden | no sound completion value exists; detect and REFUSE (stratification), never quiescence-complete |
 | another fiber, by blocking a thread | never | — |
 
@@ -84,10 +90,10 @@ Rules of thumb, in the order to ask them:
    before any guard can look, and the violation surfaces only as a solve
    that never reaches its endgame (diagnosable via the outstanding
    registry, not preventable).
-2. **Is the substrate monotone?** Then Region enrollment is the only legal
+2. **Is the substrate monotone?** Then the channel await is the only legal
    in-engine wait, and cycles cost nothing but the fixpoint they denote.
-   Region is precisely a deadlock detector doubling as a fixpoint
-   completer: the sleeping map is the wait-for graph, the counters are the
+   The Scope is precisely a deadlock detector doubling as a fixpoint
+   completer: the blocked map is the wait-for graph, the counters are the
    no-runnable-work half, the group-seal walk is cycle (SCC) detection, and
    the seal is the completion policy — sound BECAUSE of monotonicity.
 3. **Neither?** The design is wrong. Restructure so the dependency is
