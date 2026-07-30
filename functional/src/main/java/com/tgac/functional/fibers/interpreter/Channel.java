@@ -40,10 +40,17 @@ public class Channel<V extends Semilattice<V>> {
 	private V value;
 	private final ArrayList<Held<V>> held = new ArrayList<>();
 	private final Scope scope;
+	/** The diagnostic name refusals print; null for an anonymous channel. */
+	private final String name;
 
 	/** A channel closed by its own private workforce. */
 	public Channel(V initial) {
-		this(initial, Scope.scope());
+		this(initial, Scope.scope(), null);
+	}
+
+	/** A NAMED channel — the name is what correctness refusals print. */
+	public Channel(V initial, String name) {
+		this(initial, Scope.scope(), name);
 	}
 
 	/**
@@ -53,8 +60,13 @@ public class Channel<V extends Semilattice<V>> {
 	 * sealed(value).
 	 */
 	public Channel(V initial, Scope closedBy) {
+		this(initial, closedBy, null);
+	}
+
+	public Channel(V initial, Scope closedBy, String name) {
 		this.value = initial;
 		this.scope = closedBy;
+		this.name = name;
 		this.scope.onSeal(this::completeAllSealed);
 	}
 
@@ -145,6 +157,13 @@ public class Channel<V extends Semilattice<V>> {
 	 * The seal's completion of held frames, run by {@link Scope} once the
 	 * flag is set: every held frame receives the final value.
 	 */
+	@Override
+	public String toString() {
+		return name != null
+				? "channel(" + name + ")"
+				: "channel@" + Integer.toHexString(System.identityHashCode(this));
+	}
+
 	private void completeAllSealed() {
 		ArrayList<Held<V>> rest;
 		V finalValue;

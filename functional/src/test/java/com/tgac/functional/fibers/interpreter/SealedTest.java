@@ -70,6 +70,47 @@ public class SealedTest {
 	}
 
 	@Test
+	public void sealedOnAnUnclaimedScopeRefusesLoudly() {
+		// nothing will ever run an unclaimed workforce, so its seal can never
+		// fire: park the mistake loudly at the park, not at drive end
+		Scope sub = Scope.scope();
+
+		assertThatThrownBy(() -> Fiber.sealed(sub).get())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("unclaimed");
+	}
+
+	@Test
+	public void aRefusalNamesTheNamedScope() {
+		Scope sub = Scope.scope("head-probe");
+
+		assertThatThrownBy(() -> Fiber.sealed(sub).get())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("head-probe");
+	}
+
+	@Test
+	public void aRingOfSealWaitsIsARefusedDeadlockNotAFixpoint() {
+		Scope a = Scope.scope();
+		Scope b = Scope.scope();
+
+		// each workforce's only member awaits the OTHER's seal; both waits
+		// are billed through, so neither home can ever drain - unsatisfiable
+		// by the counters, never falsely sealed by the walk (undrained
+		// members abort it), and named loudly when the drive runs dry
+		Fiber<Nothing> program = Fiber.claim(a, Fiber.sealed(b))
+				.flatMap(__ -> Fiber.claim(b, Fiber.sealed(a)));
+
+		// which refusal fires depends on whether a waiter reaches its park
+		// before the other claim lands (unclaimed check) or after (strand
+		// refusal at drive end) - EITHER is correct, silence is not
+		assertThatThrownBy(program::get)
+				.isInstanceOf(IllegalStateException.class);
+		assertThat(a.isSealed()).isFalse();
+		assertThat(b.isSealed()).isFalse();
+	}
+
+	@Test
 	public void aLosingClaimantRunsItsAlternative() {
 		Scope sub = Scope.scope();
 		List<String> ran = new ArrayList<>();

@@ -235,6 +235,37 @@ public class AwaitTest {
 	}
 
 	@Test
+	public void aDriveWhoseRootCompletesWithAParkedFrameRefusesLoudly() {
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
+		List<Integer> seen = new ArrayList<>();
+
+		// the root finishes while a detached consumer is still parked at a
+		// channel nobody will ever grow: both drive endings - queue ran dry,
+		// root completed - must consult the held registry; silence here would
+		// abandon a deadlocked frame without a word
+		Fiber<Nothing> program = Fiber.detach(Fiber.await(cell, v -> v.value >= 1)
+						.flatMap(r -> {
+							seen.add(r.getValue().value);
+							return done(nothing());
+						}))
+				.flatMap(__ -> done(nothing()));
+
+		assertThatThrownBy(program::get)
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("blocked");
+		assertThat(seen).isEmpty();
+	}
+
+	@Test
+	public void aStrandNamesTheNamedChannel() {
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0), "answers");
+
+		assertThatThrownBy(() -> Fiber.await(cell, v -> v.value >= 1).get())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("answers");
+	}
+
+	@Test
 	public void aDriveExhaustedWithALiveBlockedFrameRefusesLoudly() {
 		// nobody ever claims this channel's workforce - it can never seal
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));

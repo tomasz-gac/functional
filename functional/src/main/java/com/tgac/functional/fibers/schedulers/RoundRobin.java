@@ -98,7 +98,14 @@ public final class RoundRobin<A> implements Scheduler<A>, Frame.Effects<RoundRob
 			entries.add(entry);
 		}
 
-		return currentCompleted && entries.isEmpty();
+		if (currentCompleted && entries.isEmpty()) {
+			// the root-completion ending must consult the held registry too:
+			// no runnable work remains, so any frame still parked is dead -
+			// ending silently would abandon a deadlock without a word
+			awaits.refuseStranded();
+			return true;
+		}
+		return false;
 	}
 
 	@Override

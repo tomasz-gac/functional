@@ -49,12 +49,21 @@ public final class Scope {
 	 */
 	private final List<Runnable> onSeal = new ArrayList<>();
 
-	Scope() {
+	/** The diagnostic name refusals print; null for an anonymous workforce. */
+	private final String name;
+
+	Scope(String name) {
+		this.name = name;
 	}
 
 	/** Mint a workforce. */
 	public static Scope scope() {
-		return new Scope();
+		return new Scope(null);
+	}
+
+	/** Mint a NAMED workforce — the name is what correctness refusals print. */
+	public static Scope scope(String name) {
+		return new Scope(name);
 	}
 
 	/**
@@ -64,6 +73,10 @@ public final class Scope {
 	 */
 	public boolean tryClaim() {
 		return claimed.compareAndSet(false, true);
+	}
+
+	boolean isClaimed() {
+		return claimed.get();
 	}
 
 	/** Register a seal action — run at once when the seal has already landed. */
@@ -178,6 +191,13 @@ public final class Scope {
 	 * waiters are completed, so the first resumed frame reads the whole ring
 	 * as sealed.
 	 */
+	@Override
+	public String toString() {
+		return name != null
+				? "scope(" + name + ")"
+				: "scope@" + Integer.toHexString(System.identityHashCode(this));
+	}
+
 	private static void groupSeal(Scope start) {
 		LinkedHashMap<Scope, Long> members = new LinkedHashMap<>();
 		ArrayDeque<Scope> frontier = new ArrayDeque<>();

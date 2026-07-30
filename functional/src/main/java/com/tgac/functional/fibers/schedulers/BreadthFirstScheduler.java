@@ -122,7 +122,14 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 			addAll(currentDepth, new ArrayList<>(Collections.singletonList(entry)));
 		}
 
-		return currentCompleted && buckets.isEmpty();
+		if (currentCompleted && buckets.isEmpty()) {
+			// the root-completion ending must consult the held registry too:
+			// no runnable work remains, so any frame still parked is dead -
+			// ending silently would abandon a deadlock without a word
+			awaits.refuseStranded();
+			return true;
+		}
+		return false;
 	}
 
 	@Override

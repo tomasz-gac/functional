@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -122,7 +123,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			if (!outstanding.isEmpty()) {
 				result.completeExceptionally(new IllegalStateException(
 						"drive drained with " + outstanding.size()
-								+ " frame(s) still parked: " + outstanding.values()));
+								+ " frame(s) still parked: "
+								+ AwaitBoundary.describePlaces(outstanding.values())));
 				return;
 			}
 			result.complete(rootValue);
@@ -156,7 +158,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		if (stable && !result.isDone()) {
 			result.completeExceptionally(new IllegalStateException(
 					"scheduler exhausted: pending=" + p + " outstanding=" + size
-							+ " blocked at unsealed sources: " + outstanding.values()));
+							+ " blocked at unsealed sources: "
+							+ AwaitBoundary.describePlaces(outstanding.values())));
 		}
 	}
 

@@ -3,6 +3,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The await boundary shared by the queue drivers: held entries, the
 // ABOUTME: injection queue resumed waiters re-enter through, the exhaustion refusal.
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -60,15 +61,37 @@ public final class AwaitBoundary<E> {
 	}
 
 	/**
-	 * The exhaustion check (docs/design/completion.md §6): a scheduler out of
-	 * work may hold no live blocked frame — every source's seal completes its
-	 * waiters, so a stranded one names a scope that never received work.
+	 * The exhaustion check (docs/design/completion.md §8): a scheduler out of
+	 * work may hold no live blocked frame — every channel's seal completes its
+	 * waiters, so a stranded one names a place that can never complete it.
 	 */
 	public void refuseStranded() {
 		if (outstanding.isEmpty()) {
 			return;
 		}
 		throw new IllegalStateException("scheduler exhausted with " + outstanding.size()
-				+ " frame(s) blocked at unsealed sources: " + outstanding.values());
+				+ " frame(s) blocked at unsealed sources: " + describePlaces(outstanding.values()));
+	}
+
+	/**
+	 * The places, each annotated when its workforce was never claimed — the
+	 * commonest strand cause, provable exactly here: no runnable work remains,
+	 * so a claim that has not landed never will.
+	 */
+	public static String describePlaces(Collection<Object> places) {
+		StringBuilder sb = new StringBuilder("[");
+		for (Object at : places) {
+			if (sb.length() > 1) {
+				sb.append(", ");
+			}
+			sb.append(at);
+			Scope scope = at instanceof Scope ? (Scope) at
+					: at instanceof Channel ? ((Channel<?>) at).scope()
+					: null;
+			if (scope != null && !scope.isClaimed() && !scope.isSealed()) {
+				sb.append(" (unclaimed - nothing ever ran its workforce)");
+			}
+		}
+		return sb.append("]").toString();
 	}
 }

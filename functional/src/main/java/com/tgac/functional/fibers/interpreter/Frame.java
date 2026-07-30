@@ -231,6 +231,10 @@ public final class Frame {
 			throw new IllegalStateException(
 					"awaits the seal of its own workforce - a wait for yourself: " + target);
 		}
+		// an unclaimed target is NOT refused here: the claim may be riding a
+		// sibling branch still in the run queue (a forked producer), so
+		// unclaimed-now is not unclaimed-forever. The endgame proves it -
+		// the strand refusal annotates places whose workforce never ran
 		// THE PAIR STAYS OPEN: the ledger is the work, and a member that
 		// will wake with a green light is still its home's work for the
 		// whole wait - the home cannot drain past it, so no seal
