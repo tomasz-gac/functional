@@ -4,10 +4,10 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: A ready-made scheduler trace; subclass or filter for less noise.
 
 import com.tgac.functional.fibers.Fiber;
+import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import java.util.function.Consumer;
 
 /**
  * Prints one line per reduction and per completion/fork/detach event. Wire it

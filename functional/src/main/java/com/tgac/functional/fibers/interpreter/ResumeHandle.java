@@ -7,7 +7,6 @@ import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.experimental.FieldDefaults;
 
 /**

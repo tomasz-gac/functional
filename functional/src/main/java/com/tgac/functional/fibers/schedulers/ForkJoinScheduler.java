@@ -3,16 +3,12 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: Parallel scheduler: each fiber frame is a ForkJoinTask, forks steal across pool workers.
 // ABOUTME: A driver over Frame — a join callback threads fork/join and continue-after-join.
 
-import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
-import com.tgac.functional.fibers.Await;
-import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.Scheduler;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -173,6 +169,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	private final class Task extends RecursiveAction implements Frame.Effects<Task> {
 		private final Frame frame;
 		private final Consumer<Object> valueSink;
+
 		Task(Frame frame, Consumer<Object> valueSink) {
 			this.frame = frame;
 			this.valueSink = valueSink;

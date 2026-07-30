@@ -3,15 +3,15 @@ package com.tgac.functional.fibers;
 // ABOUTME: A worklist drained as a fiber: one item per deferred step, each step may
 // ABOUTME: add work and advance state, a stop short-circuits. Fairness via the scheduler.
 
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import com.tgac.functional.algebra.Absorbing;
-import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.algebra.MonotoneDrain;
+import com.tgac.functional.algebra.Semilattice;
 import io.vavr.Tuple2;
 import io.vavr.collection.Queue;
 import java.util.Collections;
 import java.util.function.BiFunction;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * The worklist-to-quiescence loop as a schedulable value: pop one item, apply the
@@ -33,7 +33,6 @@ import java.util.function.BiFunction;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Worklist {
-
 
 	/** A step's outcome: continue with more work, or stop draining early. */
 	public static final class Step<W, S> {

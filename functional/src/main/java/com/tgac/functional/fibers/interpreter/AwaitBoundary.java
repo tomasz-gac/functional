@@ -3,8 +3,6 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The await boundary shared by the queue drivers: held entries, the
 // ABOUTME: injection queue resumed waiters re-enter through, the exhaustion refusal.
 
-import com.tgac.functional.fibers.Await;
-import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
 import java.util.Collections;
 import java.util.LinkedHashMap;

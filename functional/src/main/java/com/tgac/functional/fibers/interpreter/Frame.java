@@ -3,11 +3,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: A fiber under evaluation — computation, continuation stack, ambient scope —
 // ABOUTME: owning the single-step interpreter every scheduler drives through step().
 
-import com.tgac.functional.algebra.Semilattice;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
 import java.util.ArrayDeque;
@@ -112,7 +108,6 @@ public final class Frame {
 					"Fiber.await is not supported by this scheduler yet");
 		}
 	}
-
 
 	/**
 	 * Step this frame once as {@code entry}, reporting events to

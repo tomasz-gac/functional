@@ -2,7 +2,7 @@
 // ABOUTME: depth-first, round-robin, unfair breadth-first and fork-join.
 
 /**
- * Drivers over {@link com.tgac.functional.fibers.interpreter.FiberStep}: each owns
+ * Drivers over {@link com.tgac.functional.fibers.interpreter.Frame}: each owns
  * a queue and a granularity policy, nothing else. They differ only in which frame
  * they step next — fairness is the whole difference.
  */

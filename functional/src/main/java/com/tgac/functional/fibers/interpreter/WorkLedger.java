@@ -3,20 +3,17 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: A production's work ledger: the running half as two monotone counters,
 // ABOUTME: the blocked half as who-blocks-where — quiescence is both halves empty.
 
-import static com.tgac.functional.category.Nothing.nothing;
-import static com.tgac.functional.fibers.Fiber.done;
-
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 
 /**
  * Termination detection for one scope of work whose pieces are either
@@ -38,13 +35,11 @@ import java.util.function.Supplier;
  */
 final class WorkLedger<S, P> {
 
-
 	private long started;
 	private long finished;
 
 	/** Blocked pieces of this scope, mapped to the place each waits at. */
 	private final Map<S, P> blocked = new HashMap<>();
-
 
 	public synchronized void started() {
 		started++;

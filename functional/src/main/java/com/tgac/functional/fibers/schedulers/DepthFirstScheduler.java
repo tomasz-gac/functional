@@ -3,16 +3,13 @@ package com.tgac.functional.fibers.schedulers;
 // ABOUTME: Depth-first scheduler: steps the most-recently-forked frame to completion before
 // ABOUTME: its siblings. Prolog-order search — a driver over Frame backed by a LIFO stack.
 
-import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
-import com.tgac.functional.fibers.Await;
-import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.Source;
-import com.tgac.functional.fibers.Scheduler;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;

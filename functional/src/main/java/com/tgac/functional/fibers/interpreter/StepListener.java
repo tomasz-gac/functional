@@ -1,13 +1,13 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: Observes fiber reductions at the one place every scheduler shares — FiberStep.
+// ABOUTME: Observes fiber reductions at the one place every scheduler shares — Frame.step.
 // ABOUTME: Off by default (NO_OP); install with a scheduler's withListener for a uniform trace.
 
 import com.tgac.functional.fibers.Fiber;
 
 /**
  * A hook into the step interpreter. Because every scheduler drives fibers
- * through {@link FiberStep}, a listener installed on any of them sees the
+ * through {@link Frame#step}, a listener installed on any of them sees the
  * same events in the same shape. All methods default to no-ops, so a
  * listener implements only what it cares about and the default
  * {@link #NO_OP} costs nothing.
