@@ -1,0 +1,176 @@
+package com.tgac.functional.fibers.schedulers;
+
+// ABOUTME: The chaos driver: steps a uniformly random runnable frame each turn,
+// ABOUTME: seeded - order-dependence surfaces as a failing seed, replayable forever.
+
+import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.Scheduler;
+import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.Frame;
+import com.tgac.functional.fibers.interpreter.ResumeHandle;
+import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.interpreter.SearchSnapshot;
+import com.tgac.functional.fibers.interpreter.StepListener;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * A TESTING scheduler: each step runs a uniformly random runnable frame. Any
+ * search property that holds under the fair drivers must hold under every
+ * seed of this one — a result that varies by seed is an ORDER-DEPENDENCE,
+ * the bug class equality-based dedup, entailment and value folds are prone
+ * to. Deterministic per seed (single-threaded, no time dependence): a
+ * failing seed is a permanent reproduction. Uniform choice is
+ * probabilistically fair — no starvation, but no fairness law either; this
+ * driver asserts semantics, never cost.
+ */
+@SuppressWarnings("unchecked")
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public final class RandomizedScheduler<A> implements Scheduler<A>, Frame.Effects<RandomizedScheduler.Entry>, SearchInspectable {
+
+	private static final Consumer<Object> DISCARD = value -> {
+	};
+
+	private final List<Entry> entries;
+	private final Random random;
+	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
+	private StepListener stepListener = StepListener.NO_OP;
+
+	@Override
+	public RandomizedScheduler<A> withListener(StepListener listener) {
+		this.stepListener = listener == null ? StepListener.NO_OP : listener;
+		return this;
+	}
+
+	private Consumer<? super A> rootSink;
+	private boolean currentCompleted;
+
+	public static <A> RandomizedScheduler<A> of(Fiber<A> fiber, long seed) {
+		ArrayList<Entry> entries = new ArrayList<>();
+		entries.add(new Entry(new Frame(fiber), null));
+		return new RandomizedScheduler<>(entries, new Random(seed));
+	}
+
+	@Override
+	public boolean run(int iterations, Consumer<? super A> sink) {
+		for (int step = 0; step < iterations; ++step) {
+			if (step(sink))
+				return true;
+		}
+		return entries.isEmpty() && awaits.quiet();
+	}
+
+	@Override
+	public void run(Consumer<? super A> sink) {
+		while (true) {
+			if (run(Integer.MAX_VALUE, sink)) {
+				break;
+			}
+		}
+	}
+
+	@Override
+	public Optional<A> run(int iterations) {
+		Object[] box = new Object[1];
+		return run(iterations, v -> box[0] = v) ?
+				Optional.of((A) box[0]) :
+				Optional.empty();
+	}
+
+	@Override
+	public A get() {
+		AtomicReference<A> result = new AtomicReference<>();
+		run(result::set);
+		return result.get();
+	}
+
+	@Override
+	public boolean step(Consumer<? super A> sink) {
+		awaits.drainInto(entries::add);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
+			return true;
+		}
+
+		// THE CHAOS: a uniformly random runnable frame, taken out before
+		// stepping (callbacks never remove; the loop re-adds a runnable one)
+		int index = random.nextInt(entries.size());
+		Collections.swap(entries, index, entries.size() - 1);
+		Entry entry = entries.remove(entries.size() - 1);
+		rootSink = sink;
+		currentCompleted = false;
+
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.add(entry);
+		}
+
+		if (currentCompleted && entries.isEmpty()) {
+			// the root-completion ending must consult the held registry too:
+			// no runnable work remains, so any frame still parked is dead -
+			// ending silently would abandon a deadlock without a word
+			awaits.refuseStranded();
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public void completed(Entry entry, Object value) {
+		if (entry.sink != null) {
+			entry.sink.accept(value);
+		} else {
+			rootSink.accept((A) value);
+		}
+		currentCompleted = true;
+	}
+
+	@Override
+	public void forked(Entry entry, List<Frame> children) {
+		for (Frame child : children) {
+			entries.add(new Entry(child, DISCARD));
+		}
+	}
+
+	@Override
+	public void detached(Entry entry, Frame child) {
+		// runs independently; its result is discarded
+		entries.add(new Entry(child, DISCARD));
+	}
+
+	@Override
+	public ResumeHandle resumeHandle(Entry entry, Scope owner) {
+		return awaits.resumeHandle(entry, entry.frame, owner);
+	}
+
+	@Override
+	public void suspended(Entry entry, Object at) {
+		awaits.held(entry, at);
+	}
+
+	@Override
+	public SearchSnapshot snapshot() {
+		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
+		for (Entry entry : entries) {
+			b.add(0, entry.frame);
+		}
+		return b.build();
+	}
+
+	@Override
+	public void close() {
+		// empty by design
+	}
+
+	@RequiredArgsConstructor
+	static final class Entry {
+		final Frame frame;
+		final Consumer<Object> sink; // null delivers to the root sink
+	}
+}
