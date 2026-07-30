@@ -29,15 +29,15 @@ public class AwaitTest {
 	 * A monotone integer source: the value only rises, growth completes the
 	 * held waiters it satisfies, seal completes the rest with the final value.
 	 */
-	private static final class IntSource implements Source<Integer> {
-		private int value = 0;
+	private static final class IntSource implements Source<MaxInt> {
+		private MaxInt value = MaxInt.of(0);
 		private boolean sealed = false;
 		private final List<Object[]> held = new ArrayList<>();
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public void suspend(Predicate<Integer> ready, Await.Waiter<Integer> waiter) {
-			Await.Result<Integer> immediate;
+		public void suspend(Predicate<MaxInt> ready, Await.Waiter<MaxInt> waiter) {
+			Await.Result<MaxInt> immediate;
 			synchronized (this) {
 				if (sealed) {
 					immediate = Await.Result.sealed(value);
@@ -53,16 +53,16 @@ public class AwaitTest {
 
 		@SuppressWarnings("unchecked")
 		synchronized void grow(int v) {
-			value = Math.max(value, v);
+			value = value.combine(MaxInt.of(v));
 			List<Object[]> woken = new ArrayList<>();
 			for (Object[] h : held) {
-				if (((Predicate<Integer>) h[0]).test(value)) {
+				if (((Predicate<MaxInt>) h[0]).test(value)) {
 					woken.add(h);
 				}
 			}
 			held.removeAll(woken);
 			for (Object[] h : woken) {
-				((Await.Waiter<Integer>) h[1]).complete(Await.Result.more(value));
+				((Await.Waiter<MaxInt>) h[1]).complete(Await.Result.more(value));
 			}
 		}
 
@@ -72,7 +72,7 @@ public class AwaitTest {
 			List<Object[]> rest = new ArrayList<>(held);
 			held.clear();
 			for (Object[] h : rest) {
-				((Await.Waiter<Integer>) h[1]).complete(Await.Result.sealed(value));
+				((Await.Waiter<MaxInt>) h[1]).complete(Await.Result.sealed(value));
 			}
 		}
 	}
@@ -82,9 +82,9 @@ public class AwaitTest {
 		IntSource source = new IntSource();
 		source.grow(3);
 
-		Await.Result<Integer> r = Fiber.await(source, v -> v >= 1).get();
+		Await.Result<MaxInt> r = Fiber.await(source, v -> v.value >= 1).get();
 
-		assertThat(r.getValue()).isEqualTo(3);
+		assertThat(r.getValue()).isEqualTo(MaxInt.of(3));
 		assertThat(r.isSealed()).isFalse();
 		assertThat(source.held).isEmpty();
 	}
@@ -94,9 +94,9 @@ public class AwaitTest {
 		IntSource source = new IntSource();
 		List<Integer> seen = new ArrayList<>();
 
-		Fiber<Nothing> consumer = Fiber.await(source, v -> v >= 1)
+		Fiber<Nothing> consumer = Fiber.await(source, v -> v.value >= 1)
 				.flatMap(r -> {
-					seen.add(r.getValue());
+					seen.add(r.getValue().value);
 					return done(nothing());
 				});
 		Fiber.detach(consumer)
@@ -137,16 +137,16 @@ public class AwaitTest {
 
 	/** await → consume → re-arm: the run-once loop, sequenced by flatMap. */
 	private static Fiber<Nothing> collectAbove(IntSource source, int cursor, List<String> log) {
-		return Fiber.await(source, v -> v > cursor)
+		return Fiber.await(source, v -> v.value > cursor)
 				.flatMap(r -> {
-					if (r.isSealed() && r.getValue() <= cursor) {
-						log.add("sealed@" + r.getValue());
+					if (r.isSealed() && r.getValue().value <= cursor) {
+						log.add("sealed@" + r.getValue().value);
 						return done(nothing());
 					}
-					log.add((r.isSealed() ? "sealed@" : "more@") + r.getValue());
+					log.add((r.isSealed() ? "sealed@" : "more@") + r.getValue().value);
 					return r.isSealed()
 							? done(nothing())
-							: Fiber.defer(() -> collectAbove(source, r.getValue(), log));
+							: Fiber.defer(() -> collectAbove(source, r.getValue().value, log));
 				});
 	}
 
@@ -155,8 +155,8 @@ public class AwaitTest {
 		IntSource source = new IntSource();
 		List<String> log = new ArrayList<>();
 
-		Fiber.detach(Fiber.await(source, v -> v >= 5).flatMap(r -> {
-					log.add(r.isSealed() + "@" + r.getValue());
+		Fiber.detach(Fiber.await(source, v -> v.value >= 5).flatMap(r -> {
+					log.add(r.isSealed() + "@" + r.getValue().value);
 					return done(nothing());
 				}))
 				.flatMap(__ -> Fiber.defer(() -> {
@@ -318,7 +318,7 @@ public class AwaitTest {
 		source.grow(5); // the child's await answers immediately
 		List<String> order = new ArrayList<>();
 
-		Fiber<Nothing> child = Fiber.await(source, v -> v >= 1)
+		Fiber<Nothing> child = Fiber.await(source, v -> v.value >= 1)
 				.flatMap(r -> {
 					order.add("child");
 					return done(nothing());
@@ -343,7 +343,7 @@ public class AwaitTest {
 		// a foreign Source has no workforce - it can never seal
 		IntSource source = new IntSource();
 
-		Fiber<Await.Result<Integer>> stranded = Fiber.await(source, v -> v >= 1);
+		Fiber<Await.Result<MaxInt>> stranded = Fiber.await(source, v -> v.value >= 1);
 
 		assertThatThrownBy(stranded::get)
 				.isInstanceOf(IllegalStateException.class)

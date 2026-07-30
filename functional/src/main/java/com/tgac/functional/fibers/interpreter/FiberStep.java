@@ -148,7 +148,7 @@ public final class FiberStep {
 		}
 		if (computation instanceof Fiber.Awaiting) {
 			listener.onAwaiting((Fiber.Awaiting<?>) computation);
-			return stepAwaiting(frame, entry, effects, (Fiber.Awaiting<Object>) computation);
+			return stepAwaiting(frame, entry, effects, (Fiber.Awaiting<?>) computation);
 		}
 		if (computation instanceof Fiber.Emit) {
 			listener.onEmit((Fiber.Emit<?>) computation);
@@ -204,9 +204,10 @@ public final class FiberStep {
 		return true;
 	}
 
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static <E> boolean stepAwaiting(Frame frame, E entry, Effects<E> effects,
-			Fiber.Awaiting<Object> awaiting) {
-		Source<Object> source = awaiting.getSource();
+			Fiber.Awaiting<?> awaiting) {
+		Source source = awaiting.getSource();
 		Scope owner = frame.scope;
 		// AN AWAIT ALWAYS YIELDS. Every record is placed BEFORE the offer,
 		// so no completion can outrun the bookkeeping; nothing here may

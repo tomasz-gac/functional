@@ -3,6 +3,7 @@ package com.tgac.functional.fibers;
 // ABOUTME: A monotone value fibers can await: suspend takes the waiter and completes
 // ABOUTME: it exactly once - immediately when ready or sealed, at growth, or at seal.
 
+import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.fibers.interpreter.Scope;
 import java.util.function.Predicate;
 
@@ -30,7 +31,7 @@ import java.util.function.Predicate;
  * loudly. Cross-scheduler sharing is unsupported, and fails loud, never
  * silent.
  */
-public interface Source<V> {
+public interface Source<V extends Semilattice<V>> {
 
 	/**
 	 * Take the waiter and complete it EXACTLY ONCE: immediately — possibly
