@@ -107,19 +107,24 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 
 		currentDepth = bucket.depth;
 		// take the entry OUT before stepping - callbacks never remove, the
-		// loop re-adds a still-runnable frame
+		// loop re-adds a still-runnable frame. The bucket itself stays in
+		// the queue until after the step: the common one-runnable-frame
+		// regime (a tabled consume/produce interleave) re-adds at the same
+		// depth every step, so the priority queue is untouched and the hot
+		// loop allocates nothing
 		Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
 		Entry entry = bucket.entries.remove(bucket.entries.size() - 1);
-		if (bucket.entries.isEmpty()) {
-			buckets.remove(bucket);
-		} else {
+		if (!bucket.entries.isEmpty()) {
 			tryPromote();
 		}
 		rootSink = sink;
 		currentCompleted = false;
 
 		if (entry.frame.step(entry, this, stepListener)) {
-			addAll(currentDepth, new ArrayList<>(Collections.singletonList(entry)));
+			bucket.entries.add(entry);
+		}
+		if (bucket.entries.isEmpty()) {
+			buckets.remove(bucket);
 		}
 
 		if (currentCompleted && buckets.isEmpty()) {
