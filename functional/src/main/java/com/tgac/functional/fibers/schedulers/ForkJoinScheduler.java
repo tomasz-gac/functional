@@ -1,11 +1,11 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Parallel scheduler: each fiber frame is a ForkJoinTask, forks steal across pool workers.
-// ABOUTME: A driver over FiberStep — a join callback threads fork/join and continue-after-join.
+// ABOUTME: A driver over Frame — a join callback threads fork/join and continue-after-join.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
@@ -64,8 +64,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	}
 
 	/** Frames held by a Source; each keeps one pending unit open until its resume. */
-	private final Map<FiberStep.Frame, Object> outstanding =
-			Collections.synchronizedMap(new LinkedHashMap<FiberStep.Frame, Object>());
+	private final Map<Frame, Object> outstanding =
+			Collections.synchronizedMap(new LinkedHashMap<Frame, Object>());
 
 	private volatile boolean started = false;
 	private volatile boolean cancelled = false;
@@ -104,7 +104,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			this.started = true;
 		}
 		pendingOp(1);
-		pool.execute(new Task(new FiberStep.Frame(initialFiber), this::deliverRoot));
+		pool.execute(new Task(new Frame(initialFiber), this::deliverRoot));
 	}
 
 	private void deliverRoot(Object value) {
@@ -170,10 +170,10 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 	 * current task's count is released, so {@code pending} reaches zero only
 	 * when the whole tree is genuinely done.
 	 */
-	private final class Task extends RecursiveAction implements FiberStep.Effects<Task> {
-		private final FiberStep.Frame frame;
+	private final class Task extends RecursiveAction implements Frame.Effects<Task> {
+		private final Frame frame;
 		private final Consumer<Object> valueSink;
-		Task(FiberStep.Frame frame, Consumer<Object> valueSink) {
+		Task(Frame frame, Consumer<Object> valueSink) {
 			this.frame = frame;
 			this.valueSink = valueSink;
 		}
@@ -199,15 +199,15 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void forked(Task task, List<FiberStep.Frame> children) {
+		public void forked(Task task, List<Frame> children) {
 			// children spawn; the forking frame continues in its own compute loop
-			for (FiberStep.Frame child : children) {
+			for (Frame child : children) {
 				task.spawn(new Task(child, DISCARD));
 			}
 		}
 
 		@Override
-		public void detached(Task task, FiberStep.Frame child) {
+		public void detached(Task task, Frame child) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
 			task.spawn(new Task(child, DISCARD));
@@ -215,7 +215,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 		@Override
 		public ResumeHandle resumeHandle(Task task, Scope owner) {
-			FiberStep.Frame contFrame = task.frame;
+			Frame contFrame = task.frame;
 			Consumer<Object> contSink = task.valueSink;
 			return new ResumeHandle(contFrame, owner, () -> {
 				// remove-then-spawn-then-release: a mid-flight resume keeps

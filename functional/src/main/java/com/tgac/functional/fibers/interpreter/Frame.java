@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: The single-step interpreter shared by every scheduler: one dispatch over the Fiber ADT.
-// ABOUTME: Schedulers are drivers — queues, countdowns and granularity live there; step semantics live here.
+// ABOUTME: A fiber under evaluation — computation, continuation stack, ambient scope —
+// ABOUTME: owning the single-step interpreter every scheduler drives through step().
 
 import com.tgac.functional.algebra.Semilattice;
 import lombok.AccessLevel;
@@ -17,66 +17,52 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Advances one fiber frame by one step. A frame is a fiber under evaluation:
- * the current computation plus the stack of pending continuations, plus the
- * AMBIENT SCOPE the frame's work is recorded in (null = unowned).
+ * A fiber under evaluation: the current computation, the stack of pending
+ * continuations, and the AMBIENT SCOPE the frame's work is recorded in
+ * (null = unowned). {@link #step} is the single-step interpreter every
+ * scheduler drives through.
  *
- * <p>The Scope calls are the interpreter's, not the schedulers': a
- * frame constructed with a scope calls started() at construction (no gap
- * for a racing seal); on completion finished() runs and the seal attempt
- * it returns runs as the frame's own continuation — same scheduler, same
+ * <p>The Scope calls are the interpreter's, not the schedulers': a frame
+ * constructed with a scope calls started() at construction (no gap for a
+ * racing seal); on completion finished() runs and the seal attempt it
+ * returns runs as the frame's own continuation — same scheduler, same
  * fairness. {@link Fiber.Detached} carries the one legal escape from
  * inheritance: an explicit re-parenting scope, or null for unowned.
  * Exactly-once holds by construction — consumer code never calls the
  * Scope methods.
  *
- * The rare events — a frame completing, forking, or detaching a child — are
- * reported through {@link Effects}; the common path (unwrap a deferred,
+ * <p>The rare events — a frame completing, forking, or detaching a child —
+ * are reported through {@link Effects}; the common path (unwrap a deferred,
  * descend into a flatMap, apply a continuation) mutates the frame and
  * allocates nothing.
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public final class FiberStep {
+public final class Frame {
 
-	public static final class Frame {
-		Fiber<?> computation;
-		Scope scope;
-		final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
+	Fiber<?> computation;
+	Scope scope;
+	final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
-		public Frame(Fiber<?> computation) {
-			this(computation, (Scope) null);
+	public Frame(Fiber<?> computation) {
+		this(computation, null);
+	}
+
+	/** Scoped frames are MINTED BY THE INTERPRETER (billing at birth). */
+	Frame(Fiber<?> computation, Scope scope) {
+		this.computation = computation;
+		this.scope = scope;
+		if (this.scope != null) {
+			this.scope.started();
 		}
+	}
 
-		/** Scoped frames are MINTED BY THE INTERPRETER (billing at birth). */
-		@SuppressWarnings("unchecked")
-		Frame(Fiber<?> computation, Scope scope) {
-			this.computation = (Fiber<Object>) computation;
-			this.scope = scope;
-			if (this.scope != null) {
-				this.scope.started();
-			}
-		}
+	/** The workforce this frame is billed to — children inherit it at a fork. */
+	public Scope scope() {
+		return scope;
+	}
 
-		/** Step this frame once as {@code entry}, reporting events to {@code effects}. */
-		public <E> boolean step(E entry, Effects<E> effects, StepListener listener) {
-			return FiberStep.step(this, entry, effects, listener);
-		}
-
-		/** The workforce this frame is billed to — children inherit it at a fork. */
-		public Scope scope() {
-			return scope;
-		}
-
-		/** The computation as of now — the drivers' snapshot read. */
-		public Fiber<?> computation() {
-			return computation;
-		}
-
-		@Override
-		public String toString() {
-			return "frame#" + Integer.toHexString(System.identityHashCode(this))
-					+ "[" + computation.getClass().getSimpleName() + "]";
-		}
+	/** The computation as of now — the drivers' snapshot read. */
+	public Fiber<?> computation() {
+		return computation;
 	}
 
 	/**
@@ -129,7 +115,8 @@ public final class FiberStep {
 
 
 	/**
-	 * The dispatch: three families. PLUMBING (deferred, flatMap, done)
+	 * Step this frame once as {@code entry}, reporting events to
+	 * {@code effects}. The dispatch: three families. PLUMBING (deferred, flatMap, done)
 	 * mutates the frame and allocates nothing. MOVERS (detached, emit,
 	 * forked) perform their effect and continue in the same step — none can
 	 * block, none has a completion anyone may wait on. PARKERS (awaiting,
@@ -139,94 +126,94 @@ public final class FiberStep {
 	 * 		control through {@link Effects#completed} or a park
 	 */
 	@SuppressWarnings({"unchecked"})
-	private static <E> boolean step(Frame frame, E entry, Effects<E> effects, StepListener listener) {
-		Fiber<?> computation = frame.computation;
+	public <E> boolean step(E entry, Effects<E> effects, StepListener listener) {
+		Fiber<?> computation = this.computation;
 		listener.onStep(computation);
 
 		if (computation instanceof Fiber.Deferred) {
-			return stepDeferred(frame, (Fiber.Deferred<Object>) computation);
+			return stepDeferred((Fiber.Deferred<Object>) computation);
 		}
 		if (computation instanceof Fiber.FlatMap) {
-			return stepFlatMap(frame, (Fiber.FlatMap<Object, Object>) computation);
+			return stepFlatMap((Fiber.FlatMap<Object, Object>) computation);
 		}
 		if (computation instanceof Fiber.Done) {
-			return stepDone(frame, entry, effects, listener, ((Fiber.Done<Object>) computation).getValue());
+			return stepDone(entry, effects, listener, ((Fiber.Done<Object>) computation).getValue());
 		}
 		if (computation instanceof Fiber.Detached) {
-			return stepDetached(frame, entry, effects, listener, (Fiber.Detached<?>) computation);
+			return stepDetached(entry, effects, listener, (Fiber.Detached<?>) computation);
 		}
 		if (computation instanceof Fiber.Awaiting) {
 			listener.onAwaiting((Fiber.Awaiting<?>) computation);
-			return stepAwaiting(frame, entry, effects, (Fiber.Awaiting<?>) computation);
+			return stepAwaiting(entry, effects, (Fiber.Awaiting<?>) computation);
 		}
 		if (computation instanceof Fiber.Emit) {
 			listener.onEmit((Fiber.Emit<?>) computation);
-			return stepEmit(frame, (Fiber.Emit<?>) computation);
+			return stepEmit((Fiber.Emit<?>) computation);
 		}
 		if (computation instanceof Fiber.Sealed) {
 			listener.onSealed((Fiber.Sealed) computation);
-			return stepSealed(frame, entry, effects, (Fiber.Sealed) computation);
+			return stepSealed(entry, effects, (Fiber.Sealed) computation);
 		}
 		if (computation instanceof Fiber.Forked) {
-			return stepForked(frame, entry, effects, listener, (Fiber.Forked<Object>) computation);
+			return stepForked(entry, effects, listener, (Fiber.Forked<Object>) computation);
 		}
 		throw new IllegalStateException("Unknown Fiber subclass: " + computation.getClass());
 	}
 
-	private static boolean stepDeferred(Frame frame, Fiber.Deferred<Object> deferred) {
-		frame.computation = deferred.getRec().get();
+	private boolean stepDeferred(Fiber.Deferred<Object> deferred) {
+		computation = deferred.getRec().get();
 		return true;
 	}
 
-	private static boolean stepFlatMap(Frame frame, Fiber.FlatMap<Object, Object> flat) {
-		frame.ks.addLast(flat.getF());
-		frame.computation = flat.getArg();
+	private boolean stepFlatMap(Fiber.FlatMap<Object, Object> flat) {
+		ks.addLast(flat.getF());
+		computation = flat.getArg();
 		return true;
 	}
 
-	private static <E> boolean stepDone(Frame frame, E entry, Effects<E> effects, StepListener listener,
+	private <E> boolean stepDone(E entry, Effects<E> effects, StepListener listener,
 			Object value) {
-		if (frame.ks.isEmpty()) {
-			if (frame.scope != null) {
+		if (ks.isEmpty()) {
+			if (scope != null) {
 				// finished() and the seal attempt run as this frame's
 				// continuation — the same scheduler steps the cascade and
 				// whatever it emits
-				Scope owner = frame.scope;
-				frame.scope = null;
-				frame.computation = owner.finished().map(__ -> value);
+				Scope owner = scope;
+				scope = null;
+				computation = owner.finished().map(__ -> value);
 				return true;
 			}
 			listener.onCompleted(value);
 			effects.completed(entry, value);
 			return false;
 		}
-		Function<Object, Fiber<Object>> k = frame.ks.pollLast();
-		frame.computation = k.apply(value);
+		Function<Object, Fiber<Object>> k = ks.pollLast();
+		computation = k.apply(value);
 		return true;
 	}
 
-	private static <E> boolean stepDetached(Frame frame, E entry, Effects<E> effects, StepListener listener,
+	private <E> boolean stepDetached(E entry, Effects<E> effects, StepListener listener,
 			Fiber.Detached<?> detached) {
-		frame.computation = Fiber.done(Nothing.nothing());
+		computation = Fiber.done(Nothing.nothing());
 		listener.onDetached(detached.getFiber());
 		effects.detached(entry, new Frame(detached.getFiber(), detached.getInto()));
 		return true;
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static <E> boolean stepAwaiting(Frame frame, E entry, Effects<E> effects,
+	private <E> boolean stepAwaiting(E entry, Effects<E> effects,
 			Fiber.Awaiting<?> awaiting) {
 		Source source = awaiting.getSource();
-		Scope owner = frame.scope;
+		Scope owner = scope;
 		// AN AWAIT ALWAYS YIELDS. Every record is placed BEFORE the offer,
 		// so no completion can outrun the bookkeeping; nothing here may
 		// touch the frame after the offer
-		frame.scope = null;
+		scope = null;
 		ResumeHandle handle = effects.resumeHandle(entry, owner);
 		if (owner != null) {
 			// the blocked record shields the owner's counters until the
 			// resume is billed
-			owner.blocked(frame, source.scope());
+			owner.blocked(this, source.scope());
 		}
 		effects.suspended(entry, source);
 		source.suspend(awaiting.getReady(), handle);
@@ -240,23 +227,23 @@ public final class FiberStep {
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static boolean stepEmit(Frame frame, Fiber.Emit<?> emit) {
+	private boolean stepEmit(Fiber.Emit<?> emit) {
 		MonotoneCell cell = emit.getCell();
 		// production is lawful only from the closing workforce: billing
 		// and production are the same statement (emit.md). The one
 		// identity check at the only place production executes.
-		if (frame.scope != cell.scope()) {
+		if (scope != cell.scope()) {
 			throw new IllegalStateException(
 					"emit into a channel closed by a foreign workforce: " + cell);
 		}
 		cell.grow(emit.getDelta());
-		frame.computation = Fiber.done(Nothing.nothing());
+		computation = Fiber.done(Nothing.nothing());
 		return true;
 	}
 
-	private static <E> boolean stepSealed(Frame frame, E entry, Effects<E> effects, Fiber.Sealed sealedOn) {
+	private <E> boolean stepSealed(E entry, Effects<E> effects, Fiber.Sealed sealedOn) {
 		Scope target = sealedOn.getScope();
-		if (frame.scope == target) {
+		if (scope == target) {
 			throw new IllegalStateException(
 					"awaits the seal of its own workforce - a wait for yourself: " + target);
 		}
@@ -266,13 +253,13 @@ public final class FiberStep {
 		// (singleton or group) can pass it by. No blocked entry, no
 		// re-billing at resume; the wait is visible only as an unfinished
 		// unit and in the scheduler's held registry.
-		ResumeHandle handle = effects.resumeHandle(entry, frame.scope);
+		ResumeHandle handle = effects.resumeHandle(entry, scope);
 		effects.suspended(entry, target);
 		target.awaitSeal(handle);
 		return false;
 	}
 
-	private static <E> boolean stepForked(Frame frame, E entry, Effects<E> effects, StepListener listener,
+	private <E> boolean stepForked(E entry, Effects<E> effects, StepListener listener,
 			Fiber.Forked<Object> fork) {
 		if (fork.getOptions() != null && !fork.getOptions().isEmpty()) {
 			listener.onForked(fork);
@@ -280,14 +267,20 @@ public final class FiberStep {
 			// under this frame's still-open pair - membership from within
 			List<Frame> children = new ArrayList<>(fork.getOptions().size());
 			for (Fiber<Object> option : fork.getOptions()) {
-				children.add(new Frame(option, frame.scope));
+				children.add(new Frame(option, scope));
 			}
 			effects.forked(entry, children);
 		}
 		// fork completes immediately: the children are injected into the
 		// ambient scope and the frame continues - a fork is a CONTROL
 		// scatter, its completion carries nothing
-		frame.computation = Fiber.done(Nothing.nothing());
+		computation = Fiber.done(Nothing.nothing());
 		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "frame#" + Integer.toHexString(System.identityHashCode(this))
+				+ "[" + computation.getClass().getSimpleName() + "]";
 	}
 }

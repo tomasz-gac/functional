@@ -2,7 +2,7 @@
 // ABOUTME: workforces sealed at quiescence, channels folded and awaited.
 
 /**
- * The substrate under every scheduler: {@link com.tgac.functional.fibers.interpreter.FiberStep}
+ * The substrate under every scheduler: {@link com.tgac.functional.fibers.interpreter.Frame}
  * is the single step interpreter (movers continue, parkers yield);
  * {@link com.tgac.functional.fibers.interpreter.Scope} is a workforce — counted
  * work, blocked records, the seal at quiescence;

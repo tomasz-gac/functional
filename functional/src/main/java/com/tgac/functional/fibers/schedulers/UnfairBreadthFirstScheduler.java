@@ -1,11 +1,11 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Depth-ordered scheduler that always steps the shallowest frame.
-// ABOUTME: A driver over FiberStep — unfair because a shallow frame can starve deeper ones.
+// ABOUTME: A driver over Frame — unfair because a shallow frame can starve deeper ones.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<UnfairBreadthFirstScheduler.Entry>, SearchInspectable {
+public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effects<UnfairBreadthFirstScheduler.Entry>, SearchInspectable {
 
 	private static final Consumer<Object> DISCARD = value -> {
 	};
@@ -45,7 +45,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	public static <A> UnfairBreadthFirstScheduler<A> of(Fiber<A> fiber) {
 		PriorityQueue<Entry> entries = new PriorityQueue<>(Comparator.comparingInt(Entry::getDepth));
-		entries.add(new Entry(new FiberStep.Frame(fiber), null, 0));
+		entries.add(new Entry(new Frame(fiber), null, 0));
 		return new UnfairBreadthFirstScheduler<>(entries);
 	}
 
@@ -112,14 +112,14 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public void forked(Entry entry, List<FiberStep.Frame> children) {
-		for (FiberStep.Frame child : children) {
+	public void forked(Entry entry, List<Frame> children) {
+		for (Frame child : children) {
 			entries.offer(new Entry(child, DISCARD, entry.depth + 1));
 		}
 	}
 
 	@Override
-	public void detached(Entry entry, FiberStep.Frame child) {
+	public void detached(Entry entry, Frame child) {
 		// runs independently; its result is discarded
 		entries.offer(new Entry(child, DISCARD, entry.depth));
 	}
@@ -150,7 +150,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 
 	@RequiredArgsConstructor
 	static final class Entry {
-		final FiberStep.Frame frame;
+		final Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 		@Getter
 		final int depth;

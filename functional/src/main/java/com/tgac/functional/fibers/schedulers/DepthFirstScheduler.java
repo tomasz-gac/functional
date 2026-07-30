@@ -1,11 +1,11 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: Depth-first scheduler: steps the most-recently-forked frame to completion before
-// ABOUTME: its siblings. Prolog-order search — a driver over FiberStep backed by a LIFO stack.
+// ABOUTME: its siblings. Prolog-order search — a driver over Frame backed by a LIFO stack.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<DepthFirstScheduler.Entry>, SearchInspectable {
+public final class DepthFirstScheduler<A> implements Scheduler<A>, Frame.Effects<DepthFirstScheduler.Entry>, SearchInspectable {
 
 	private static final Consumer<Object> DISCARD = value -> {
 	};
@@ -45,7 +45,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 
 	public static <A> DepthFirstScheduler<A> of(Fiber<A> fiber) {
 		Deque<Entry> entries = new ArrayDeque<>();
-		entries.addFirst(new Entry(new FiberStep.Frame(fiber), null, 0));
+		entries.addFirst(new Entry(new Frame(fiber), null, 0));
 		return new DepthFirstScheduler<>(entries);
 	}
 
@@ -115,7 +115,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public void forked(Entry entry, List<FiberStep.Frame> children) {
+	public void forked(Entry entry, List<Frame> children) {
 		// push so the first child is stepped first — depth-first, in clause order
 		for (int i = children.size() - 1; i >= 0; i--) {
 			entries.addFirst(new Entry(children.get(i), DISCARD, entry.depth + 1));
@@ -123,7 +123,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public void detached(Entry entry, FiberStep.Frame child) {
+	public void detached(Entry entry, Frame child) {
 		// a planted workforce PREEMPTS: depth-first order must descend into
 		// the detached body (a traced box's exploration, a master's produce)
 		// before the spawner's siblings run - Prolog order for the trace
@@ -156,7 +156,7 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 
 	@RequiredArgsConstructor
 	static final class Entry {
-		final FiberStep.Frame frame;
+		final Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 		@Getter
 		final int depth;

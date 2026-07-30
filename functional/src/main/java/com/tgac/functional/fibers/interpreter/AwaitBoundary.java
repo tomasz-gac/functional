@@ -37,7 +37,7 @@ public final class AwaitBoundary<E> {
 	 * The resume handle for {@code entry}: records the resume, hands the
 	 * frame its result, and injects the entry.
 	 */
-	public ResumeHandle resumeHandle(E entry, FiberStep.Frame frame, Scope owner) {
+	public ResumeHandle resumeHandle(E entry, Frame frame, Scope owner) {
 		return new ResumeHandle(frame, owner, () -> {
 			outstanding.remove(entry);
 			injections.add(entry);

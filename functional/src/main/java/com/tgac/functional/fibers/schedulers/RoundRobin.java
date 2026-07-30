@@ -1,11 +1,11 @@
 package com.tgac.functional.fibers.schedulers;
 
 // ABOUTME: The simplest scheduler: a flat list of frames stepped in rotation.
-// ABOUTME: A driver over FiberStep — all it owns is the queue.
+// ABOUTME: A driver over Frame — all it owns is the queue.
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<RoundRobin.Entry>, SearchInspectable {
+public final class RoundRobin<A> implements Scheduler<A>, Frame.Effects<RoundRobin.Entry>, SearchInspectable {
 
 	private static final Consumer<Object> DISCARD = value -> {
 	};
@@ -45,7 +45,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 
 	public static <A> RoundRobin<A> of(Fiber<A> fiber) {
 		ArrayList<Entry> entries = new ArrayList<>();
-		entries.add(new Entry(new FiberStep.Frame(fiber), null));
+		entries.add(new Entry(new Frame(fiber), null));
 		return new RoundRobin<>(entries);
 	}
 
@@ -114,15 +114,15 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	}
 
 	@Override
-	public void forked(Entry entry, List<FiberStep.Frame> children) {
-		for (FiberStep.Frame child : children) {
+	public void forked(Entry entry, List<Frame> children) {
+		for (Frame child : children) {
 			entries.add(new Entry(child, DISCARD));
 		}
 		index = -1;
 	}
 
 	@Override
-	public void detached(Entry entry, FiberStep.Frame child) {
+	public void detached(Entry entry, Frame child) {
 		// runs independently; its result is discarded
 		entries.add(new Entry(child, DISCARD));
 	}
@@ -153,7 +153,7 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 
 	@RequiredArgsConstructor
 	static final class Entry {
-		final FiberStep.Frame frame;
+		final Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 	}
 }

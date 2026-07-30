@@ -5,7 +5,7 @@ package com.tgac.functional.fibers.schedulers;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.FiberStep;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
@@ -28,7 +28,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
-public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.Effects<BreadthFirstScheduler.Entry>, SearchInspectable {
+public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effects<BreadthFirstScheduler.Entry>, SearchInspectable {
 
 	private static final Consumer<Object> DISCARD = value -> {
 	};
@@ -57,7 +57,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	public BreadthFirstScheduler(Fiber<A> fiber, int iterationsForPromotion) {
 		this.buckets = new PriorityQueue<>(Comparator.comparingInt(Bucket::getDepth));
 		ArrayList<Entry> entries = new ArrayList<>(1);
-		entries.add(new Entry(new FiberStep.Frame(fiber), null));
+		entries.add(new Entry(new Frame(fiber), null));
 		buckets.add(new Bucket(entries, 0, -1, 0));
 		this.iterationsForPromotion = iterationsForPromotion;
 	}
@@ -138,14 +138,14 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public void forked(Entry entry, List<FiberStep.Frame> children) {
+	public void forked(Entry entry, List<Frame> children) {
 		addAll(currentDepth + 1, children.stream()
 				.map(child -> new Entry(child, DISCARD))
 				.collect(Collectors.toList()));
 	}
 
 	@Override
-	public void detached(Entry entry, FiberStep.Frame child) {
+	public void detached(Entry entry, Frame child) {
 		// runs independently; its result is discarded
 		addAll(currentDepth,
 				new ArrayList<>(Collections.singletonList(new Entry(child, DISCARD))));
@@ -211,7 +211,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 
 	@RequiredArgsConstructor
 	static final class Entry {
-		final FiberStep.Frame frame;
+		final Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
 	}
 

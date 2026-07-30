@@ -37,7 +37,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ResumeHandle implements Await.Waiter<Object> {
 
-	FiberStep.Frame frame;
+	Frame frame;
 	Scope owner;
 	Runnable requeue;
 
