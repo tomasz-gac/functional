@@ -9,7 +9,7 @@ import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import com.tgac.functional.fibers.interpreter.MaxInt;
-import com.tgac.functional.fibers.interpreter.MonotoneCell;
+import com.tgac.functional.fibers.interpreter.Channel;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -138,7 +138,7 @@ public class StepListenerTest {
 	@Test
 	public void theParkersAndTheProducerReportTheirNodes() {
 		Recorder recorder = new Recorder();
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
 		Fiber<Nothing> consumer = Fiber.await(cell, v -> v.value >= 1)
 				.flatMap(r -> done(nothing()));

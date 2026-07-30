@@ -21,7 +21,7 @@ public class ProduceTest {
 
 	@Test
 	public void emitsFoldIntoTheCellAndTheSealDeliversTheFold() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<Integer> seen = new ArrayList<>();
 
 		Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)).flatMap(__ -> emit.emit(MaxInt.of(7))))
@@ -37,7 +37,7 @@ public class ProduceTest {
 
 	@Test
 	public void anEmitWakesAParkedConsumerMidSearch() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<Integer> log = new ArrayList<>();
 
 		Fiber<Nothing> consumer = Fiber.await(cell, v -> v.value >= 3)
@@ -56,7 +56,7 @@ public class ProduceTest {
 
 	@Test
 	public void abortIsSilence() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
 		Fiber.produce(cell, emit -> done(nothing()))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
@@ -68,7 +68,7 @@ public class ProduceTest {
 
 	@Test
 	public void racingClaimantsResolveAtTheStepAndLosersNoOp() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<String> ran = new ArrayList<>();
 
 		// constructing a produce claims nothing - the CAS runs at the step, so
@@ -91,7 +91,7 @@ public class ProduceTest {
 
 	@Test
 	public void aLosingProducerRunsItsAlternative() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<String> ran = new ArrayList<>();
 
 		Fiber.produce(cell, emit -> {
@@ -112,7 +112,7 @@ public class ProduceTest {
 
 	@Test
 	public void aLeakedEmitterRefusesInAForeignWorkforce() {
-		MonotoneCell<MaxInt> cell = new MonotoneCell<>(MaxInt.of(0));
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		AtomicReference<Emitter<MaxInt>> leaked = new AtomicReference<>();
 
 		Fiber<Nothing> program = Fiber.produce(cell, emit -> {

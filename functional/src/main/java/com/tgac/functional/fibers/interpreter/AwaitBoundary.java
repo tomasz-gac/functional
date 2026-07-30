@@ -3,7 +3,6 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The await boundary shared by the queue drivers: held entries, the
 // ABOUTME: injection queue resumed waiters re-enter through, the exhaustion refusal.
 
-import com.tgac.functional.fibers.Source;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -11,7 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
 /**
- * One scheduler's await state: which queue entries are held by a {@link Source},
+ * One scheduler's await state: which queue entries are held by a {@link Channel},
  * and the injection queue their resumes re-enter through — drained at the top
  * of every step, so an injected frame competes fairly like any other.
  *

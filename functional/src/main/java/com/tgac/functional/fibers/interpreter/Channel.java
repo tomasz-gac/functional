@@ -1,17 +1,16 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: The runtime's Source: a monotone value plus the workforce producing it.
+// ABOUTME: The value channel: a monotone value plus the workforce producing it.
 // ABOUTME: Growth wakes held waiters; the workforce's quiescence seals and finalizes.
 
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.fibers.Await;
-import com.tgac.functional.fibers.Source;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.function.Predicate;
 
 /**
- * A source as defined: a monotone value PLUS the workforce producing it.
+ * A channel: a monotone value PLUS the workforce producing it.
  * The VALUE is a persistent {@link Semilattice} element that only grows —
  * growth is {@link Semilattice#combine} with a delta, an absorbed delta
  * refuses (strict ascent is a law of the algebra, not caller discipline);
@@ -26,13 +25,13 @@ import java.util.function.Predicate;
  * <p>{@link #grow} on a sealed cell THROWS: growing past a delivered
  * sealed result would falsify it.
  */
-public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
+public class Channel<V extends Semilattice<V>> {
 
 	private static final class Held<V> {
 		final Predicate<V> ready;
-		final Await.Waiter<V> waiter;
+		final ResumeHandle waiter;
 
-		Held(Predicate<V> ready, Await.Waiter<V> waiter) {
+		Held(Predicate<V> ready, ResumeHandle waiter) {
 			this.ready = ready;
 			this.waiter = waiter;
 		}
@@ -43,7 +42,7 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 	private final Scope scope;
 
 	/** A channel closed by its own private workforce. */
-	public MonotoneCell(V initial) {
+	public Channel(V initial) {
 		this(initial, Scope.scope());
 	}
 
@@ -53,14 +52,13 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 	 * its EOF translation — the seal completes value-waiters with
 	 * sealed(value).
 	 */
-	public MonotoneCell(V initial, Scope closedBy) {
+	public Channel(V initial, Scope closedBy) {
 		this.value = initial;
 		this.scope = closedBy;
 		this.scope.onSeal(this::completeAllSealed);
 	}
 
 	/** The workforce — for the interpreter's token resolution. */
-	@Override
 	public Scope scope() {
 		return scope;
 	}
@@ -79,8 +77,15 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 		scope.seal();
 	}
 
-	@Override
-	public void suspend(Predicate<V> ready, Await.Waiter<V> waiter) {
+	/**
+	 * Take the waiter and complete it EXACTLY ONCE: immediately — possibly
+	 * synchronously, before this call returns — when {@code ready} holds of
+	 * the current value or the channel is sealed; otherwise at the first
+	 * growth satisfying the predicate, or at the seal, with the final value.
+	 * An await always yields; there is no immediate-answer path. The
+	 * decision is atomic with growth and seal under this monitor.
+	 */
+	void suspend(Predicate<V> ready, ResumeHandle waiter) {
 		Await.Result<V> immediate;
 		synchronized (this) {
 			// the seal read is atomic and upward-closed; a stale false parks a
@@ -115,7 +120,7 @@ public class MonotoneCell<V extends Semilattice<V>> implements Source<V> {
 		V grown;
 		synchronized (this) {
 			if (scope.isSealed()) {
-				throw new IllegalStateException("grow on a sealed source: " + delta);
+				throw new IllegalStateException("grow on a sealed channel: " + delta);
 			}
 			V combined = value.combine(delta);
 			if (combined.equals(value)) {

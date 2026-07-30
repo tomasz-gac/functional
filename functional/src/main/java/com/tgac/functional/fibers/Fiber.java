@@ -3,7 +3,7 @@ package com.tgac.functional.fibers;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.interpreter.MonotoneCell;
+import com.tgac.functional.fibers.interpreter.Channel;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
@@ -75,7 +75,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * Fork the tasks as independent frames in the calling fiber's scope. A
 	 * CONTROL primitive: the fork completes when control has drained out of
 	 * every child — each has either finished or parked itself at a
-	 * {@link Source}, fully recorded (a child yields exactly once, and done
+	 * {@link Channel}, fully recorded (a child yields exactly once, and done
 	 * is the final yield). Completion promises NOTHING about the children's
 	 * values: a parked child lives on, resumed by its source, and may keep
 	 * producing after the fork has completed. Work that must observe "all
@@ -149,7 +149,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * is never built. Use {@link #produceOrElse} when the loser has work
 	 * of its own.
 	 */
-	static <V extends Semilattice<V>> Fiber<Nothing> produce(MonotoneCell<V> cell,
+	static <V extends Semilattice<V>> Fiber<Nothing> produce(Channel<V> cell,
 			Function<Emitter<V>, Fiber<Nothing>> body) {
 		return produceOrElse(cell, body, done(Nothing.nothing()));
 	}
@@ -160,7 +160,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * runs {@code orElse} INLINE instead (in its own frame, not detached) —
 	 * the loser's {@code body} is never built.
 	 */
-	static <V extends Semilattice<V>> Fiber<Nothing> produceOrElse(MonotoneCell<V> cell,
+	static <V extends Semilattice<V>> Fiber<Nothing> produceOrElse(Channel<V> cell,
 			Function<Emitter<V>, Fiber<Nothing>> body, Fiber<Nothing> orElse) {
 		return defer(() -> cell.scope().tryClaim()
 				? new Detached<>(body.apply(delta -> new Emit<>(cell, delta)), cell.scope())
@@ -168,15 +168,15 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
-	 * Suspend until {@code ready} holds of {@code source}'s value or the
-	 * source's scope seals — the condition variable over a monotone source
+	 * Suspend until {@code ready} holds of {@code channel}'s value or the
+	 * channel's scope seals — the condition variable over a monotone value
 	 * (docs/design/await.md). The fiber does not end while blocked: its
 	 * scope's started/finished pair converts into a blocked record, so every
 	 * quiescence question stays answerable. Run-once: one await completes at
 	 * most once ({@code more} or {@code sealed}); re-arm with flatMap.
 	 */
-	static <V extends Semilattice<V>> Fiber<Await.Result<V>> await(Source<V> source, Predicate<V> ready) {
-		return new Awaiting<>(source, ready);
+	static <V extends Semilattice<V>> Fiber<Await.Result<V>> await(Channel<V> channel, Predicate<V> ready) {
+		return new Awaiting<>(channel, ready);
 	}
 
 	@Value
@@ -228,11 +228,11 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		Scope into;
 	}
 
-	/** A fiber suspended on a {@link Source} until ready or sealed. */
+	/** A fiber suspended on a {@link Channel} until ready or sealed. */
 	@Value
 	@RequiredArgsConstructor
 	class Awaiting<V extends Semilattice<V>> implements Fiber<Await.Result<V>> {
-		Source<V> source;
+		Channel<V> channel;
 		Predicate<V> ready;
 	}
 
@@ -251,7 +251,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Value
 	@RequiredArgsConstructor
 	class Emit<V extends Semilattice<V>> implements Fiber<Nothing> {
-		MonotoneCell<V> cell;
+		Channel<V> cell;
 		V delta;
 	}
 

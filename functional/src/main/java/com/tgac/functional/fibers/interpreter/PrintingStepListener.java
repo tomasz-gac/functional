@@ -46,7 +46,7 @@ public final class PrintingStepListener implements StepListener {
 
 	@Override
 	public void onAwaiting(Fiber.Awaiting<?> awaiting) {
-		out.accept("awaiting " + awaiting.getSource());
+		out.accept("awaiting " + awaiting.getChannel());
 	}
 
 	@Override

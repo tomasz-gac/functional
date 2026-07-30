@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
 // ABOUTME: A sealable scope of work: the ledger, the seal, and the group walk —
-// ABOUTME: termination detection for the workforce producing one MonotoneCell.
+// ABOUTME: termination detection for the workforce producing one Channel.
 
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The workforce half of a {@link MonotoneCell}: a {@link WorkLedger}
+ * The workforce half of a {@link Channel}: a {@link WorkLedger}
  * (running frames counted started/finished; blocked frames recorded with the
  * scope they wait at) and a SEAL — the upward-closed, CAS'd-once declaration
  * that the cell's work is finished. Racy seal reads are sound: a stale false
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * a virtual merge (docs/design/group-seal.md).
  *
  * <p>Sealing completes the cell's held waiters
- * ({@link #completeWaitersOnSeal}). Backwards propagation is frame-driven:
+ * ({@link #completeOnSeal}). Backwards propagation is frame-driven:
  * each resumed waiter's own {@code finished()} retries its scope's seal — no
  * cascade queue.
  */
@@ -180,9 +180,8 @@ public final class Scope {
 	 * records = union, HOME = membership. The walk closes {@code start} under
 	 * blocked places; a member with running work aborts (its own finished
 	 * retries), a sealed place aborts (a resume in flight — retried by the
-	 * resumed frame's finished), a null place defers forever (a wait with no
-	 * workforce). The two-phase read over the MONOTONE started counters
-	 * reconstructs atomicity without nested monitors: two equal reads bracket
+	 * resumed frame's finished). The two-phase read over the MONOTONE started
+	 * counters reconstructs atomicity without nested monitors: two equal reads bracket
 	 * an interval with no started() in it. Racing group seals arbitrate per
 	 * member by the flag CAS; every member is MARKED before any member's
 	 * waiters are completed, so the first resumed frame reads the whole ring
@@ -206,8 +205,8 @@ public final class Scope {
 				if (at == scope) {
 					continue;
 				}
-				if (at == null || at.isSealed()) {
-					// no workforce, or a resume in flight — defer
+				if (at.isSealed()) {
+					// a resume in flight — defer
 					return;
 				}
 				frontier.add(at);

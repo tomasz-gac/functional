@@ -5,7 +5,6 @@ package com.tgac.functional.fibers.interpreter;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.Fiber;
-import com.tgac.functional.fibers.Source;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -89,7 +88,7 @@ public final class Frame {
 		}
 
 		/**
-		 * The frame is parking at {@code at} — a {@link Source} for a value
+		 * The frame is parking at {@code at} — a {@link Channel} for a value
 		 * wait, a {@link Scope} for a seal wait: register it as held BEFORE
 		 * the offer, so no completion can outrun the registration.
 		 */
@@ -188,7 +187,7 @@ public final class Frame {
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private <E> boolean stepAwaiting(E entry, Effects<E> effects,
 			Fiber.Awaiting<?> awaiting) {
-		Source source = awaiting.getSource();
+		Channel channel = awaiting.getChannel();
 		Scope owner = scope;
 		// AN AWAIT ALWAYS YIELDS. Every record is placed BEFORE the offer,
 		// so no completion can outrun the bookkeeping; nothing here may
@@ -198,10 +197,10 @@ public final class Frame {
 		if (owner != null) {
 			// the blocked record shields the owner's counters until the
 			// resume is billed
-			owner.blocked(this, source.scope());
+			owner.blocked(this, channel.scope());
 		}
-		effects.suspended(entry, source);
-		source.suspend(awaiting.getReady(), handle);
+		effects.suspended(entry, channel);
+		channel.suspend(awaiting.getReady(), handle);
 		if (owner != null) {
 			// the pair closes AFTER the offer: an inline completion's
 			// resumed() lands inside this frame's still-open pair, so the
@@ -213,7 +212,7 @@ public final class Frame {
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private boolean stepEmit(Fiber.Emit<?> emit) {
-		MonotoneCell cell = emit.getCell();
+		Channel cell = emit.getCell();
 		// production is lawful only from the closing workforce: billing
 		// and production are the same statement (emit.md). The one
 		// identity check at the only place production executes.

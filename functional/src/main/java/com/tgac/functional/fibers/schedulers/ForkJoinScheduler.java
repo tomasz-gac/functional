@@ -59,7 +59,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		return delta > 0 ? pending.incrementAndGet() : pending.decrementAndGet();
 	}
 
-	/** Frames held by a Source; each keeps one pending unit open until its resume. */
+	/** Frames held by a Channel; each keeps one pending unit open until its resume. */
 	private final Map<Frame, Object> outstanding =
 			Collections.synchronizedMap(new LinkedHashMap<Frame, Object>());
 
