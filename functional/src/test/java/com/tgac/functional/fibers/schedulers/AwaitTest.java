@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.Await;
+import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.Channel;
@@ -27,7 +27,7 @@ public class AwaitTest {
 	public void awaitOnASealedChannelCompletesImmediatelyWithTheFinalValue() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
-		Await.Result<MaxInt> r = Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
+		AwaitResult<MaxInt> r = Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.flatMap(__ -> Fiber.await(cell, v -> v.value >= 1))
 				.get();
@@ -239,7 +239,7 @@ public class AwaitTest {
 		// nobody ever claims this channel's workforce - it can never seal
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
-		Fiber<Await.Result<MaxInt>> stranded = Fiber.await(cell, v -> v.value >= 1);
+		Fiber<AwaitResult<MaxInt>> stranded = Fiber.await(cell, v -> v.value >= 1);
 
 		assertThatThrownBy(stranded::get)
 				.isInstanceOf(IllegalStateException.class)

@@ -4,7 +4,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: Growth wakes held waiters; the workforce's quiescence seals and finalizes.
 
 import com.tgac.functional.algebra.Semilattice;
-import com.tgac.functional.fibers.Await;
+import com.tgac.functional.fibers.AwaitResult;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.function.Predicate;
@@ -86,14 +86,14 @@ public class Channel<V extends Semilattice<V>> {
 	 * decision is atomic with growth and seal under this monitor.
 	 */
 	void suspend(Predicate<V> ready, ResumeHandle waiter) {
-		Await.Result<V> immediate;
+		AwaitResult<V> immediate;
 		synchronized (this) {
 			// the seal read is atomic and upward-closed; a stale false parks a
 			// waiter the seal's drain then completes — never a lost waiter
 			if (scope.isSealed()) {
-				immediate = Await.Result.sealed(value);
+				immediate = AwaitResult.sealed(value);
 			} else if (ready.test(value)) {
-				immediate = Await.Result.more(value);
+				immediate = AwaitResult.more(value);
 			} else {
 				held.add(new Held<>(ready, waiter));
 				return;
@@ -137,7 +137,7 @@ public class Channel<V extends Semilattice<V>> {
 			}
 		}
 		for (Held<V> h : woken) {
-			h.waiter.complete(Await.Result.more(grown));
+			h.waiter.complete(AwaitResult.more(grown));
 		}
 	}
 
@@ -154,7 +154,7 @@ public class Channel<V extends Semilattice<V>> {
 			finalValue = value;
 		}
 		for (Held<V> h : rest) {
-			h.waiter.complete(Await.Result.sealed(finalValue));
+			h.waiter.complete(AwaitResult.sealed(finalValue));
 		}
 	}
 }

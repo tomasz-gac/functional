@@ -175,7 +175,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * quiescence question stays answerable. Run-once: one await completes at
 	 * most once ({@code more} or {@code sealed}); re-arm with flatMap.
 	 */
-	static <V extends Semilattice<V>> Fiber<Await.Result<V>> await(Channel<V> channel, Predicate<V> ready) {
+	static <V extends Semilattice<V>> Fiber<AwaitResult<V>> await(Channel<V> channel, Predicate<V> ready) {
 		return new Awaiting<>(channel, ready);
 	}
 
@@ -231,7 +231,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/** A fiber suspended on a {@link Channel} until ready or sealed. */
 	@Value
 	@RequiredArgsConstructor
-	class Awaiting<V extends Semilattice<V>> implements Fiber<Await.Result<V>> {
+	class Awaiting<V extends Semilattice<V>> implements Fiber<AwaitResult<V>> {
 		Channel<V> channel;
 		Predicate<V> ready;
 	}

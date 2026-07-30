@@ -3,7 +3,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The suspended frame's resume handle: hands the frame its result, restores
 // ABOUTME: its scope, and re-queues it - billing the resume only for value waiters.
 
-import com.tgac.functional.fibers.Await;
+import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,7 @@ public class ResumeHandle {
 	Scope owner;
 	Runnable requeue;
 
-	public void complete(Await.Result<?> result) {
+	public void complete(AwaitResult<?> result) {
 		if (owner != null) {
 			owner.resumed(frame);
 		}

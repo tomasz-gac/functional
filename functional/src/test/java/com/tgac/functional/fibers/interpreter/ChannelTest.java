@@ -7,7 +7,7 @@ import static com.tgac.functional.category.Nothing.nothing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.tgac.functional.fibers.Await;
+import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,25 +20,25 @@ public class ChannelTest {
 	 * writes the Result into the frame, and the requeue hook records it.
 	 */
 	private static final class Probe {
-		final List<Await.Result<?>> completions;
+		final List<AwaitResult<?>> completions;
 		final ResumeHandle handle;
 
-		Probe(List<Await.Result<?>> completions) {
+		Probe(List<AwaitResult<?>> completions) {
 			this.completions = completions;
 			Frame frame = new Frame(Fiber.done(nothing()));
 			this.handle = new ResumeHandle(frame, null, () ->
-					completions.add((Await.Result<?>) ((Fiber.Done<?>) frame.computation).getValue()));
+					completions.add((AwaitResult<?>) ((Fiber.Done<?>) frame.computation).getValue()));
 		}
 	}
 
-	private static ResumeHandle recording(List<Await.Result<?>> completions) {
+	private static ResumeHandle recording(List<AwaitResult<?>> completions) {
 		return new Probe(completions).handle;
 	}
 
 	@Test
 	public void growSwapsTheValueAndWakesSatisfiedWaiters() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
-		List<Await.Result<?>> completions = new ArrayList<>();
+		List<AwaitResult<?>> completions = new ArrayList<>();
 		cell.suspend(v -> v.value > 0, recording(completions));
 		cell.suspend(v -> v.value > 0, recording(completions));
 		assertThat(completions).isEmpty();
@@ -72,7 +72,7 @@ public class ChannelTest {
 
 		// the waiter believes the value is still 0 — the completion arrives
 		// at once, possibly synchronously: an await always yields
-		List<Await.Result<?>> completions = new ArrayList<>();
+		List<AwaitResult<?>> completions = new ArrayList<>();
 		cell.suspend(v -> v.value > 0, recording(completions));
 		assertThat(completions).hasSize(1);
 		assertThat(completions.get(0).getValue()).isEqualTo(MaxInt.of(1));
@@ -81,7 +81,7 @@ public class ChannelTest {
 	@Test
 	public void batchedGrowthsWakeAHeldWaiterExactlyOnce() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
-		List<Await.Result<?>> completions = new ArrayList<>();
+		List<AwaitResult<?>> completions = new ArrayList<>();
 		cell.suspend(v -> v.value > 0, recording(completions));
 
 		// the first satisfying growth completes and REMOVES the waiter; the
