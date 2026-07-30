@@ -70,6 +70,37 @@ public class SealedTest {
 	}
 
 	@Test
+	public void aSealedScopeWaitNeedsNoParkingSupport() {
+		Scope sub = Scope.scope();
+		sub.seal();
+
+		// the seal is irrevocable - the green light is already on, so the
+		// wait must complete inline on a driver whose park doors throw
+		Object[] result = new Object[1];
+		Frame.Effects<Object> effects = new Frame.Effects<Object>() {
+			@Override
+			public void completed(Object entry, Object value) {
+				result[0] = value;
+			}
+
+			@Override
+			public void forked(Object entry, List<Frame> children) {
+				throw new AssertionError("no forks in this drive");
+			}
+
+			@Override
+			public void detached(Object entry, Frame child) {
+				throw new AssertionError("no detaches in this drive");
+			}
+		};
+		Frame frame = new Frame(Fiber.sealed(sub));
+		while (frame.step(new Object(), effects, StepListener.NO_OP)) {
+		}
+
+		assertThat(result[0]).isEqualTo(nothing());
+	}
+
+	@Test
 	public void sealedOnAnUnclaimedScopeRefusesLoudly() {
 		// nothing will ever run an unclaimed workforce, so its seal can never
 		// fire: park the mistake loudly at the park, not at drive end

@@ -13,7 +13,9 @@ import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.Channel;
+import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.MaxInt;
+import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -232,6 +234,40 @@ public class AwaitTest {
 		// nothing about the child - but the drive drains the child before
 		// get() returns, so its effect is still here
 		assertThat(order).containsExactly("parent", "child");
+	}
+
+	@Test
+	public void anAwaitOnASealedChannelNeedsNoParkingSupport() {
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
+		Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
+				.flatMap(__ -> Fiber.sealed(cell.scope())).get();
+
+		// a minimal driver WITHOUT await support - the Effects park methods
+		// keep their throwing defaults. A sealed channel's answer is a
+		// constant, so the await must complete inline, never parking
+		Object[] result = new Object[1];
+		Frame.Effects<Object> effects = new Frame.Effects<Object>() {
+			@Override
+			public void completed(Object entry, Object value) {
+				result[0] = value;
+			}
+
+			@Override
+			public void forked(Object entry, List<Frame> children) {
+				throw new AssertionError("no forks in this drive");
+			}
+
+			@Override
+			public void detached(Object entry, Frame child) {
+				throw new AssertionError("no detaches in this drive");
+			}
+		};
+		Frame frame = new Frame(Fiber.await(cell, v -> v.value >= 1));
+		while (frame.step(new Object(), effects, StepListener.NO_OP)) {
+		}
+
+		assertThat(((AwaitResult<?>) result[0]).getValue()).isEqualTo(MaxInt.of(3));
+		assertThat(((AwaitResult<?>) result[0]).isSealed()).isTrue();
 	}
 
 	@Test

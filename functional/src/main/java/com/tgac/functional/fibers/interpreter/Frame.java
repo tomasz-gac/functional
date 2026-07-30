@@ -4,6 +4,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: owning the single-step interpreter every scheduler drives through step().
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -188,6 +189,15 @@ public final class Frame {
 	private <E> boolean stepAwaiting(E entry, Effects<E> effects,
 			Fiber.Awaiting<?> awaiting) {
 		Channel channel = awaiting.getChannel();
+		if (channel.isSealed()) {
+			// THE SEALED FAST PATH: sealed is irrevocable and the value FINAL
+			// (grow refuses past the seal), so the answer is a constant - no
+			// race with growth or seal exists to park against. Complete
+			// inline: the pair stays open, the frame keeps running. Only
+			// UNSEALED channels need the always-park protocol below
+			computation = Fiber.done(AwaitResult.sealed(channel.read()));
+			return true;
+		}
 		Scope owner = scope;
 		// AN AWAIT ALWAYS YIELDS. Every record is placed BEFORE the offer,
 		// so no completion can outrun the bookkeeping; nothing here may
@@ -230,6 +240,12 @@ public final class Frame {
 		if (scope == target) {
 			throw new IllegalStateException(
 					"awaits the seal of its own workforce - a wait for yourself: " + target);
+		}
+		if (target.isSealed()) {
+			// THE SEALED FAST PATH: the seal is irrevocable - the green light
+			// is already on, so complete inline; the frame keeps running
+			computation = Fiber.done(Nothing.nothing());
+			return true;
 		}
 		// an unclaimed target is NOT refused here: the claim may be riding a
 		// sibling branch still in the run queue (a forked producer), so
