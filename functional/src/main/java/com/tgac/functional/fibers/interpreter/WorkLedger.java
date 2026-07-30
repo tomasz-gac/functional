@@ -3,13 +3,10 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: A production's work ledger: the running half as two monotone counters,
 // ABOUTME: the blocked half as who-blocks-where — quiescence is both halves empty.
 
-import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.Fiber;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -22,11 +19,11 @@ import lombok.experimental.FieldDefaults;
  * judgment lives in the group walk ({@code Scope}): {@link #drainedSnapshot}
  * hands it one member's atomically-read state.
  *
- * <p>{@link #counted} is the ONE pairing discipline: started() runs
- * synchronously at wrap time (no gap for a racing quiescence check),
- * finished() when the work's fiber ends, followed by the caller's hook. A
- * leaked pair never completes (sound, useless); a doubled one completes
- * early (unsound) — every unit of work must pass through here exactly once.
+ * <p>The pairing discipline: a frame's constructor bills started()
+ * synchronously (no gap for a racing quiescence check), its finished() runs
+ * as its own final continuation. A leaked pair never completes (sound,
+ * useless); a doubled one completes early (unsound) — every unit of work
+ * passes through exactly once.
  *
  * <p>Counters and blocked records guarded by this monitor.
  */
@@ -91,17 +88,4 @@ final class WorkLedger<S, P> {
 		List<P> blockedAt;
 	}
 
-	/**
-	 * Count {@code work} as one unit of this ledger's running work. When the
-	 * work's fiber ends, {@code onFinished} runs (the seal attempt) and the fiber
-	 * it returns becomes this fiber's tail — so any work a seal spawns (the star
-	 * emit) is stepped by the same scheduler.
-	 */
-	public Fiber<Nothing> counted(Fiber<Nothing> work, Supplier<Fiber<Nothing>> onFinished) {
-		started();
-		return work.flatMap(__ -> {
-			finished();
-			return onFinished.get();
-		});
-	}
 }

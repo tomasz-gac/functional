@@ -1,13 +1,10 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: Pins the work ledger: drainedSnapshot is the walk's admission read —
+// ABOUTME: Pins the work ledger: drainedSnapshot is the walk's admission read -
 // ABOUTME: null while work runs, else counters plus the places sleepers wait at.
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.tgac.functional.category.Nothing;
-import com.tgac.functional.fibers.Fiber;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 public class WorkLedgerTest {
@@ -72,27 +69,4 @@ public class WorkLedgerTest {
 		assertThat(ledger.startedCount()).isNotEqualTo(snapshot.started);
 	}
 
-	@Test
-	public void countedTicksStartAtWrapTimeAndFinishAtFiberEnd() {
-		WorkLedger<String, String> ledger = new WorkLedger<>();
-		AtomicBoolean hookRan = new AtomicBoolean(false);
-
-		// deferred, as production work always is — a done fiber would chain
-		// its continuation eagerly at composition time
-		Fiber<Nothing> counted = ledger.counted(
-				Fiber.defer(() -> Fiber.done(Nothing.nothing())), () -> {
-					hookRan.set(true);
-					return Fiber.done(Nothing.nothing());
-				});
-
-		// started ticked synchronously at wrap time: no gap for a racing
-		// quiescence check to fall into
-		assertThat(ledger.drainedSnapshot()).isNull();
-		assertThat(hookRan.get()).isFalse();
-
-		counted.get();
-
-		assertThat(hookRan.get()).isTrue();
-		assertThat(ledger.drainedSnapshot()).isNotNull();
-	}
 }
