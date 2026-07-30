@@ -115,20 +115,19 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, FiberStep.Eff
 	}
 
 	@Override
-	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		// push options so the first is stepped first — depth-first, in clause order
-		List<Fiber<Object>> options = fork.getOptions();
-		for (int i = options.size() - 1; i >= 0; i--) {
-			entries.addFirst(new Entry(new FiberStep.Frame(options.get(i), entry.frame.scope()), DISCARD, entry.depth + 1));
+	public void forked(Entry entry, List<FiberStep.Frame> children) {
+		// push so the first child is stepped first — depth-first, in clause order
+		for (int i = children.size() - 1; i >= 0; i--) {
+			entries.addFirst(new Entry(children.get(i), DISCARD, entry.depth + 1));
 		}
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Scope into) {
+	public void detached(Entry entry, FiberStep.Frame child) {
 		// a planted workforce PREEMPTS: depth-first order must descend into
 		// the detached body (a traced box's exploration, a master's produce)
 		// before the spawner's siblings run - Prolog order for the trace
-		entries.addFirst(new Entry(new FiberStep.Frame(child, into), DISCARD, entry.depth));
+		entries.addFirst(new Entry(child, DISCARD, entry.depth));
 	}
 
 	@Override

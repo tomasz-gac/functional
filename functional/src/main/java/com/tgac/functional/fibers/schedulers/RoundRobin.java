@@ -114,17 +114,17 @@ public final class RoundRobin<A> implements Scheduler<A>, FiberStep.Effects<Roun
 	}
 
 	@Override
-	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		for (Fiber<Object> option : fork.getOptions()) {
-			entries.add(new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD));
+	public void forked(Entry entry, List<FiberStep.Frame> children) {
+		for (FiberStep.Frame child : children) {
+			entries.add(new Entry(child, DISCARD));
 		}
 		index = -1;
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Scope into) {
+	public void detached(Entry entry, FiberStep.Frame child) {
 		// runs independently; its result is discarded
-		entries.add(new Entry(new FiberStep.Frame(child, into), DISCARD));
+		entries.add(new Entry(child, DISCARD));
 	}
 
 	@Override

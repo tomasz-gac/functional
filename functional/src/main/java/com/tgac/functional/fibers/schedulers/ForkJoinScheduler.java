@@ -199,18 +199,18 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 
 		@Override
-		public void forked(Task task, Fiber.Forked<Object> fork) {
+		public void forked(Task task, List<FiberStep.Frame> children) {
 			// children spawn; the forking frame continues in its own compute loop
-			for (Fiber<Object> option : fork.getOptions()) {
-				task.spawn(new Task(new FiberStep.Frame(option, task.frame.scope()), DISCARD));
+			for (FiberStep.Frame child : children) {
+				task.spawn(new Task(child, DISCARD));
 			}
 		}
 
 		@Override
-		public void detached(Task task, Fiber<?> child, Scope into) {
+		public void detached(Task task, FiberStep.Frame child) {
 			// runs independently; its result is discarded, but the tree is not
 			// complete until it finishes
-			task.spawn(new Task(new FiberStep.Frame(child, into), DISCARD));
+			task.spawn(new Task(child, DISCARD));
 		}
 
 		@Override

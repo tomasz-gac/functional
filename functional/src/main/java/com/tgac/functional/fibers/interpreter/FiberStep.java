@@ -11,7 +11,9 @@ import com.tgac.functional.fibers.Await;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -45,8 +47,9 @@ public final class FiberStep {
 			this(computation, (Scope) null);
 		}
 
+		/** Scoped frames are MINTED BY THE INTERPRETER (billing at birth). */
 		@SuppressWarnings("unchecked")
-		public Frame(Fiber<?> computation, Scope scope) {
+		Frame(Fiber<?> computation, Scope scope) {
 			this.computation = (Fiber<Object>) computation;
 			this.scope = scope;
 			if (this.scope != null) {
@@ -86,15 +89,21 @@ public final class FiberStep {
 		void completed(E entry, Object value);
 
 		/**
-		 * Inject the fork's children as independent frames; the forking
-		 * frame continues in the same step, so the children must be queued
-		 * before it runs again. Always carries at least one option - empty
-		 * forks never reach the scheduler. Child frames inherit the forking
-		 * frame's ambient scope.
+		 * Queue the fork's children, already MINTED AND BILLED by the
+		 * interpreter (they inherit the forking frame's ambient scope, and
+		 * their birth happened under the forking frame's still-open pair —
+		 * the membership shield is the interpreter's fact, not driver
+		 * etiquette). Clause order preserved; always at least one child.
+		 * The forking frame continues in the same step, so the children
+		 * must be queued before it runs again.
 		 */
-		void forked(E entry, Fiber.Forked<Object> fork);
+		void forked(E entry, List<Frame> children);
 
-		void detached(E entry, Fiber<?> child, Scope into);
+		/**
+		 * Queue one independent child, minted and billed by the interpreter
+		 * (its scope was carried by the Detached node; null = unowned).
+		 */
+		void detached(E entry, Frame child);
 
 		/**
 		 * The resume handle for the current frame, bound to its queue entry:
@@ -200,7 +209,7 @@ public final class FiberStep {
 			Fiber.Detached<?> detached) {
 		frame.computation = Fiber.done(Nothing.nothing());
 		listener.onDetached(detached.getFiber());
-		effects.detached(entry, detached.getFiber(), detached.getInto());
+		effects.detached(entry, new Frame(detached.getFiber(), detached.getInto()));
 		return true;
 	}
 
@@ -225,7 +234,7 @@ public final class FiberStep {
 			// the pair closes AFTER the offer: an inline completion's
 			// resumed() lands inside this frame's still-open pair, so the
 			// counters are never transiently drained
-			effects.detached(entry, owner.finished(), null);
+			effects.detached(entry, new Frame(owner.finished()));
 		}
 		return false;
 	}
@@ -267,7 +276,13 @@ public final class FiberStep {
 			Fiber.Forked<Object> fork) {
 		if (fork.getOptions() != null && !fork.getOptions().isEmpty()) {
 			listener.onForked(fork);
-			effects.forked(entry, fork);
+			// minted BEFORE the parent continues: each child's birth bills
+			// under this frame's still-open pair - membership from within
+			List<Frame> children = new ArrayList<>(fork.getOptions().size());
+			for (Fiber<Object> option : fork.getOptions()) {
+				children.add(new Frame(option, frame.scope));
+			}
+			effects.forked(entry, children);
 		}
 		// fork completes immediately: the children are injected into the
 		// ambient scope and the frame continues - a fork is a CONTROL

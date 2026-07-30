@@ -14,6 +14,7 @@ import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Source;
 import com.tgac.functional.fibers.Scheduler;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -111,16 +112,16 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Fiber
 	}
 
 	@Override
-	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		for (Fiber<Object> option : fork.getOptions()) {
-			entries.offer(new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD, entry.depth + 1));
+	public void forked(Entry entry, List<FiberStep.Frame> children) {
+		for (FiberStep.Frame child : children) {
+			entries.offer(new Entry(child, DISCARD, entry.depth + 1));
 		}
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Scope into) {
+	public void detached(Entry entry, FiberStep.Frame child) {
 		// runs independently; its result is discarded
-		entries.offer(new Entry(new FiberStep.Frame(child, into), DISCARD, entry.depth));
+		entries.offer(new Entry(child, DISCARD, entry.depth));
 	}
 
 	@Override

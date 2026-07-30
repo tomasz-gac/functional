@@ -138,18 +138,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, FiberStep.E
 	}
 
 	@Override
-	public void forked(Entry entry, Fiber.Forked<Object> fork) {
-		addAll(currentDepth + 1, fork.getOptions().stream()
-				.map(option -> new Entry(new FiberStep.Frame(option, entry.frame.scope()), DISCARD))
+	public void forked(Entry entry, List<FiberStep.Frame> children) {
+		addAll(currentDepth + 1, children.stream()
+				.map(child -> new Entry(child, DISCARD))
 				.collect(Collectors.toList()));
 	}
 
 	@Override
-	public void detached(Entry entry, Fiber<?> child, Scope into) {
+	public void detached(Entry entry, FiberStep.Frame child) {
 		// runs independently; its result is discarded
 		addAll(currentDepth,
-				new ArrayList<>(Collections.singletonList(
-						new Entry(new FiberStep.Frame(child, into), DISCARD))));
+				new ArrayList<>(Collections.singletonList(new Entry(child, DISCARD))));
 	}
 
 	@Override
