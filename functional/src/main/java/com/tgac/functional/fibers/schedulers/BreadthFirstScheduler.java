@@ -106,20 +106,29 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		bucket.index = (bucket.index + 1) % bucket.entries.size();
 
 		currentDepth = bucket.depth;
-		// take the entry OUT before stepping - callbacks never remove, the
-		// loop re-adds a still-runnable frame
-		Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
-		Entry entry = bucket.entries.remove(bucket.entries.size() - 1);
-		if (bucket.entries.isEmpty()) {
-			buckets.remove(bucket);
-		} else {
-			tryPromote();
-		}
+		// STEP IN PLACE: the hot loop reads the entry and touches nothing -
+		// a runnable frame stays where it is, so the common regime (one
+		// runnable frame between parks) pays a single indexed read per step
+		// instead of a take-out, two allocations and a re-add. Only the
+		// RARE yield (a park or a completion) pays the removal. An inline
+		// completion during a park re-queues the entry through injections
+		// while it still sits here - harmless, the yield branch removes it
+		// before this step ends. Sound only under order-independent answer
+		// dedup: in-place rotation orders the search differently than
+		// take-out/re-add did, which the antichain carrier made irrelevant
+		// and the chaos harness plus the step-budget pin now guard
+		Entry entry = bucket.entries.get(bucket.index);
 		rootSink = sink;
 		currentCompleted = false;
 
-		if (entry.frame.step(entry, this, stepListener)) {
-			addAll(currentDepth, new ArrayList<>(Collections.singletonList(entry)));
+		if (!entry.frame.step(entry, this, stepListener)) {
+			Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
+			bucket.entries.remove(bucket.entries.size() - 1);
+			if (bucket.entries.isEmpty()) {
+				buckets.remove(bucket);
+			} else {
+				tryPromote();
+			}
 		}
 
 		if (currentCompleted && buckets.isEmpty()) {
