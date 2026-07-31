@@ -49,7 +49,7 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 	private boolean currentCompleted;
 
 	public BreadthFirstScheduler(Fiber<A> fiber) {
-		this(fiber, 10_000);
+		this(fiber, 100);
 	}
 
 	public BreadthFirstScheduler(Fiber<A> fiber, int iterationsForPromotion) {
