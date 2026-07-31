@@ -190,10 +190,18 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		if (entries.isEmpty()) {
 			return;
 		}
+		// DELIBERATELY checks only the peek: forks at the same parent depth
+		// therefore offer sibling depth+1 buckets instead of merging into
+		// one layer. That fragmentation is search-cost POLICY, not an
+		// accident - merging each layer into one bucket measured 5.4x on
+		// the domain-less multiplication search (July 2026), the same
+		// lesson as the bucket-persistence revert: the bucket structure
+		// shapes exploration order, and the fragmented shape is the one
+		// the engine's costs are tuned to
 		if (!buckets.isEmpty() && buckets.peek().depth == depth) {
 			buckets.peek().entries.addAll(entries);
 		} else {
-			buckets.offer(new Bucket(entries, depth, -1, 0)); // re-introduce the parent node
+			buckets.offer(new Bucket(entries, depth, -1, 0));
 		}
 	}
 
