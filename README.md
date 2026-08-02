@@ -1,9 +1,11 @@
 # functional
 
 Functional programming substrate for Java 8: stack-safe suspendable computations
-(fibers), a continuation monad, and a family of schedulers that all drive the same
-step interpreter — plus a small monad/transformer library. This is the engine room
-under [`logic`](../logic) (the miniKanren), but nothing in it knows about logic
+(fibers) with channels, scopes and termination detection; a continuation monad; a
+family of schedulers that all drive the same step interpreter; and a law-checked
+algebra library (semilattices to semirings) whose property kits ship as their own
+artifact — plus a small monad/transformer library. This is the engine room under
+[`logic`](../logic) (the miniKanren), but nothing in it knows about logic
 programming; it stands alone.
 
 ## Fibers: recursion as data
@@ -47,6 +49,7 @@ they differ only in *which suspended frame steps next*:
 | `RoundRobin` | rotate between branches |
 | `UnfairBreadthFirstScheduler` | breadth-shaped, cheaper, sacrifices the fairness guarantee |
 | `ForkJoinScheduler` | steps frames in parallel on a work-stealing pool |
+| `RandomizedScheduler` | seeded random frame choice — the chaos driver: run the same program under 24 seeds and order-independence becomes a testable property instead of a hope |
 
 Swapping schedulers never changes *what* is computed, only the order (and
 wall-clock) — `SchedulerEquivalenceTest` pins exactly that. Every
@@ -54,6 +57,30 @@ interpreter-driven scheduler accepts a `StepListener`
 (`scheduler.withListener(...)`), the observability seam: per-step callbacks for
 tracing, counting, or snapshotting a live search (`SearchInspectable` /
 `SearchSnapshot`).
+
+## Channels, scopes, and knowing when you're done
+
+Concurrency here is organized around a MONOTONE value, not message-passing.
+A `Channel<V extends Semilattice<V>>` holds a value that only grows — growth
+is the semilattice join, a delta that adds nothing refuses, and every parked
+consumer (`Fiber.await(channel, ready)`) is woken exactly by the growth it
+waits for. Production is claimed, not assumed: `Fiber.produce(channel, work)`
+is a compare-and-swap — the first claimant's body runs as the channel's
+workforce, the loser no-ops (or runs an alternative: `produceOrElse`,
+`claimOrElse`), and emission goes through the one typed door (`Emitter`).
+
+The workforce is a `Scope`: two monotone counters (started/finished,
+Dijkstra–Scholten style) plus the parked-sleeper records. When the counters
+meet and every sleeper is parked home, no new value can ever arrive — that
+is the SEAL, and it completes every waiting consumer with the final value.
+Groups of mutually-feeding channels seal together (the group walk); a drive
+that runs out of work with a consumer still parked refuses loudly and NAMES
+the channel it starved at, instead of hanging. `Worklist` is the same
+discipline for drain-to-quiescence loops.
+
+This is what `logic` builds tabling's answer cells and completion detection
+from — but the primitives are domain-free: a cell is any growing value, a
+seal is any "this monotone process is finished".
 
 ## Cont: continuations
 
@@ -77,6 +104,25 @@ under fair interleaving. Utilities: `Exceptions` (throwing lambdas without
 ceremony), `Streams` (zip and friends for `java.util.stream`), `Reference`,
 `reflection/Types` (cast helpers), `graph/` (small graph builder).
 
+## The algebra, with its laws as a shipping artifact
+
+`algebra/` is the value-discipline layer: `Semilattice` (one idempotent
+commutative associative op, direction deliberately unnamed — meet and join
+are the domain's reading of it), `PartialOrder` (entailment alone), and the
+semiring capability ladder — `Semiring`, `IdempotentSemiring` (dedup is
+lawful), `ClosedSemiring` (Kleene star), `BoundedSemiring` (`a ⊕ 1 = 1`, so
+cyclic streaming terminates), `SuperiorSemiring` (best-first commitment is
+legal). Capabilities are TYPES: a call site that needs a property demands
+the interface, so an illegal plug is a compile error.
+
+Claims are audited, not aspirational: every algebraic interface is
+`@CheckedBy` its law kit, and the `laws` module — a separate, test-scoped
+artifact — ships the property kits (`SemilatticeLaws`, `SemiringLaws`,
+`StarLaws`, …) plus `LawCoverage`, a gate that fails the build if any
+implementor lacks a claiming law test. Consumers declaring their own
+instances get the same audit by depending on `functional-laws` in test
+scope.
+
 ## Building
 
 Java 8, vavr is the only runtime dependency. Maven, currently `-SNAPSHOT`:
@@ -91,11 +137,22 @@ mvn install          # parent; builds the functional module
     <artifactId>functional</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
+<dependency>                          <!-- law kits for your own instances -->
+    <groupId>com.tgac</groupId>
+    <artifactId>functional-laws</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <scope>test</scope>
+</dependency>
 ```
 
-Consumers: [`logic`](../logic) uses `Cont`, fibers and the scheduler family as
-its search engine; the fiber substrate is deliberately isolated (it depends only
-on `category/`) so it could graduate to its own artifact if it ever needs to.
+Consumers: [`logic`](../logic) uses `Cont`, fibers, the scheduler family and
+the algebra as its search engine. The fiber substrate depends on `category/`
+and — deliberately — on `algebra/`: a channel's value is CONTRACTUALLY a
+lawful semilattice, which is what makes growth, dedup and sealing theorems
+rather than conventions. It could still graduate to its own artifact
+(together with `algebra/` and `category/`) if an external consumer ever
+wants the substrate without the monad shelf — a shelved decision with that
+trigger, not a plan.
 
 ## Status
 
