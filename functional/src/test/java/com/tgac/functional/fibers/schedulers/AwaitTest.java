@@ -148,6 +148,24 @@ public class AwaitTest {
 	}
 
 	@Test
+	public void anInnerDriveCannotEmitIntoTheOuterCell() {
+		// the nested-solve door, pinned shut: a produce body spins up its OWN
+		// inner drive and tries to use the captured outer emitter from within
+		// it - the inner drive's frames belong to a foreign workforce, so the
+		// emit refuses. Cross-drive completion is unrepresentable: this wall,
+		// computed-only seals, and no external completion primitive
+		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
+		Fiber<Nothing> program = Fiber.produce(cell, emit -> Fiber.defer(() -> {
+			new BreadthFirstScheduler<>(emit.emit(MaxInt.of(2))).get();
+			return done(nothing());
+		}));
+
+		assertThatThrownBy(program::get)
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("foreign workforce");
+	}
+
+	@Test
 	public void anEmitOnASealedCellRefusesLoudly() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
