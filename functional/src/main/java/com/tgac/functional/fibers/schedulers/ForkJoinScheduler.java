@@ -35,8 +35,10 @@ import java.util.function.Consumer;
  * trampoline uninterrupted — the pool provides interleaving. The computation
  * is complete only when every task has finished, including detached fibers,
  * so results and side effects are fully drained before {@link #get()} returns.
- * As with the executor-based schedulers, {@code run(iterations, sink)} treats
- * {@code iterations} as a millisecond budget, not a step count.
+ * A pool drive counts no steps: {@code run(iterations, sink)} refuses, and
+ * {@link #advance} drives by a poll window instead. Failure is structured —
+ * the first throwing frame fails the whole drive and cancels the rest of the
+ * tree cooperatively, at each frame's next yield.
  */
 @SuppressWarnings("unchecked")
 public final class ForkJoinScheduler<A> implements Scheduler<A> {
@@ -112,6 +114,19 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		}
 	}
 
+	/**
+	 * Fail the whole drive: first failure wins the result, and the winner
+	 * cancels the rest of the tree — cooperatively, at each frame's next
+	 * yield. A branch's exception is never survivable by its siblings: an
+	 * exception is a BUG, not search failure, and silence is the only word
+	 * the engine has for the latter.
+	 */
+	private void fail(Throwable t) {
+		if (result.completeExceptionally(t)) {
+			cancelled = true;
+		}
+	}
+
 	/** The last task to finish completes the result with the root value. */
 	private void taskFinished() {
 		int p = pendingOp(-1);
@@ -121,7 +136,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 			// means a unit was lost - refuse loudly rather than hand back a
 			// partial fixpoint
 			if (!outstanding.isEmpty()) {
-				result.completeExceptionally(new IllegalStateException(
+				fail(new IllegalStateException(
 						"drive drained with " + outstanding.size()
 								+ " frame(s) still parked: "
 								+ AwaitBoundary.describePlaces(outstanding.values())));
@@ -156,7 +171,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		lastEpoch = candidate ? e : -1;
 		lastP = candidate ? p : -1;
 		if (stable && !result.isDone()) {
-			result.completeExceptionally(new IllegalStateException(
+			fail(new IllegalStateException(
 					"scheduler exhausted: pending=" + p + " outstanding=" + size
 							+ " blocked at unsealed sources: "
 							+ AwaitBoundary.describePlaces(outstanding.values())));
@@ -185,9 +200,7 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 					// run this frame's trampoline uninterrupted
 				}
 			} catch (Throwable t) {
-				if (!result.isDone()) {
-					result.completeExceptionally(t);
-				}
+				fail(t);
 			} finally {
 				taskFinished();
 			}
@@ -293,13 +306,21 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 
 	@Override
 	public boolean run(int iterations, Consumer<? super A> sink) {
+		throw new UnsupportedOperationException(
+				"a pool drive counts no steps: run(steps) is a stepping-driver "
+						+ "contract — use advance() for bounded progress");
+	}
+
+	/** The pool's quantum is a poll window, not a step batch. */
+	@Override
+	public boolean advance(Consumer<? super A> sink) {
 		if (cancelled)
 			return true;
 		start(sink);
 		if (result.isDone())
 			return true;
 		try {
-			result.get(iterations, TimeUnit.MILLISECONDS);
+			result.get(64, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (TimeoutException e) {
@@ -339,6 +360,24 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		cancelled = true;
 		if (!result.isDone()) {
 			result.completeExceptionally(new CancellationException("ForkJoinScheduler cancelled by close()"));
+		}
+		// cooperative quiesce: in-flight trampolines see the flag at their
+		// next yield; only parked holds may remain pending. Two agreeing
+		// reads under an unchanged ops epoch certify the interval quiet —
+		// the same monotone-counter argument the group seal uses.
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+		long stableEpoch = -1;
+		while (System.nanoTime() < deadline) {
+			long epoch = opsEpoch.get();
+			if (pending.get() == outstanding.size()) {
+				if (epoch == stableEpoch) {
+					return;
+				}
+				stableEpoch = epoch;
+			} else {
+				stableEpoch = -1;
+			}
+			Thread.yield();
 		}
 	}
 }
