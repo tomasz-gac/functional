@@ -170,7 +170,18 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	/**
 	 * Suspend until {@code ready} holds of {@code channel}'s value or the
 	 * channel's scope seals — the condition variable over a monotone value
-	 * (docs/design/await.md). The fiber does not end while blocked: its
+	 * (docs/design/await.md). The predicate MUST be UPWARD-CLOSED: once true
+	 * of a value, true of every grown value ("ground", "count at least n"
+	 * qualify; "count exactly n" does not). The channel tests it only on
+	 * observed growth events, and growth may arrive in jumps — a value the
+	 * predicate would have liked may never exist as an observed value. For
+	 * an upward-closed predicate that cannot matter: waking is independent
+	 * of how growth was batched. For any other predicate, whether the wait
+	 * ever completes with {@code more} depends on delta granularity — i.e.,
+	 * on the schedule, the exact dependence this substrate exists to forbid.
+	 * (The seal still completes every held waiter with {@code sealed}, so
+	 * the mistake starves a condition, not a frame.)
+	 * The fiber does not end while blocked: its
 	 * scope's started/finished pair converts into a blocked record, so every
 	 * quiescence question stays answerable. Run-once: one await completes at
 	 * most once ({@code more} or {@code sealed}); re-arm with flatMap.

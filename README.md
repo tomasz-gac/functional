@@ -44,15 +44,18 @@ they differ only in *which suspended frame steps next*:
 
 | Scheduler | Discipline |
 |---|---|
-| `BreadthFirstScheduler` | fair and complete — a result at depth n is reached even if a sibling branch diverges |
+| `BreadthFirstScheduler` | honest BFS: one bucket per depth, round-robin within a level; a dead level crashes through after prolonged no-progress |
 | `DepthFirstScheduler` | run a branch to completion (Prolog order) |
 | `RoundRobin` | rotate between branches |
-| `UnfairBreadthFirstScheduler` | breadth-shaped, cheaper, sacrifices the fairness guarantee |
+| `UnfairBreadthFirstScheduler` | the priced search shape: fragmented sibling buckets, long-running buckets poured down a level — unfair within and across levels, and measurably faster for propagation-heavy search |
 | `ForkJoinScheduler` | steps frames in parallel on a work-stealing pool |
 | `RandomizedScheduler` | seeded random frame choice — the chaos driver: run the same program under 24 seeds and order-independence becomes a testable property instead of a hope |
 
 Swapping schedulers never changes *what* is computed, only the order (and
-wall-clock) — `SchedulerEquivalenceTest` pins exactly that. Every
+wall-clock) — `SchedulerEquivalenceTest` pins exactly that, FOR PURE
+PROGRAMS: committed choice observes arrival order by design, side-effecting
+consumers observe interleaving, and a bounded step budget observes pace. The
+invariant is the answer SET of an order-tolerant program, nothing wider. Every
 interpreter-driven scheduler accepts a `StepListener`
 (`scheduler.withListener(...)`), the observability seam: per-step callbacks for
 tracing, counting, or snapshotting a live search (`SearchInspectable` /
