@@ -43,6 +43,35 @@ public class SealedTest {
 	}
 
 	@Test
+	public void manualSealCompletesAlreadyParkedWaiters() {
+		Scope sub = Scope.scope();
+		List<String> order = new ArrayList<>();
+
+		// the waiter parks first; a sibling then seals manually — the
+		// external certificate must complete the held waiter, not strand it.
+		// The sealer dawdles long enough that the park deterministically
+		// precedes the seal under round-robin stepping.
+		Fiber<Nothing> dawdle = done(nothing());
+		for (int i = 0; i < 50; i++) {
+			dawdle = dawdle.flatMap(__ -> Fiber.defer(() -> done(nothing())));
+		}
+		Fiber<Nothing> slowSealer = dawdle.flatMap(__ -> {
+			sub.seal();
+			return done(nothing());
+		});
+		Fiber<Nothing> program = Fiber.fork(Arrays.asList(
+				Fiber.sealed(sub).flatMap(__ -> {
+					order.add("woke");
+					return done(nothing());
+				}),
+				slowSealer));
+
+		program.get();
+
+		assertThat(order).containsExactly("woke");
+	}
+
+	@Test
 	public void sealedOnASealedScopeCompletesImmediately() {
 		Scope sub = Scope.scope();
 		sub.seal();

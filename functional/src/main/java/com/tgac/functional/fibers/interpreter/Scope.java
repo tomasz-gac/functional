@@ -137,9 +137,15 @@ public final class Scope {
 		return sealed.get();
 	}
 
-	/** Manual seal — external certificates. Completes no waiter. */
+	/**
+	 * Manual seal — external certificates. The flag CAS arbitrates against a
+	 * racing group seal; the winner completes every held waiter, so a waiter
+	 * that parked before the certificate arrived is never stranded.
+	 */
 	public void seal() {
-		sealed.set(true);
+		if (sealed.compareAndSet(false, true)) {
+			completeOnSeal();
+		}
 	}
 
 	/**
