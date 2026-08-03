@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.AwaitResult;
+import com.tgac.functional.fibers.Emitter;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.Channel;
@@ -150,16 +151,20 @@ public class AwaitTest {
 	public void anEmitOnASealedCellRefusesLoudly() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
-		// a manual seal lands while the producer still runs: the late emit
-		// must refuse - growing past a delivered sealed result would falsify it
-		Fiber<Nothing> program = Fiber.produce(cell, emit -> Fiber.defer(() -> {
-			cell.seal();
-			return emit.emit(MaxInt.of(2));
-		}));
+		// a leaked emitter outlives its workforce: the late emit must refuse
+		// loudly - the emit step rejects a frame outside the channel's
+		// workforce before sealedness even matters, and the raw grow-on-sealed
+		// guard is covered on the channel itself
+		Emitter<MaxInt>[] leak = new Emitter[1];
+		Fiber.produce(cell, emit -> {
+			leak[0] = emit;
+			return done(nothing());
+		}).get();
+		assertThat(cell.isSealed()).isTrue();
 
-		assertThatThrownBy(program::get)
+		assertThatThrownBy(() -> leak[0].emit(MaxInt.of(2)).get())
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("sealed");
+				.hasMessageContaining("foreign workforce");
 	}
 
 	@Test

@@ -84,11 +84,6 @@ public class Channel<V extends Semilattice<V>> {
 		return scope.isSealed();
 	}
 
-	/** Manual seal — external certificates. Completes held waiters; see {@link Scope#seal}. */
-	public void seal() {
-		scope.seal();
-	}
-
 	/**
 	 * Take the waiter and complete it EXACTLY ONCE: immediately — possibly
 	 * synchronously, before this call returns — when {@code ready} holds of

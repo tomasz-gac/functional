@@ -97,7 +97,8 @@ public class ChannelTest {
 	@Test
 	public void growOnASealedCellRefuses() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
-		cell.seal();
+		// sealed honestly: the claimed workforce finishes without emitting
+		Fiber.produce(cell, emit -> Fiber.done(nothing())).get();
 		assertThatThrownBy(() -> cell.grow(MaxInt.of(1)))
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("sealed");

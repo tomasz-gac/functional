@@ -138,17 +138,6 @@ public final class Scope {
 	}
 
 	/**
-	 * Manual seal — external certificates. The flag CAS arbitrates against a
-	 * racing group seal; the winner completes every held waiter, so a waiter
-	 * that parked before the certificate arrived is never stranded.
-	 */
-	public void seal() {
-		if (sealed.compareAndSet(false, true)) {
-			completeOnSeal();
-		}
-	}
-
-	/**
 	 * Seal this scope if quiescent — ONE rule in code: the group walk, of
 	 * which the singleton seal is the membership-of-one case (the walk that
 	 * collects nobody but its start; home records are its internal edges).
