@@ -5,6 +5,7 @@ package com.tgac.functional.fibers.interpreter;
 
 import com.tgac.functional.fibers.AwaitResult;
 import com.tgac.functional.fibers.Fiber;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -40,8 +41,10 @@ public class ResumeHandle {
 	Frame frame;
 	Scope owner;
 	Runnable requeue;
+	AtomicBoolean completed = new AtomicBoolean();
 
 	public void complete(AwaitResult<?> result) {
+		claimOnce();
 		if (owner != null) {
 			owner.resumed(frame);
 		}
@@ -50,7 +53,19 @@ public class ResumeHandle {
 
 	/** The seal's completion of a billed-through waiter — no re-billing. */
 	void resume(Object value) {
+		claimOnce();
 		deliver(value);
+	}
+
+	/**
+	 * Exactly-once is structural (the channel removes a held waiter under its
+	 * monitor before completing it) — this pin makes a breach loud: a second
+	 * completion would re-bill and step the same frame twice concurrently.
+	 */
+	private void claimOnce() {
+		if (!completed.compareAndSet(false, true)) {
+			throw new IllegalStateException("resume handle completed twice for " + frame);
+		}
 	}
 
 	private void deliver(Object value) {
