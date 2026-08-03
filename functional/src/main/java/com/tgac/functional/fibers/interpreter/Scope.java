@@ -178,6 +178,13 @@ public final class Scope {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return name != null
+				? "scope(" + name + ")"
+				: "scope@" + Integer.toHexString(System.identityHashCode(this));
+	}
+	
 	/**
 	 * THE GROUP SEAL — the singleton rule applied to a VIRTUAL MERGE
 	 * (docs/design/group-seal.md): ledger = sum of the members', blocked
@@ -191,13 +198,6 @@ public final class Scope {
 	 * waiters are completed, so the first resumed frame reads the whole ring
 	 * as sealed.
 	 */
-	@Override
-	public String toString() {
-		return name != null
-				? "scope(" + name + ")"
-				: "scope@" + Integer.toHexString(System.identityHashCode(this));
-	}
-
 	private static void groupSeal(Scope start) {
 		LinkedHashMap<Scope, Long> members = new LinkedHashMap<>();
 		ArrayDeque<Scope> frontier = new ArrayDeque<>();
