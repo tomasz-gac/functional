@@ -14,7 +14,6 @@ import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
@@ -103,6 +102,11 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 
 		Bucket bucket = buckets.peek();
 		++bucket.iterations;
+		// the valve check lives on the hot path: a bucket whose frames never
+		// yield (a spinner) would otherwise never be re-examined at all —
+		// promotion gated on yields starves by construction
+		tryPromote();
+		bucket = buckets.peek();
 		bucket.index = (bucket.index + 1) % bucket.entries.size();
 
 		currentDepth = bucket.depth;
@@ -126,8 +130,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 			bucket.entries.remove(bucket.entries.size() - 1);
 			if (bucket.entries.isEmpty()) {
 				buckets.remove(bucket);
-			} else {
-				tryPromote();
 			}
 		}
 
@@ -176,13 +178,13 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 	}
 
 	private void tryPromote() {
+		// poll-then-peek: the merge target must be the NEXT-SHALLOWEST bucket,
+		// and only the queue's ordered operations promise that — the iterator
+		// walks the heap array, whose position 1 is an arbitrary child
 		Bucket current = buckets.peek();
 		if (current != null && current.iterations > iterationsForPromotion && buckets.size() > 1) {
-			Iterator<Bucket> it = buckets.iterator();
-			Bucket first = it.next();
-			Bucket second = it.next();
-			second.entries.addAll(first.entries);
-			buckets.poll();
+			Bucket promoted = buckets.poll();
+			buckets.peek().entries.addAll(promoted.entries);
 		}
 	}
 
