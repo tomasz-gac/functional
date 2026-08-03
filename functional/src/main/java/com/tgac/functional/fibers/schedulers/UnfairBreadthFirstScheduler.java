@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
-// ABOUTME: Depth-ordered scheduler that always steps the shallowest frame.
-// ABOUTME: A driver over Frame — unfair because a shallow frame can starve deeper ones.
+// ABOUTME: The fast scheduler: fragmented sibling buckets, long-running buckets poured
+// ABOUTME: down a level - unfair within and across levels, and PRICED that way on purpose.
 
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
@@ -11,26 +11,30 @@ import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.SearchSnapshot;
 import com.tgac.functional.fibers.interpreter.StepListener;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import lombok.AccessLevel;
+import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @SuppressWarnings("unchecked")
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effects<UnfairBreadthFirstScheduler.Entry>, SearchInspectable {
 
 	private static final Consumer<Object> DISCARD = value -> {
 	};
 
-	private final PriorityQueue<Entry> entries;
-	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
+	private final PriorityQueue<Bucket> buckets;
+	private final int iterationsForPromotion;
 	private StepListener stepListener = StepListener.NO_OP;
+
+	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
 
 	@Override
 	public UnfairBreadthFirstScheduler<A> withListener(StepListener listener) {
@@ -38,13 +42,25 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 		return this;
 	}
 
+	// the entry being stepped and the sink of the current step() call
+	private int currentDepth;
 	private Consumer<? super A> rootSink;
 	private boolean currentCompleted;
 
 	public static <A> UnfairBreadthFirstScheduler<A> of(Fiber<A> fiber) {
-		PriorityQueue<Entry> entries = new PriorityQueue<>(Comparator.comparingInt(Entry::getDepth));
-		entries.add(new Entry(new Frame(fiber), null, 0));
-		return new UnfairBreadthFirstScheduler<>(entries);
+		return new UnfairBreadthFirstScheduler<>(fiber);
+	}
+
+	public UnfairBreadthFirstScheduler(Fiber<A> fiber) {
+		this(fiber, 100);
+	}
+
+	public UnfairBreadthFirstScheduler(Fiber<A> fiber, int iterationsForPromotion) {
+		this.buckets = new PriorityQueue<>(Comparator.comparingInt(Bucket::getDepth));
+		ArrayList<Entry> entries = new ArrayList<>(1);
+		entries.add(new Entry(new Frame(fiber), null));
+		buckets.add(new Bucket(entries, 0, -1, 0));
+		this.iterationsForPromotion = iterationsForPromotion;
 	}
 
 	@Override
@@ -53,7 +69,7 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 			if (step(sink))
 				return true;
 		}
-		return entries.isEmpty() && awaits.quiet();
+		return buckets.isEmpty() && awaits.quiet();
 	}
 
 	@Override
@@ -82,21 +98,46 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		awaits.drainInto(entries::offer);
-		if (entries.isEmpty()) {
+		awaits.drainInto(this::add);
+		if (buckets.isEmpty()) {
 			awaits.refuseStranded();
 			return true;
 		}
 
-		Entry entry = entries.poll();
+		Bucket bucket = buckets.peek();
+		++bucket.iterations;
+		// the valve check lives on the hot path: a bucket whose frames never
+		// yield (a spinner) would otherwise never be re-examined at all —
+		// promotion gated on yields starves by construction
+		tryPromote();
+		bucket = buckets.peek();
+		bucket.index = (bucket.index + 1) % bucket.entries.size();
+
+		currentDepth = bucket.depth;
+		// STEP IN PLACE: the hot loop reads the entry and touches nothing -
+		// a runnable frame stays where it is, so the common regime (one
+		// runnable frame between parks) pays a single indexed read per step
+		// instead of a take-out, two allocations and a re-add. Only the
+		// RARE yield (a park or a completion) pays the removal. An inline
+		// completion during a park re-queues the entry through injections
+		// while it still sits here - harmless, the yield branch removes it
+		// before this step ends. Sound only under order-independent answer
+		// dedup: in-place rotation orders the search differently than
+		// take-out/re-add did, which the antichain carrier made irrelevant
+		// and the chaos harness plus the step-budget pin now guard
+		Entry entry = bucket.entries.get(bucket.index);
 		rootSink = sink;
 		currentCompleted = false;
 
-		if (entry.frame.step(entry, this, stepListener)) {
-			entries.offer(entry);
+		if (!entry.frame.step(entry, this, stepListener)) {
+			Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
+			bucket.entries.remove(bucket.entries.size() - 1);
+			if (bucket.entries.isEmpty()) {
+				buckets.remove(bucket);
+			}
 		}
 
-		if (currentCompleted && entries.isEmpty()) {
+		if (currentCompleted && buckets.isEmpty()) {
 			// the root-completion ending must consult the held registry too:
 			// no runnable work remains, so any frame still parked is dead -
 			// ending silently would abandon a deadlock without a word
@@ -118,15 +159,16 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 
 	@Override
 	public void forked(Entry entry, List<Frame> children) {
-		for (Frame child : children) {
-			entries.offer(new Entry(child, DISCARD, entry.depth + 1));
-		}
+		addAll(currentDepth + 1, children.stream()
+				.map(child -> new Entry(child, DISCARD))
+				.collect(Collectors.toList()));
 	}
 
 	@Override
 	public void detached(Entry entry, Frame child) {
 		// runs independently; its result is discarded
-		entries.offer(new Entry(child, DISCARD, entry.depth));
+		addAll(currentDepth,
+				new ArrayList<>(Collections.singletonList(new Entry(child, DISCARD))));
 	}
 
 	@Override
@@ -139,11 +181,53 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 		awaits.held(entry, at);
 	}
 
+	private void tryPromote() {
+		// poll-then-peek: the merge target must be the NEXT-SHALLOWEST bucket,
+		// and only the queue's ordered operations promise that — the iterator
+		// walks the heap array, whose position 1 is an arbitrary child
+		Bucket current = buckets.peek();
+		if (current != null && current.iterations > iterationsForPromotion && buckets.size() > 1) {
+			Bucket promoted = buckets.poll();
+			buckets.peek().entries.addAll(promoted.entries);
+		}
+	}
+
+	private void addAll(int depth, List<Entry> entries) {
+		if (entries.isEmpty()) {
+			return;
+		}
+		// DELIBERATELY checks only the peek: forks at the same parent depth
+		// therefore offer sibling depth+1 buckets instead of merging into
+		// one layer. That fragmentation is search-cost POLICY, not an
+		// accident - merging each layer into one bucket measured 5.4x on
+		// the domain-less multiplication search (July 2026), the same
+		// lesson as the bucket-persistence revert: the bucket structure
+		// shapes exploration order, and the fragmented shape is the one
+		// the engine's costs are tuned to
+		if (!buckets.isEmpty() && buckets.peek().depth == depth) {
+			buckets.peek().entries.addAll(entries);
+		} else {
+			buckets.offer(new Bucket(entries, depth, -1, 0));
+		}
+	}
+
+	private void add(Entry entry) {
+		if (buckets.isEmpty()) {
+			List<Entry> entries = new ArrayList<>(1);
+			entries.add(entry);
+			buckets.offer(new Bucket(entries, 0, -1, 0)); // re-introduce the parent node
+		} else {
+			buckets.peek().entries.add(entry);
+		}
+	}
+
 	@Override
 	public SearchSnapshot snapshot() {
 		SearchSnapshot.Builder b = new SearchSnapshot.Builder();
-		for (Entry entry : entries) {
-			b.add(entry.getDepth(), entry.frame);
+		for (Bucket bucket : buckets) {
+			for (Entry entry : bucket.entries) {
+				b.add(bucket.depth, entry.frame);
+			}
 		}
 		return b.build();
 	}
@@ -157,7 +241,14 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 	static final class Entry {
 		final Frame frame;
 		final Consumer<Object> sink; // null delivers to the root sink
+	}
+
+	@AllArgsConstructor
+	private static final class Bucket {
+		final List<Entry> entries;
 		@Getter
 		final int depth;
+		int index;
+		int iterations;
 	}
 }

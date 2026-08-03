@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.schedulers;
 
-// ABOUTME: The default scheduler: depth-bucketed frames stepped round-robin within the
-// ABOUTME: shallowest bucket, with long-running buckets promoted to keep disjunction fair.
+// ABOUTME: The default scheduler: honest breadth-first order - ONE bucket per depth,
+// ABOUTME: round-robin within a level; a dead level crashes through on prolonged no-progress.
 
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
@@ -14,6 +14,8 @@ import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
@@ -31,7 +33,9 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 	};
 
 	private final PriorityQueue<Bucket> buckets;
-	private final int iterationsForPromotion;
+	/** The level index: proper joining means one bucket per depth, always. */
+	private final Map<Integer, Bucket> byDepth = new HashMap<>();
+	private final int crashThreshold;
 	private StepListener stepListener = StepListener.NO_OP;
 
 	private final AwaitBoundary<Entry> awaits = new AwaitBoundary<>();
@@ -48,15 +52,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 	private boolean currentCompleted;
 
 	public BreadthFirstScheduler(Fiber<A> fiber) {
-		this(fiber, 100);
+		this(fiber, 10_000);
 	}
 
-	public BreadthFirstScheduler(Fiber<A> fiber, int iterationsForPromotion) {
+	public BreadthFirstScheduler(Fiber<A> fiber, int crashThreshold) {
 		this.buckets = new PriorityQueue<>(Comparator.comparingInt(Bucket::getDepth));
 		ArrayList<Entry> entries = new ArrayList<>(1);
+		Bucket root = new Bucket(entries, 0, -1, 0);
 		entries.add(new Entry(new Frame(fiber), null));
-		buckets.add(new Bucket(entries, 0, -1, 0));
-		this.iterationsForPromotion = iterationsForPromotion;
+		buckets.add(root);
+		byDepth.put(0, root);
+		this.crashThreshold = crashThreshold;
 	}
 
 	@Override
@@ -101,11 +107,10 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		}
 
 		Bucket bucket = buckets.peek();
-		++bucket.iterations;
-		// the valve check lives on the hot path: a bucket whose frames never
-		// yield (a spinner) would otherwise never be re-examined at all —
-		// promotion gated on yields starves by construction
-		tryPromote();
+		++bucket.sinceProgress;
+		// the hatch lives on the hot path (a spinner never yields, so a
+		// yield-gated check would never see it); one compare per step
+		tryCrash();
 		bucket = buckets.peek();
 		bucket.index = (bucket.index + 1) % bucket.entries.size();
 
@@ -126,10 +131,13 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		currentCompleted = false;
 
 		if (!entry.frame.step(entry, this, stepListener)) {
+			// a frame left the bucket: that is progress, the level is alive
+			bucket.sinceProgress = 0;
 			Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
 			bucket.entries.remove(bucket.entries.size() - 1);
 			if (bucket.entries.isEmpty()) {
 				buckets.remove(bucket);
+				byDepth.remove(bucket.depth);
 			}
 		}
 
@@ -177,14 +185,14 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		awaits.held(entry, at);
 	}
 
-	private void tryPromote() {
-		// poll-then-peek: the merge target must be the NEXT-SHALLOWEST bucket,
-		// and only the queue's ordered operations promise that — the iterator
-		// walks the heap array, whose position 1 is an arbitrary child
+	private void tryCrash() {
 		Bucket current = buckets.peek();
-		if (current != null && current.iterations > iterationsForPromotion && buckets.size() > 1) {
-			Bucket promoted = buckets.poll();
-			buckets.peek().entries.addAll(promoted.entries);
+		if (current != null && current.sinceProgress > crashThreshold && buckets.size() > 1) {
+			Bucket crashed = buckets.poll();
+			byDepth.remove(crashed.depth);
+			Bucket target = buckets.peek();
+			target.entries.addAll(crashed.entries);
+			target.sinceProgress = 0;
 		}
 	}
 
@@ -192,18 +200,17 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		if (entries.isEmpty()) {
 			return;
 		}
-		// DELIBERATELY checks only the peek: forks at the same parent depth
-		// therefore offer sibling depth+1 buckets instead of merging into
-		// one layer. That fragmentation is search-cost POLICY, not an
-		// accident - merging each layer into one bucket measured 5.4x on
-		// the domain-less multiplication search (July 2026), the same
-		// lesson as the bucket-persistence revert: the bucket structure
-		// shapes exploration order, and the fragmented shape is the one
-		// the engine's costs are tuned to
-		if (!buckets.isEmpty() && buckets.peek().depth == depth) {
-			buckets.peek().entries.addAll(entries);
+		// PROPER JOINING: one bucket per depth, always - honest breadth-first
+		// order. The fragmented sibling-bucket shape (measured ~5x faster on
+		// the domain-less multiplication search, July 2026) lives in
+		// UnfairBreadthFirstScheduler; speed-sensitive searches choose it
+		Bucket level = byDepth.get(depth);
+		if (level != null) {
+			level.entries.addAll(entries);
 		} else {
-			buckets.offer(new Bucket(entries, depth, -1, 0));
+			Bucket fresh = new Bucket(entries, depth, -1, 0);
+			buckets.offer(fresh);
+			byDepth.put(depth, fresh);
 		}
 	}
 
@@ -211,7 +218,9 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		if (buckets.isEmpty()) {
 			List<Entry> entries = new ArrayList<>(1);
 			entries.add(entry);
-			buckets.offer(new Bucket(entries, 0, -1, 0)); // re-introduce the parent node
+			Bucket root = new Bucket(entries, 0, -1, 0); // re-introduce the parent node
+			buckets.offer(root);
+			byDepth.put(0, root);
 		} else {
 			buckets.peek().entries.add(entry);
 		}
@@ -245,6 +254,6 @@ public final class BreadthFirstScheduler<A> implements Scheduler<A>, Frame.Effec
 		@Getter
 		final int depth;
 		int index;
-		int iterations;
+		int sinceProgress;
 	}
 }
