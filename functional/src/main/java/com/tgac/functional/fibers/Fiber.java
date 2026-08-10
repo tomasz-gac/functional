@@ -73,14 +73,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	/**
 	 * Fork the tasks as independent frames in the calling fiber's scope. A
-	 * CONTROL primitive: the fork completes when control has drained out of
-	 * every child — each has either finished or parked itself at a
-	 * {@link Channel}, fully recorded (a child yields exactly once, and done
-	 * is the final yield). Completion promises NOTHING about the children's
-	 * values: a parked child lives on, resumed by its source, and may keep
-	 * producing after the fork has completed. Work that must observe "all
-	 * results are in" awaits a source's seal instead — quiescence of the
-	 * producing workforce is the only honest end-of-stream.
+	 * CONTROL primitive and a pure scatter: the fork completes IMMEDIATELY —
+	 * the children are injected into the ambient scope and the parent
+	 * continues. Completion promises NOTHING about the children, not even
+	 * that control has entered them; their births are billed under the
+	 * parent's still-open pair, so the workforce accounting sees them from
+	 * the start. Work that must observe "all results are in" awaits a
+	 * source's seal instead — quiescence of the producing workforce is the
+	 * only honest end-of-stream, parked members accounted.
 	 */
 	static <A> Fiber<Nothing> fork(List<Fiber<A>> tasks) {
 		return new Forked<A>(tasks)
