@@ -1,34 +1,18 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: Thread-local marker for "an engine is driving on this thread",
-// ABOUTME: plus the calibrated eager-application budget for Done.flatMap.
+// ABOUTME: The calibrated eager-application budget bounding JVM-stack nesting
+// ABOUTME: of Done.flatMap applies — probed, settable, floored.
 
 import com.tgac.functional.fibers.Fiber;
 
 /**
- * A reentrancy depth per thread, entered by every scheduler drive entry
- * (including parallel workers) — the marker for "an engine is driving on
- * this thread". Deliberate nesting has one sanctioned shape: the
- * deprecated-as-marker {@code Fiber.ground}, a FRESH scheduler run
- * explicitly over a pure fiber.
+ * The eager-application budget for {@code Done.flatMap}. Deliberate engine
+ * nesting has one sanctioned shape: the deprecated-as-marker
+ * {@code Fiber.ground}, a FRESH scheduler run explicitly over a pure fiber.
  */
 public final class EngineGuard {
 
-	private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
-
 	private EngineGuard() {
-	}
-
-	public static void enter() {
-		DEPTH.get()[0]++;
-	}
-
-	public static void exit() {
-		DEPTH.get()[0]--;
-	}
-
-	public static boolean driving() {
-		return DEPTH.get()[0] > 0;
 	}
 
 	/**

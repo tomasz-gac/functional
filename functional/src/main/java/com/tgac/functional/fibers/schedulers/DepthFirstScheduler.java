@@ -6,7 +6,6 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -83,35 +82,31 @@ public final class DepthFirstScheduler<A> implements Scheduler<A>, Frame.Effects
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		EngineGuard.enter();
-		try {		// injected resumes do not preempt the current branch - like detached
-			// a resumed frame PREEMPTS, like a claimed tree: the woken box's
-			// delivery must finish before its spawner's siblings run
-			awaits.drainInto(entries::addFirst);
-			if (entries.isEmpty()) {
-				awaits.refuseStranded();
-				return true;
-			}
-
-			Entry entry = entries.pollFirst();
-			rootSink = sink;
-			currentCompleted = false;
-
-			if (entry.frame.step(entry, this, stepListener)) {
-				entries.addFirst(entry);
-			}
-
-			if (currentCompleted && entries.isEmpty()) {
-				// the root-completion ending must consult the held registry too:
-				// no runnable work remains, so any frame still parked is dead -
-				// ending silently would abandon a deadlock without a word
-				awaits.refuseStranded();
-				return true;
-			}
-			return false;
-		} finally {
-			EngineGuard.exit();
+		// injected resumes do not preempt the current branch - like detached
+		// a resumed frame PREEMPTS, like a claimed tree: the woken box's
+		// delivery must finish before its spawner's siblings run
+		awaits.drainInto(entries::addFirst);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
+			return true;
 		}
+
+		Entry entry = entries.pollFirst();
+		rootSink = sink;
+		currentCompleted = false;
+
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.addFirst(entry);
+		}
+
+		if (currentCompleted && entries.isEmpty()) {
+			// the root-completion ending must consult the held registry too:
+			// no runnable work remains, so any frame still parked is dead -
+			// ending silently would abandon a deadlock without a word
+			awaits.refuseStranded();
+			return true;
+		}
+		return false;
 	}
 
 	@Override

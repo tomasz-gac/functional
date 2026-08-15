@@ -6,7 +6,6 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -83,34 +82,30 @@ public final class RoundRobin<A> implements Scheduler<A>, Frame.Effects<RoundRob
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		EngineGuard.enter();
-		try {		awaits.drainInto(entries::add);
-			if (entries.isEmpty()) {
-				awaits.refuseStranded();
-				return true;
-			}
-
-			index = (index + 1) % entries.size();
-			Collections.swap(entries, index, entries.size() - 1);
-			Entry entry = entries.remove(entries.size() - 1);
-			rootSink = sink;
-			currentCompleted = false;
-
-			if (entry.frame.step(entry, this, stepListener)) {
-				entries.add(entry);
-			}
-
-			if (currentCompleted && entries.isEmpty()) {
-				// the root-completion ending must consult the held registry too:
-				// no runnable work remains, so any frame still parked is dead -
-				// ending silently would abandon a deadlock without a word
-				awaits.refuseStranded();
-				return true;
-			}
-			return false;
-		} finally {
-			EngineGuard.exit();
+		awaits.drainInto(entries::add);
+		if (entries.isEmpty()) {
+			awaits.refuseStranded();
+			return true;
 		}
+
+		index = (index + 1) % entries.size();
+		Collections.swap(entries, index, entries.size() - 1);
+		Entry entry = entries.remove(entries.size() - 1);
+		rootSink = sink;
+		currentCompleted = false;
+
+		if (entry.frame.step(entry, this, stepListener)) {
+			entries.add(entry);
+		}
+
+		if (currentCompleted && entries.isEmpty()) {
+			// the root-completion ending must consult the held registry too:
+			// no runnable work remains, so any frame still parked is dead -
+			// ending silently would abandon a deadlock without a word
+			awaits.refuseStranded();
+			return true;
+		}
+		return false;
 	}
 
 	@Override
