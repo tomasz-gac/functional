@@ -1,7 +1,7 @@
 package com.tgac.functional.fibers.interpreter;
 
-// ABOUTME: The calibrated eager budget: probed from real stack capacity via the
-// ABOUTME: actual Done.flatMap path, settable, and receipted against fresh stacks.
+// ABOUTME: The eager budget: a small fixed default receipted against fresh
+// ABOUTME: stacks, settable, bounding nesting; zero is pure laziness.
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,20 +9,13 @@ import com.tgac.functional.fibers.Fiber;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("deprecation")
-public class EagerBudgetCalibrationTest {
-
-	@Test
-	public void theProbeMeasuresThousandsOfRealAppliesOnADefaultStack() {
-		// probe frames are real eager applies; any sane stack fits far more
-		// than the floor times the margin
-		assertThat(EngineGuard.probeCapacity()).isGreaterThanOrEqualTo(256);
-	}
+public class EagerBudgetTest {
 
 	@Test
 	public void aBudgetLengthChainOfRealAppliesFitsAFreshDefaultStack() throws InterruptedException {
-		// THE RECEIPT: the margin must leave a calibrated budget's worth of
-		// real applies safely inside a default thread stack
-		int budget = Math.max(64, EngineGuard.probeCapacity() / 4);
+		// the default's stack-exposure receipt: budget × real apply frames
+		// on a fresh default-stack thread
+		int budget = EngineGuard.eagerBudget();
 		int[] reached = new int[1];
 		Throwable[] failed = new Throwable[1];
 		Thread t = new Thread(() -> {
@@ -32,23 +25,16 @@ public class EagerBudgetCalibrationTest {
 				failed[0] = e;
 			}
 		}, "budget-receipt");
-		int pinned = EngineGuard.eagerBudget();
-		try {
-			// the receipt certifies the CALIBRATED budget, not the suite's pin
-			EngineGuard.setEagerBudget(budget);
-			t.start();
-			t.join();
-		} finally {
-			EngineGuard.setEagerBudget(pinned);
-		}
+		t.start();
+		t.join();
 		assertThat(failed[0]).isNull();
 		assertThat(reached[0]).isEqualTo(budget);
 	}
 
 	@Test
 	public void heavyContinuationsSurviveTheBudget() throws InterruptedException {
-		// continuations with fat frames bound the margin's weight assumption
-		int budget = Math.max(64, EngineGuard.probeCapacity() / 4);
+		// continuations with fat frames bound the worst-case exposure
+		int budget = EngineGuard.eagerBudget();
 		long[] sum = new long[1];
 		int[] reached = new int[1];
 		Throwable[] failed = new Throwable[1];
@@ -59,14 +45,8 @@ public class EagerBudgetCalibrationTest {
 				failed[0] = e;
 			}
 		}, "budget-receipt-heavy");
-		int pinned = EngineGuard.eagerBudget();
-		try {
-			EngineGuard.setEagerBudget(budget);
-			t.start();
-			t.join();
-		} finally {
-			EngineGuard.setEagerBudget(pinned);
-		}
+		t.start();
+		t.join();
 		assertThat(failed[0]).isNull();
 		assertThat(reached[0]).isEqualTo(budget);
 	}
@@ -87,10 +67,12 @@ public class EagerBudgetCalibrationTest {
 	@Test
 	public void budgetZeroIsPureLazinessWithTheSameValue() {
 		int old = EngineGuard.eagerBudget();
-		int eagerValue = deep(20).getDone("calibration test");
+		Fiber<Integer> eager = deep(2);
+		assertThat(eager.isDone()).isTrue();
+		int eagerValue = eager.getDone("budget test");
 		try {
 			EngineGuard.setEagerBudget(0);
-			Fiber<Integer> lazy = deep(20);
+			Fiber<Integer> lazy = deep(2);
 			assertThat(lazy.isDone()).isFalse();
 			assertThat(lazy.ground()).isEqualTo(eagerValue);
 		} finally {
