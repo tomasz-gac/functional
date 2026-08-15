@@ -221,15 +221,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Fiber<A> {
 		/**
-		 * Eager application is bounded: below the budget the continuation
-		 * runs on the caller's stack at construction (Done-ness preserved
-		 * for shallow chains — the guards downstream lean on it); at the
-		 * budget a node is built and the chain trampolines through the
-		 * scheduler. Recursion-in-continuation is thereby stack-safe;
-		 * loop-shaped accumulation never nests and never pays the node.
+		 * Eager application is bounded: below the calibrated budget
+		 * ({@link EngineGuard}) the continuation runs on the caller's stack
+		 * at construction (Done-ness preserved for shallow chains — the
+		 * guards downstream lean on it); at the budget a node is built and
+		 * the chain trampolines through the scheduler.
+		 * Recursion-in-continuation is thereby stack-safe; loop-shaped
+		 * accumulation never nests and never pays the node.
 		 */
-		private static final int EAGER_BUDGET = 512;
-
 		A value;
 
 		public A get() {
@@ -238,7 +237,7 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 
 		@Override
 		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
-			if (!EngineGuard.eagerBudgetLeft(EAGER_BUDGET)) {
+			if (!EngineGuard.eagerBudgetLeft()) {
 				return FlatMap.of(f, this);
 			}
 			EngineGuard.eagerPush();
