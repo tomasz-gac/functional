@@ -6,6 +6,7 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -93,32 +94,36 @@ public final class RandomizedScheduler<A> implements Scheduler<A>, Frame.Effects
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		awaits.drainInto(entries::add);
-		if (entries.isEmpty()) {
-			awaits.refuseStranded();
-			return true;
-		}
+		EngineGuard.enter();
+		try {		awaits.drainInto(entries::add);
+			if (entries.isEmpty()) {
+				awaits.refuseStranded();
+				return true;
+			}
 
-		// THE CHAOS: a uniformly random runnable frame, taken out before
-		// stepping (callbacks never remove; the loop re-adds a runnable one)
-		int index = random.nextInt(entries.size());
-		Collections.swap(entries, index, entries.size() - 1);
-		Entry entry = entries.remove(entries.size() - 1);
-		rootSink = sink;
-		currentCompleted = false;
+			// THE CHAOS: a uniformly random runnable frame, taken out before
+			// stepping (callbacks never remove; the loop re-adds a runnable one)
+			int index = random.nextInt(entries.size());
+			Collections.swap(entries, index, entries.size() - 1);
+			Entry entry = entries.remove(entries.size() - 1);
+			rootSink = sink;
+			currentCompleted = false;
 
-		if (entry.frame.step(entry, this, stepListener)) {
-			entries.add(entry);
-		}
+			if (entry.frame.step(entry, this, stepListener)) {
+				entries.add(entry);
+			}
 
-		if (currentCompleted && entries.isEmpty()) {
-			// the root-completion ending must consult the held registry too:
-			// no runnable work remains, so any frame still parked is dead -
-			// ending silently would abandon a deadlock without a word
-			awaits.refuseStranded();
-			return true;
+			if (currentCompleted && entries.isEmpty()) {
+				// the root-completion ending must consult the held registry too:
+				// no runnable work remains, so any frame still parked is dead -
+				// ending silently would abandon a deadlock without a word
+				awaits.refuseStranded();
+				return true;
+			}
+			return false;
+		} finally {
+			EngineGuard.exit();
 		}
-		return false;
 	}
 
 	@Override

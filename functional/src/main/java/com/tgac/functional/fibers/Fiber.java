@@ -1,5 +1,6 @@
 package com.tgac.functional.fibers;
 
+import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
@@ -54,6 +55,12 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Override
 	@SneakyThrows
 	default A get() {
+		if (EngineGuard.driving() && !isDone()) {
+			throw new IllegalStateException(
+					"Fiber.get on a non-Done fiber inside a running engine — nested "
+							+ "grounding forbidden; compose fibers or run a fresh "
+							+ "scheduler explicitly (the workforce protocol)");
+		}
 		try (var e = toEngine()) {
 			return e.get();
 		}
@@ -61,6 +68,23 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 	default boolean isDone() {
 		return false;
+	}
+
+	/**
+	 * The loud extractor for fiber-resident code: requires Done. Where a
+	 * call site KNOWS its fiber must already be complete (the eager
+	 * budget's guarantee for shallow chains), this turns a broken
+	 * assumption into an exception naming the site instead of a silent
+	 * nested engine.
+	 */
+	default A getDone(String context) {
+		if (!isDone()) {
+			throw new IllegalStateException(context
+					+ ": fiber not Done — the eager-flatMap contract is broken"
+					+ " (chain exceeded the eager budget, or a lazy node crept in);"
+					+ " nested grounding forbidden");
+		}
+		return get();
 	}
 
 	default Scheduler<A> toEngine() {
@@ -193,6 +217,18 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	@Value
 	@RequiredArgsConstructor(staticName = "of")
 	class Done<A> implements Fiber<A> {
+		/**
+		 * Eager application is bounded: below the budget the continuation
+		 * runs on the caller's stack at construction (Done-ness preserved
+		 * for shallow chains — the guards downstream lean on it); at the
+		 * budget a node is built and the chain trampolines through the
+		 * scheduler. Recursion-in-continuation is thereby stack-safe;
+		 * loop-shaped accumulation never nests and never pays the node.
+		 */
+		private static final int EAGER_BUDGET = 512;
+		private static final ThreadLocal<int[]> EAGER_DEPTH =
+				ThreadLocal.withInitial(() -> new int[1]);
+
 		A value;
 
 		@Override
@@ -202,7 +238,16 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 		@Override
 		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
-			return (Fiber<B>) f.apply(value);
+			int[] depth = EAGER_DEPTH.get();
+			if (depth[0] >= EAGER_BUDGET) {
+				return FlatMap.of(f, this);
+			}
+			depth[0]++;
+			try {
+				return (Fiber<B>) f.apply(value);
+			} finally {
+				depth[0]--;
+			}
 		}
 
 		@Override

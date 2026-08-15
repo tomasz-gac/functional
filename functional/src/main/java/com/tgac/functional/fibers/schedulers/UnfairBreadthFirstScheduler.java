@@ -6,6 +6,7 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
+import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -98,53 +99,57 @@ public final class UnfairBreadthFirstScheduler<A> implements Scheduler<A>, Frame
 
 	@Override
 	public boolean step(Consumer<? super A> sink) {
-		awaits.drainInto(this::add);
-		if (buckets.isEmpty()) {
-			awaits.refuseStranded();
-			return true;
-		}
-
-		Bucket bucket = buckets.peek();
-		++bucket.iterations;
-		// the valve check lives on the hot path: a bucket whose frames never
-		// yield (a spinner) would otherwise never be re-examined at all —
-		// promotion gated on yields starves by construction
-		tryPromote();
-		bucket = buckets.peek();
-		bucket.index = (bucket.index + 1) % bucket.entries.size();
-
-		currentDepth = bucket.depth;
-		// STEP IN PLACE: the hot loop reads the entry and touches nothing -
-		// a runnable frame stays where it is, so the common regime (one
-		// runnable frame between parks) pays a single indexed read per step
-		// instead of a take-out, two allocations and a re-add. Only the
-		// RARE yield (a park or a completion) pays the removal. An inline
-		// completion during a park re-queues the entry through injections
-		// while it still sits here - harmless, the yield branch removes it
-		// before this step ends. Sound only under order-independent answer
-		// dedup: in-place rotation orders the search differently than
-		// take-out/re-add did, which the antichain carrier made irrelevant
-		// and the chaos harness plus the step-budget pin now guard
-		Entry entry = bucket.entries.get(bucket.index);
-		rootSink = sink;
-		currentCompleted = false;
-
-		if (!entry.frame.step(entry, this, stepListener)) {
-			Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
-			bucket.entries.remove(bucket.entries.size() - 1);
-			if (bucket.entries.isEmpty()) {
-				buckets.remove(bucket);
+		EngineGuard.enter();
+		try {		awaits.drainInto(this::add);
+			if (buckets.isEmpty()) {
+				awaits.refuseStranded();
+				return true;
 			}
-		}
 
-		if (currentCompleted && buckets.isEmpty()) {
-			// the root-completion ending must consult the held registry too:
-			// no runnable work remains, so any frame still parked is dead -
-			// ending silently would abandon a deadlock without a word
-			awaits.refuseStranded();
-			return true;
+			Bucket bucket = buckets.peek();
+			++bucket.iterations;
+			// the valve check lives on the hot path: a bucket whose frames never
+			// yield (a spinner) would otherwise never be re-examined at all —
+			// promotion gated on yields starves by construction
+			tryPromote();
+			bucket = buckets.peek();
+			bucket.index = (bucket.index + 1) % bucket.entries.size();
+
+			currentDepth = bucket.depth;
+			// STEP IN PLACE: the hot loop reads the entry and touches nothing -
+			// a runnable frame stays where it is, so the common regime (one
+			// runnable frame between parks) pays a single indexed read per step
+			// instead of a take-out, two allocations and a re-add. Only the
+			// RARE yield (a park or a completion) pays the removal. An inline
+			// completion during a park re-queues the entry through injections
+			// while it still sits here - harmless, the yield branch removes it
+			// before this step ends. Sound only under order-independent answer
+			// dedup: in-place rotation orders the search differently than
+			// take-out/re-add did, which the antichain carrier made irrelevant
+			// and the chaos harness plus the step-budget pin now guard
+			Entry entry = bucket.entries.get(bucket.index);
+			rootSink = sink;
+			currentCompleted = false;
+
+			if (!entry.frame.step(entry, this, stepListener)) {
+				Collections.swap(bucket.entries, bucket.index, bucket.entries.size() - 1);
+				bucket.entries.remove(bucket.entries.size() - 1);
+				if (bucket.entries.isEmpty()) {
+					buckets.remove(bucket);
+				}
+			}
+
+			if (currentCompleted && buckets.isEmpty()) {
+				// the root-completion ending must consult the held registry too:
+				// no runnable work remains, so any frame still parked is dead -
+				// ending silently would abandon a deadlock without a word
+				awaits.refuseStranded();
+				return true;
+			}
+			return false;
+		} finally {
+			EngineGuard.exit();
 		}
-		return false;
 	}
 
 	@Override
