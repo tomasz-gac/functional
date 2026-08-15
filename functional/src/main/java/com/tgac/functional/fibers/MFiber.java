@@ -32,6 +32,16 @@ public class MFiber<A> implements Supplier<Option<A>> {
 		return MFiber.of(r.map(Option::of));
 	}
 
+	/** The loud extractor, delegated: requires the underlying fiber Done. */
+	public Option<A> getDone(String context) {
+		return fiber.getDone(context);
+	}
+
+	/** The sanctioned nesting door, delegated: pure fibers only. */
+	public Option<A> ground() {
+		return fiber.ground();
+	}
+
 	public <B> MFiber<B> flatMap(Function<A, MFiber<B>> f) {
 		return MFiber.of(fiber
 				.flatMap(o -> o.map(f)

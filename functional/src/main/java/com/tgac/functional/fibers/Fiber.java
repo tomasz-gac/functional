@@ -71,6 +71,21 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	}
 
 	/**
+	 * The SANCTIONED nesting door: ground this fiber on a fresh engine,
+	 * deliberately, even inside a running engine. Legitimate only for PURE
+	 * fibers (the unifier's walks, display renders) — an effectful fiber
+	 * ground here shares no scheduler state with the outer run but its
+	 * effects' timing is its own problem. Where the plain {@code get}
+	 * throws inside an engine, this is the visible, chosen alternative.
+	 */
+	@SneakyThrows
+	default A ground() {
+		try (var e = toEngine()) {
+			return e.get();
+		}
+	}
+
+	/**
 	 * The loud extractor for fiber-resident code: requires Done. Where a
 	 * call site KNOWS its fiber must already be complete (the eager
 	 * budget's guarantee for shallow chains), this turns a broken
@@ -226,8 +241,6 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		 * loop-shaped accumulation never nests and never pays the node.
 		 */
 		private static final int EAGER_BUDGET = 512;
-		private static final ThreadLocal<int[]> EAGER_DEPTH =
-				ThreadLocal.withInitial(() -> new int[1]);
 
 		A value;
 
@@ -238,15 +251,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 		@Override
 		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
-			int[] depth = EAGER_DEPTH.get();
-			if (depth[0] >= EAGER_BUDGET) {
+			if (!EngineGuard.eagerBudgetLeft(EAGER_BUDGET)) {
 				return FlatMap.of(f, this);
 			}
-			depth[0]++;
+			EngineGuard.eagerPush();
 			try {
 				return (Fiber<B>) f.apply(value);
 			} finally {
-				depth[0]--;
+				EngineGuard.eagerPop();
 			}
 		}
 

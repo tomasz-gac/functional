@@ -30,4 +30,28 @@ public final class EngineGuard {
 	public static boolean driving() {
 		return DEPTH.get()[0] > 0;
 	}
+
+	/**
+	 * The eager-application budget: bounds JVM-STACK nesting of
+	 * Done.flatMap applies. The counter is BALANCED (push before the
+	 * apply, pop in a finally), so at any instant it equals the number of
+	 * eager applies open on this thread's stack — across engine nesting
+	 * too, which is exactly what bounds overflow. No reset anywhere: at a
+	 * normal scheduler step entry it is already zero by balance, and
+	 * inside a deliberately nested engine (ground()) the outer applies
+	 * are real stack that must keep counting.
+	 */
+	private static final ThreadLocal<int[]> EAGER = ThreadLocal.withInitial(() -> new int[1]);
+
+	public static boolean eagerBudgetLeft(int budget) {
+		return EAGER.get()[0] < budget;
+	}
+
+	public static void eagerPush() {
+		EAGER.get()[0]++;
+	}
+
+	public static void eagerPop() {
+		EAGER.get()[0]--;
+	}
 }
