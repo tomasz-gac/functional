@@ -37,6 +37,13 @@ public class MFiber<A> {
 		return fiber.getDone(context);
 	}
 
+	/** The sanctioned nesting door, delegated: pure fibers only. */
+	@Deprecated
+	@SuppressWarnings("deprecation")
+	public Option<A> ground() {
+		return fiber.ground();
+	}
+
 	public <B> MFiber<B> flatMap(Function<A, MFiber<B>> f) {
 		return MFiber.of(fiber
 				.flatMap(o -> o.map(f)

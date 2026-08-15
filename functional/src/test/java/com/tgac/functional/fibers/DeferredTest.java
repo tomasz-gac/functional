@@ -1,6 +1,5 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +27,7 @@ public class DeferredTest {
 		assertThat(counter.get()).isEqualTo(0);
 
 		// Now execute
-		Integer result = new BreadthFirstScheduler<>(deferred).get();
+		Integer result = deferred.ground();
 
 		assertThat(result).isEqualTo(42);
 		assertThat(counter.get()).isEqualTo(1);
@@ -36,23 +35,23 @@ public class DeferredTest {
 
 	@Test
 	public void shouldHandleSimpleDefer() {
-		Integer result = new BreadthFirstScheduler<>(defer(() -> done(10))).get();
+		Integer result = defer(() -> done(10)).ground();
 		assertThat(result).isEqualTo(10);
 	}
 
 	@Test
 	public void shouldChainDeferredComputations() {
-		Integer result = new BreadthFirstScheduler<>(defer(() -> done(5))
+		Integer result = defer(() -> done(5))
 				.flatMap(x -> defer(() -> done(x * 2)))
 				.flatMap(x -> defer(() -> done(x + 3)))
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(13);
 	}
 
 	@Test
 	public void shouldHandleDeepRecursionWithoutStackOverflow() {
 		Fiber<Integer> deepDefer = buildDeferChain(100_000, 0);
-		Integer result = new BreadthFirstScheduler<>(deepDefer).get();
+		Integer result = deepDefer.ground();
 		assertThat(result).isEqualTo(100_000);
 	}
 
@@ -66,7 +65,7 @@ public class DeferredTest {
 	@Test
 	public void shouldHandleVeryDeepRecursionWithoutStackOverflow() {
 		// This would blow the stack without trampolining
-		Integer result = new BreadthFirstScheduler<>(countdown(1_000_000)).get();
+		Integer result = countdown(1_000_000).ground();
 		assertThat(result).isEqualTo(0);
 	}
 
@@ -79,7 +78,7 @@ public class DeferredTest {
 
 	@Test
 	public void shouldHandleTailRecursiveFibonacci() {
-		BigDecimal result = new BreadthFirstScheduler<>(fibIt(10_000, BigDecimal.ONE, BigDecimal.ZERO)).get();
+		BigDecimal result = fibIt(10_000, BigDecimal.ONE, BigDecimal.ZERO).ground();
 		assertThat(result).isNotNull();
 		assertThat(result.compareTo(BigDecimal.ZERO)).isGreaterThan(0);
 	}
@@ -93,17 +92,17 @@ public class DeferredTest {
 
 	@Test
 	public void shouldMapOverDeferred() {
-		Integer result = new BreadthFirstScheduler<>(defer(() -> done(10))
+		Integer result = defer(() -> done(10))
 				.map(x -> x * 2)
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(20);
 	}
 
 	@Test
 	public void shouldFlatMapDeferred() {
-		Integer result = new BreadthFirstScheduler<>(defer(() -> done(5))
+		Integer result = defer(() -> done(5))
 				.flatMap(x -> done(x + 10))
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(15);
 	}
 
@@ -126,7 +125,7 @@ public class DeferredTest {
 		assertThat(executionOrder.get()).isEqualTo(0);
 
 		// Now execute and verify order
-		String result = new BreadthFirstScheduler<>(fiber).get();
+		String result = fiber.ground();
 		assertThat(result).isEqualTo("first-second-third");
 		assertThat(executionOrder.get()).isEqualTo(3);
 	}
@@ -138,21 +137,21 @@ public class DeferredTest {
 						defer(() -> done(123))
 				)
 		);
-		assertThat(new BreadthFirstScheduler<>(nested).get()).isEqualTo(123);
+		assertThat(nested.ground()).isEqualTo(123);
 	}
 
 	@Test
 	public void shouldHandleDeferReturningFlatMap() {
-		Integer result = new BreadthFirstScheduler<>(defer(() ->
+		Integer result = defer(() ->
 				done(10).flatMap(x -> done(x * 2))
-		)).get();
+		).ground();
 		assertThat(result).isEqualTo(20);
 	}
 
 	@Test
 	public void shouldSupportCollatzConjectureWithTrampoline() {
 		// Collatz sequence for 27: very long chain
-		Long result = new BreadthFirstScheduler<>(collatz(27)).get();
+		Long result = collatz(27).ground();
 		assertThat(result).isEqualTo(1L);
 	}
 
@@ -169,7 +168,7 @@ public class DeferredTest {
 	@Test
 	public void shouldHandleExtremelyDeepCollatz() {
 		// Large starting number creates very deep recursion
-		Long result = new BreadthFirstScheduler<>(collatz(3_732_423)).get();
+		Long result = collatz(3_732_423).ground();
 		assertThat(result).isEqualTo(1L);
 	}
 
@@ -184,8 +183,8 @@ public class DeferredTest {
 
 		// Multiple gets should execute the fiber multiple times
 		// (no caching in plain defer)
-		new BreadthFirstScheduler<>(fiber).get();
-		new BreadthFirstScheduler<>(fiber).get();
+		fiber.ground();
+		fiber.ground();
 
 		assertThat(counter.get()).isEqualTo(2);
 	}
@@ -194,7 +193,7 @@ public class DeferredTest {
 	public void shouldAllowRecursiveStructures() {
 		// Build a computation that recurses N times
 		Fiber<Integer> recursive = sum(1, 100);
-		Integer result = new BreadthFirstScheduler<>(recursive).get();
+		Integer result = recursive.ground();
 		assertThat(result).isEqualTo(5050); // Sum of 1 to 100
 	}
 

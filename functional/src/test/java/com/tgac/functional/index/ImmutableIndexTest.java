@@ -5,7 +5,6 @@ package com.tgac.functional.index;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.collection.Array;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -113,7 +112,7 @@ public class ImmutableIndexTest {
 				.withIndexAt(Array.of(1, 2, 5),
 						() -> "second",
 						i -> i.withValue("item2"));
-		ImmutableIndex<Integer, String> merged = new BreadthFirstScheduler<>(idx1.sum(idx2, (l, r) -> l + " " + r)).get();
+		ImmutableIndex<Integer, String> merged = idx1.sum(idx2, (l, r) -> l + " " + r);
 
 		Assertions.assertThat(merged.get(Array.of(1, 2, 3, 4))
 						.map(Index::getValue).toJavaOptional())

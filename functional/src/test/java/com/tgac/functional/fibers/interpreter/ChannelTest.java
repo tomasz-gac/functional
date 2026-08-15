@@ -3,7 +3,6 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: Pins the channel's contract: strict growth swaps and wakes satisfied
 // ABOUTME: waiters exactly once, an absorbed delta changes nothing, seal refuses growth.
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.category.Nothing.nothing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,7 +98,7 @@ public class ChannelTest {
 	public void growOnASealedCellRefuses() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		// sealed honestly: the claimed workforce finishes without emitting
-		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> Fiber.done(nothing()))).get();
+		Fiber.produce(cell, emit -> Fiber.done(nothing())).ground();
 		assertThatThrownBy(() -> cell.grow(MaxInt.of(1)))
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("sealed");

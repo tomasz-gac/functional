@@ -1,11 +1,12 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.interpreter.EagerBudget;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.Channel;
+import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Scope;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.List;
@@ -56,19 +57,39 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	}
 
 	/**
+	 * The SANCTIONED nesting door: ground this fiber on a fresh engine,
+	 * deliberately, even inside a running engine. Legitimate only for PURE,
+	 * single-completion fibers (the unifier's walks, renames, display
+	 * renders — no parks, no forks, no channels): an effectful fiber ground
+	 * here shares no scheduler state with the outer run, a parking one
+	 * strands loudly, but a forking one silently keeps only its last
+	 * completion.
+	 *
+	 * @deprecated NOT going away — deprecation is the MARKER: every call
+	 * 		site is a sanctioned grounding that the IDE highlights and one
+	 * 		grep censuses. Code that can carry the fiber composes instead.
+	 */
+	@Deprecated
+	@SneakyThrows
+	default A ground() {
+		try (var e = new BreadthFirstScheduler<>(this)) {
+			return e.get();
+		}
+	}
+
+	/**
 	 * The loud extractor for fiber-resident code: requires Done. Where a
 	 * call site KNOWS its fiber must already be complete (the eager
 	 * budget's guarantee for shallow chains), this turns a broken
 	 * assumption into an exception naming the site instead of a silent
-	 * nested engine. A site that wants a value from a non-Done fiber
-	 * constructs its scheduler of choice deliberately.
+	 * nested engine.
 	 */
 	default A getDone(String context) {
 		if (!isDone()) {
 			throw new IllegalStateException(context
 					+ ": fiber not Done — the eager-flatMap contract is broken"
 					+ " (chain exceeded the eager budget, or a lazy node crept in);"
-					+ " construct a scheduler deliberately to ground it");
+					+ " nested grounding forbidden");
 		}
 		return ((Done<A>) this).get();
 	}
@@ -217,14 +238,14 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 
 		@Override
 		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
-			if (!EagerBudget.left(EAGER_BUDGET)) {
+			if (!EngineGuard.eagerBudgetLeft(EAGER_BUDGET)) {
 				return FlatMap.of(f, this);
 			}
-			EagerBudget.push();
+			EngineGuard.eagerPush();
 			try {
 				return (Fiber<B>) f.apply(value);
 			} finally {
-				EagerBudget.pop();
+				EngineGuard.eagerPop();
 			}
 		}
 

@@ -1,6 +1,5 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +23,7 @@ public class ForkedTest {
 	public void shouldForkTwoSimpleFibers() {
 		List<Integer> results = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(done(1), done(2)), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(done(1), done(2)), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 2);
 	}
@@ -33,9 +32,9 @@ public class ForkedTest {
 	public void shouldForkThreeFibers() {
 		List<Integer> results = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(
+		Fiber.fork(tapped(
 				Arrays.asList(done(10), done(20), done(30)),
-				results::add))).get();
+				results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(10, 20, 30);
 	}
@@ -48,7 +47,7 @@ public class ForkedTest {
 		Fiber<Integer> medium = defer(() -> done(2));
 		Fiber<Integer> slow = defer(() -> defer(() -> done(3)));
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(slow, medium, fast), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(slow, medium, fast), results::add)).ground();
 
 		// Results collected as they complete
 		assertThat(results).hasSize(3);
@@ -63,7 +62,7 @@ public class ForkedTest {
 		Fiber<Integer> f2 = defer(() -> done(200));
 		Fiber<Integer> f3 = defer(() -> done(300));
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(100, 200, 300);
 	}
@@ -76,7 +75,7 @@ public class ForkedTest {
 		Fiber<Integer> medium = buildDeferChain(10, 0);
 		Fiber<Integer> deep = buildDeferChain(100, 0);
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(shallow, medium, deep), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(shallow, medium, deep), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 10, 100);
 	}
@@ -92,9 +91,9 @@ public class ForkedTest {
 	public void shouldAllowFlatMapAfterFork() {
 		List<Integer> results = new ArrayList<>();
 
-		String finalResult = new BreadthFirstScheduler<>(Fiber.fork(tapped(
+		String finalResult = Fiber.fork(tapped(
 				Arrays.asList(done(1), done(2), done(3)),
-				results::add)).flatMap(_0 -> done("completed"))).get();
+				results::add)).flatMap(_0 -> done("completed")).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 2, 3);
 		assertThat(finalResult).isEqualTo("completed");
@@ -113,7 +112,7 @@ public class ForkedTest {
 				i -> results.add("fork2-" + i))).flatMap(_0 -> done("fork2-done"));
 
 		List<String> outerResults = new ArrayList<>();
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(fork1, fork2), outerResults::add))).get();
+		Fiber.fork(tapped(Arrays.asList(fork1, fork2), outerResults::add)).ground();
 
 		// Inner forks delivered their results
 		assertThat(results).containsExactlyInAnyOrder("fork1-1", "fork1-2", "fork2-3", "fork2-4");
@@ -126,7 +125,7 @@ public class ForkedTest {
 	public void shouldHandleSingleFiber() {
 		List<Integer> results = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Collections.singletonList(done(42)), results::add))).get();
+		Fiber.fork(tapped(Collections.singletonList(done(42)), results::add)).ground();
 
 		assertThat(results).containsExactly(42);
 	}
@@ -135,7 +134,7 @@ public class ForkedTest {
 	public void shouldHandleEmptyForkList() {
 		List<Integer> results = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Collections.<Fiber<Integer>> emptyList(), results::add))).get();
+		Fiber.fork(tapped(Collections.<Fiber<Integer>> emptyList(), results::add)).ground();
 
 		assertThat(results).isEmpty();
 	}
@@ -150,7 +149,7 @@ public class ForkedTest {
 			tasks.add(defer(() -> done(value)));
 		}
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(tasks, results::add))).get();
+		Fiber.fork(tapped(tasks, results::add)).ground();
 
 		assertThat(results).hasSize(100);
 		assertThat(results).containsExactlyInAnyOrderElementsOf(
@@ -166,7 +165,7 @@ public class ForkedTest {
 		Fiber<Integer> fib10 = fibonacci(10);
 		Fiber<Integer> fib15 = fibonacci(15);
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(fib5, fib10, fib15), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(fib5, fib10, fib15), results::add)).ground();
 
 		assertThat(results).hasSize(3);
 		assertThat(results).contains(5, 55, 610);
@@ -190,13 +189,13 @@ public class ForkedTest {
 		// This test verifies all fibers execute
 		List<Integer> results = new CopyOnWriteArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(
+		Fiber.fork(tapped(
 				Arrays.asList(
 						done(1),
 						defer(() -> done(2)),
 						done(3),
 						defer(() -> defer(() -> done(4)))),
-				results::add))).get();
+				results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(1, 2, 3, 4);
 	}
@@ -209,7 +208,7 @@ public class ForkedTest {
 		Fiber<Integer> f2 = done(2).flatMap(x -> done(x * 10));
 		Fiber<Integer> f3 = done(3).flatMap(x -> done(x * 10));
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(10, 20, 30);
 	}
@@ -218,9 +217,9 @@ public class ForkedTest {
 	public void shouldCallSinkForEachCompletion() {
 		List<String> sinkCalls = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(
+		Fiber.fork(tapped(
 				Arrays.asList(done("a"), done("b"), done("c")),
-				value -> sinkCalls.add("sink-" + value)))).get();
+				value -> sinkCalls.add("sink-" + value))).ground();
 
 		assertThat(sinkCalls).hasSize(3);
 		assertThat(sinkCalls).containsExactlyInAnyOrder("sink-a", "sink-b", "sink-c");
@@ -230,9 +229,9 @@ public class ForkedTest {
 	public void shouldReturnNothingAfterCompletion() {
 		List<Integer> results = new ArrayList<>();
 
-		Nothing result = new BreadthFirstScheduler<>(Fiber.fork(tapped(
+		Nothing result = Fiber.fork(tapped(
 				Arrays.asList(done(1), done(2)),
-				results::add))).get();
+				results::add)).ground();
 
 		assertThat(result).isEqualTo(Nothing.nothing());
 		assertThat(results).hasSize(2);
@@ -246,7 +245,7 @@ public class ForkedTest {
 		Fiber<Integer> count2 = countdown(200);
 		Fiber<Integer> count3 = countdown(300);
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(count1, count2, count3), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(count1, count2, count3), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder(0, 0, 0);
 	}
@@ -266,7 +265,7 @@ public class ForkedTest {
 		Fiber<String> f2 = defer(() -> done("world"));
 		Fiber<String> f3 = done("test").map(String::toUpperCase);
 
-		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add))).get();
+		Fiber.fork(tapped(Arrays.asList(f1, f2, f3), results::add)).ground();
 
 		assertThat(results).containsExactlyInAnyOrder("hello", "world", "TEST");
 	}

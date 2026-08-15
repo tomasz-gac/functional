@@ -1,6 +1,5 @@
 package com.tgac.functional.monad;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.tgac.functional.Exceptions;
@@ -20,7 +19,7 @@ public class ContTest {
 		for (int i = 0; i < 1_000_000; i++) {
 			cont = cont.flatMap(n -> Cont.just(n + 1));
 		}
-		Assertions.assertThat(new BreadthFirstScheduler<>(cont.run(Object::toString)).get())
+		Assertions.assertThat(cont.run(Object::toString).ground())
 				.isEqualTo("1000000");
 	}
 
@@ -36,7 +35,7 @@ public class ContTest {
 			c = c.flatMap(unsafe);
 		}
 
-		Assertions.assertThat(new BreadthFirstScheduler<>(c.run(Object::toString)).get())
+		Assertions.assertThat(c.run(Object::toString).ground())
 				.isEqualTo("1000000");
 	}
 
@@ -56,7 +55,7 @@ public class ContTest {
 		Cont<Integer, String> c = Cont.suspend(cc -> bad.get().apply(0));
 
 		assertThrows(StackOverflowError.class,
-				() -> new BreadthFirstScheduler<>(c.run(Object::toString)).get());
+				() -> c.run(Object::toString).ground());
 	}
 
 	@Test
@@ -74,7 +73,7 @@ public class ContTest {
 
 		Cont<Integer, String> c = Cont.suspend(cc -> good.get().apply(0));
 
-		Assertions.assertThat(new BreadthFirstScheduler<>(c.run(Object::toString)).get())
+		Assertions.assertThat(c.run(Object::toString).ground())
 				.isEqualTo("done");
 	}
 
@@ -91,7 +90,7 @@ public class ContTest {
 						})
 						.map(i -> i * 2)
 						.cast());
-		Assertions.assertThat(new BreadthFirstScheduler<>(cont.run(String::valueOf)).get())
+		Assertions.assertThat(cont.run(String::valueOf).ground())
 				.isEqualTo("123");
 	}
 
@@ -109,14 +108,14 @@ public class ContTest {
 				choose("a", "b").flatMap(x ->
 						choose(x + "1", x + "2"));
 
-		List<String> result = new BreadthFirstScheduler<>(program.run(List::of)).get();
+		List<String> result = program.run(List::of).ground();
 		Assertions.assertThat(result)
 				.containsExactly("a1", "a2", "b1", "b2");
 	}
 
 	@Test
 	public void shouldContinueWithCC() {
-		Assertions.assertThat(new BreadthFirstScheduler<>(Cont.<Integer, String> callCC(exit ->
+		Assertions.assertThat(Cont.<Integer, String> callCC(exit ->
 								Cont.<Integer, String> just(3)
 										.map(i -> i * 5)
 										.flatMap(i -> i == 15 ?
@@ -125,14 +124,14 @@ public class ContTest {
 										.map(i -> i * 3)
 										.cast())
 						.<Cont<Integer, String>> cast()
-						.run(String::valueOf))
-						.get())
+						.run(String::valueOf)
+						.ground())
 				.isEqualTo("3");
 	}
 
 	@Test
 	public void shouldContinueWithCC2() {
-		Assertions.assertThat(new BreadthFirstScheduler<>(Cont.<Integer, String> callCC(exit ->
+		Assertions.assertThat(Cont.<Integer, String> callCC(exit ->
 								Cont.<Integer, String> just(3)
 										.map(i -> i * 5)
 										.flatMap(i -> i == 14 ?
@@ -141,8 +140,8 @@ public class ContTest {
 										.map(i -> i * 3)
 										.cast())
 						.<Cont<Integer, String>> cast()
-						.run(String::valueOf))
-						.get())
+						.run(String::valueOf)
+						.ground())
 				.isEqualTo("57");
 	}
 }

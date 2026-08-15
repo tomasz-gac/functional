@@ -1,6 +1,5 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,59 +13,59 @@ public class DoneTest {
 
 	@Test
 	public void shouldReturnValueImmediately() {
-		Integer result = new BreadthFirstScheduler<>(done(42)).get();
+		Integer result = done(42).ground();
 		assertThat(result).isEqualTo(42);
 	}
 
 	@Test
 	public void shouldReturnStringValue() {
-		String result = new BreadthFirstScheduler<>(done("hello")).get();
+		String result = done("hello").ground();
 		assertThat(result).isEqualTo("hello");
 	}
 
 	@Test
 	public void shouldMapValue() {
-		Integer result = new BreadthFirstScheduler<>(done(10)
+		Integer result = done(10)
 				.map(x -> x * 2)
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(20);
 	}
 
 	@Test
 	public void shouldChainMultipleMaps() {
-		Integer result = new BreadthFirstScheduler<>(done(5)
+		Integer result = done(5)
 				.map(x -> x + 1)
 				.map(x -> x * 2)
 				.map(x -> x - 3)
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(9);  // (5 + 1) * 2 - 3 = 9
 	}
 
 	@Test
 	public void shouldFlatMapToAnotherDone() {
-		Integer result = new BreadthFirstScheduler<>(done(10)
+		Integer result = done(10)
 				.flatMap(x -> done(x * 2))
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(20);
 	}
 
 	@Test
 	public void shouldChainMultipleFlatMaps() {
-		Integer result = new BreadthFirstScheduler<>(done(2)
+		Integer result = done(2)
 				.flatMap(x -> done(x + 3))
 				.flatMap(x -> done(x * 4))
 				.flatMap(x -> done(x - 1))
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(19);  // ((2 + 3) * 4) - 1 = 19
 	}
 
 	@Test
 	public void shouldMixMapAndFlatMap() {
-		String result = new BreadthFirstScheduler<>(done(5)
+		String result = done(5)
 				.map(x -> x * 2)
 				.flatMap(x -> done("value: " + x))
 				.map(String::toUpperCase)
-				).get();
+				.ground();
 		assertThat(result).isEqualTo("VALUE: 10");
 	}
 
@@ -79,9 +78,9 @@ public class DoneTest {
 	@Test
 	public void shouldPreserveNullableValues() {
 		// Done requires NonNull, but after creation we can map to produce null results
-		String result = new BreadthFirstScheduler<>(done("test")
+		String result = done("test")
 				.map(s -> (String) null)
-				).get();
+				.ground();
 		assertThat(result).isNull();
 	}
 
@@ -97,10 +96,10 @@ public class DoneTest {
 			}
 		}
 
-		Person result = new BreadthFirstScheduler<>(done(new Person("Alice", 30))
+		Person result = done(new Person("Alice", 30))
 				.map(p -> new Person(p.name, p.age + 1))
 				.flatMap(p -> done(new Person(p.name.toUpperCase(), p.age)))
-				).get();
+				.ground();
 
 		assertThat(result.name).isEqualTo("ALICE");
 		assertThat(result.age).isEqualTo(31);
@@ -109,17 +108,17 @@ public class DoneTest {
 	@Test
 	public void shouldWorkWithPureMethod() {
 		Fiber<Integer> fiber = done(10);
-		Integer result = new BreadthFirstScheduler<>(fiber.pure(20)).get();
+		Integer result = fiber.pure(20).ground();
 		assertThat(result).isEqualTo(20);
 	}
 
 	@Test
 	public void shouldHandleNestedDoneInFlatMap() {
-		Integer result = new BreadthFirstScheduler<>(done(1)
+		Integer result = done(1)
 				.flatMap(a -> done(2)
 						.flatMap(b -> done(3)
 								.flatMap(c -> done(a + b + c))))
-				).get();
+				.ground();
 		assertThat(result).isEqualTo(6);
 	}
 }

@@ -30,7 +30,7 @@ public class AmbientScopeTest {
 					return done(nothing());
 				});
 
-		new BreadthFirstScheduler<>(Fiber.claim(cell.scope(), work)).get();
+		Fiber.claim(cell.scope(), work).ground();
 
 		assertThat(events).containsExactly("worked");
 		assertThat(cell.isSealed()).isTrue();
@@ -46,7 +46,7 @@ public class AmbientScopeTest {
 						Fiber.defer(() -> done(childrenRun.incrementAndGet())),
 						Fiber.defer(() -> done(childrenRun.incrementAndGet()))));
 
-		new BreadthFirstScheduler<>(Fiber.claim(cell.scope(), work)).get();
+		Fiber.claim(cell.scope(), work).ground();
 
 		// the seal fired, and only after every forked child completed
 		assertThat(cell.isSealed()).isTrue();
@@ -64,7 +64,7 @@ public class AmbientScopeTest {
 		Fiber<Nothing> master = Fiber.defer(() -> done(masterSteps.incrementAndGet()))
 				.flatMap(__ -> Fiber.defer(() -> done(nothing())));
 
-		new BreadthFirstScheduler<>(Fiber.claim(caller.scope(), Fiber.claim(entry.scope(), master))).get();
+		Fiber.claim(caller.scope(), Fiber.claim(entry.scope(), master)).ground();
 
 		assertThat(caller.isSealed()).isTrue();
 		assertThat(entry.isSealed()).isTrue();

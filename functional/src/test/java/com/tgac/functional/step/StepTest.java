@@ -1,6 +1,5 @@
 package com.tgac.functional.step;
 
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.fibers.Fiber;
@@ -124,12 +123,12 @@ public class StepTest {
 	@Test
 	public void shouldInterleave() {
 		Assertions.assertThat(
-						new BreadthFirstScheduler<>(Step.<Integer> empty().interleave(
+						Step.<Integer> empty().interleave(
 										Array.of(
 												Step.single(0),
 												Step.ofAll(ITEMS),
 												Step.incomplete(() -> ints(10, Step.empty()))))
-								).get()
+								.ground()
 								.stream()
 								.collect(Collectors.toList()))
 				.isEqualTo(Arrays.asList(0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10));

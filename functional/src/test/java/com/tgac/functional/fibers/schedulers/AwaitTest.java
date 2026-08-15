@@ -30,10 +30,10 @@ public class AwaitTest {
 	public void awaitOnASealedChannelCompletesImmediatelyWithTheFinalValue() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
-		AwaitResult<MaxInt> r = new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
+		AwaitResult<MaxInt> r = Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.flatMap(__ -> Fiber.await(cell, v -> v.value >= 1))
-				).get();
+				.ground();
 
 		assertThat(r.getValue()).isEqualTo(MaxInt.of(3));
 		assertThat(r.isSealed()).isTrue();
@@ -49,9 +49,9 @@ public class AwaitTest {
 					seen.add(r.getValue().value);
 					return done(nothing());
 				});
-		new BreadthFirstScheduler<>(Fiber.detach(consumer)
+		Fiber.detach(consumer)
 				.flatMap(__ -> Fiber.produce(cell, emit -> emit.emit(MaxInt.of(7))))
-				).get();
+				.ground();
 
 		assertThat(seen).containsExactly(7);
 	}
@@ -61,10 +61,10 @@ public class AwaitTest {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<String> log = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.detach(collectAbove(cell, 0, log))
+		Fiber.detach(collectAbove(cell, 0, log))
 				.flatMap(__ -> Fiber.produce(cell, emit ->
 						emit.emit(MaxInt.of(1)).flatMap(___ -> emit.emit(MaxInt.of(2)))))
-				).get();
+				.ground();
 
 		// rotation order between producer steps and the re-arm is scheduler
 		// policy; the invariants are not: nothing dropped, nothing doubled,
@@ -94,13 +94,13 @@ public class AwaitTest {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<String> log = new ArrayList<>();
 
-		new BreadthFirstScheduler<>(Fiber.detach(Fiber.await(cell, v -> v.value >= 5).flatMap(r -> {
+		Fiber.detach(Fiber.await(cell, v -> v.value >= 5).flatMap(r -> {
 					log.add(r.isSealed() + "@" + r.getValue().value);
 					return done(nothing());
 				}))
 				// 2 never satisfies the waiter - only the seal completes it
-				.flatMap(__ -> Fiber.produce(cell, emit -> emit.emit(MaxInt.of(2)))))
-				.get();
+				.flatMap(__ -> Fiber.produce(cell, emit -> emit.emit(MaxInt.of(2))))
+				.ground();
 
 		assertThat(log).containsExactly("true@2");
 	}
@@ -118,8 +118,8 @@ public class AwaitTest {
 				});
 		Fiber<Nothing> producer = Fiber.produce(producers, emit -> emit.emit(MaxInt.of(4)));
 
-		new BreadthFirstScheduler<>(Fiber.claim(consumers.scope(), consumer)
-				.flatMap(__ -> producer)).get();
+		Fiber.claim(consumers.scope(), consumer)
+				.flatMap(__ -> producer).ground();
 
 		assertThat(seen).containsExactly(4);
 		assertThat(consumers.isSealed()).isTrue();
@@ -140,8 +140,8 @@ public class AwaitTest {
 				});
 		Fiber<Nothing> master = Fiber.produce(cell, emit -> emit.emit(MaxInt.of(4)));
 
-		new BreadthFirstScheduler<>(Fiber.detach(consumer)
-				.flatMap(__ -> master)).get();
+		Fiber.detach(consumer)
+				.flatMap(__ -> master).ground();
 
 		assertThat(log).containsExactly("true@4");
 		assertThat(cell.isSealed()).isTrue();
@@ -160,7 +160,7 @@ public class AwaitTest {
 			return done(nothing());
 		}));
 
-		assertThatThrownBy(() -> new BreadthFirstScheduler<>(program).get())
+		assertThatThrownBy(program::ground)
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("foreign workforce");
 	}
@@ -174,13 +174,13 @@ public class AwaitTest {
 		// workforce before sealedness even matters, and the raw grow-on-sealed
 		// guard is covered on the channel itself
 		Emitter<MaxInt>[] leak = new Emitter[1];
-		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> {
+		Fiber.produce(cell, emit -> {
 			leak[0] = emit;
 			return done(nothing());
-		})).get();
+		}).ground();
 		assertThat(cell.isSealed()).isTrue();
 
-		assertThatThrownBy(() -> new BreadthFirstScheduler<>(leak[0].emit(MaxInt.of(2))).get())
+		assertThatThrownBy(() -> leak[0].emit(MaxInt.of(2)).ground())
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("foreign workforce");
 	}
@@ -251,7 +251,7 @@ public class AwaitTest {
 					return done(nothing());
 				}));
 
-		new BreadthFirstScheduler<>(program).get();
+		program.ground();
 
 		// fork is a control scatter: the parent continues at once, promising
 		// nothing about the child - but the drive drains the child before
@@ -262,8 +262,8 @@ public class AwaitTest {
 	@Test
 	public void anAwaitOnASealedChannelNeedsNoParkingSupport() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
-		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
-				.flatMap(__ -> Fiber.sealed(cell.scope()))).get();
+		Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))
+				.flatMap(__ -> Fiber.sealed(cell.scope())).ground();
 
 		// a minimal driver WITHOUT await support - the Effects park methods
 		// keep their throwing defaults. A sealed channel's answer is a
@@ -309,7 +309,7 @@ public class AwaitTest {
 						}))
 				.flatMap(__ -> done(nothing()));
 
-		assertThatThrownBy(() -> new BreadthFirstScheduler<>(program).get())
+		assertThatThrownBy(program::ground)
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("blocked");
 		assertThat(seen).isEmpty();
@@ -319,7 +319,7 @@ public class AwaitTest {
 	public void aStrandNamesTheNamedChannel() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0), "answers");
 
-		assertThatThrownBy(() -> new BreadthFirstScheduler<>(Fiber.await(cell, v -> v.value >= 1)).get())
+		assertThatThrownBy(() -> Fiber.await(cell, v -> v.value >= 1).ground())
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("answers");
 	}
@@ -331,7 +331,7 @@ public class AwaitTest {
 
 		Fiber<AwaitResult<MaxInt>> stranded = Fiber.await(cell, v -> v.value >= 1);
 
-		assertThatThrownBy(() -> new BreadthFirstScheduler<>(stranded).get())
+		assertThatThrownBy(stranded::ground)
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("blocked");
 	}
