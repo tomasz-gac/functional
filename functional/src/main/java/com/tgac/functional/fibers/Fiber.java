@@ -65,6 +65,10 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	 * strands loudly, but a forking one silently keeps only its last
 	 * completion.
 	 *
+	 * <p>ONE level deep per thread: a fiber being grounded that grounds
+	 * again would stack engines on the JVM stack — recursion through ground
+	 * compounds — so the nested call throws instead.
+	 *
 	 * @deprecated NOT going away — deprecation is the MARKER: every call
 	 * 		site is a sanctioned grounding that the IDE highlights and one
 	 * 		grep censuses. Code that can carry the fiber composes instead.
@@ -72,8 +76,11 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	@Deprecated
 	@SneakyThrows
 	default A ground() {
+		EngineGuard.enterGround();
 		try (var e = new BreadthFirstScheduler<>(this)) {
 			return e.get();
+		} finally {
+			EngineGuard.exitGround();
 		}
 	}
 
