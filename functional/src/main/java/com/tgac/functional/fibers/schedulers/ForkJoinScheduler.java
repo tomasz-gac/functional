@@ -6,7 +6,6 @@ package com.tgac.functional.fibers.schedulers;
 import com.tgac.functional.fibers.Fiber;
 import com.tgac.functional.fibers.Scheduler;
 import com.tgac.functional.fibers.interpreter.AwaitBoundary;
-import com.tgac.functional.fibers.interpreter.EngineGuard;
 import com.tgac.functional.fibers.interpreter.Frame;
 import com.tgac.functional.fibers.interpreter.ResumeHandle;
 import com.tgac.functional.fibers.interpreter.Scope;
@@ -197,13 +196,8 @@ public final class ForkJoinScheduler<A> implements Scheduler<A> {
 		@Override
 		protected void compute() {
 			try {
-				EngineGuard.enter();
-				try {
-					while (!cancelled && frame.step(this, this, stepListener)) {
+				while (!cancelled && frame.step(this, this, stepListener)) {
 					// run this frame's trampoline uninterrupted
-				}
-				} finally {
-					EngineGuard.exit();
 				}
 			} catch (Throwable t) {
 				fail(t);

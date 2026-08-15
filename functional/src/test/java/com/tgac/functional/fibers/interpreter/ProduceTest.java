@@ -3,6 +3,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The produce/emit contract: emits fold and wake consumers, abort is
 // ABOUTME: silence, claims race deterministically, foreign emits refuse loudly.
 
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,13 +25,13 @@ public class ProduceTest {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<Integer> seen = new ArrayList<>();
 
-		Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)).flatMap(__ -> emit.emit(MaxInt.of(7))))
+		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)).flatMap(__ -> emit.emit(MaxInt.of(7))))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
 				.flatMap(__ -> {
 					seen.add(cell.read().value);
 					return done(nothing());
 				})
-				.get();
+				).get();
 
 		assertThat(seen).containsExactly(7);
 	}
@@ -45,11 +46,11 @@ public class ProduceTest {
 					log.add(r.getValue().value);
 					return done(nothing());
 				});
-		Fiber.fork(Arrays.asList(
+		new BreadthFirstScheduler<>(Fiber.fork(Arrays.asList(
 						consumer,
 						Fiber.produce(cell, emit -> emit.emit(MaxInt.of(3)))))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
-				.get();
+				).get();
 
 		assertThat(log).containsExactly(3);
 	}
@@ -58,9 +59,9 @@ public class ProduceTest {
 	public void abortIsSilence() {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 
-		Fiber.produce(cell, emit -> done(nothing()))
+		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> done(nothing()))
 				.flatMap(__ -> Fiber.sealed(cell.scope()))
-				.get();
+				).get();
 
 		assertThat(cell.read()).isEqualTo(MaxInt.of(0));
 		assertThat(cell.isSealed()).isTrue();
@@ -81,10 +82,10 @@ public class ProduceTest {
 			ran.add("second");
 			return done(nothing());
 		});
-		first.get();
-		second.get();
+		new BreadthFirstScheduler<>(first).get();
+		new BreadthFirstScheduler<>(second).get();
 		// a RE-STEPPED produce fiber is a loser too: one claim, one spawn
-		first.get();
+		new BreadthFirstScheduler<>(first).get();
 
 		assertThat(ran).containsExactly("first");
 	}
@@ -94,7 +95,7 @@ public class ProduceTest {
 		Channel<MaxInt> cell = new Channel<>(MaxInt.of(0));
 		List<String> ran = new ArrayList<>();
 
-		Fiber.produce(cell, emit -> {
+		new BreadthFirstScheduler<>(Fiber.produce(cell, emit -> {
 					ran.add("master");
 					return done(nothing());
 				})
@@ -105,7 +106,7 @@ public class ProduceTest {
 					ran.add("reader");
 					return done(nothing());
 				})))
-				.get();
+				).get();
 
 		assertThat(ran).containsExactly("master", "reader");
 	}
@@ -123,7 +124,7 @@ public class ProduceTest {
 				// membership check at the emit step refuses
 				.flatMap(__ -> leaked.get().emit(MaxInt.of(9)));
 
-		assertThatThrownBy(program::get)
+		assertThatThrownBy(() -> new BreadthFirstScheduler<>(program).get())
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("foreign workforce");
 	}

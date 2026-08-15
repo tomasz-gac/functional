@@ -1,12 +1,11 @@
 package com.tgac.functional.fibers;
 
-import com.tgac.functional.fibers.interpreter.EngineGuard;
+import com.tgac.functional.fibers.interpreter.EagerBudget;
 import com.tgac.functional.algebra.Semilattice;
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.Channel;
 import com.tgac.functional.fibers.interpreter.Scope;
-import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import java.util.List;
@@ -25,7 +24,7 @@ import lombok.Value;
 import lombok.experimental.FieldDefaults;
 import lombok.var;
 
-public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
+public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	interface Fn<T, R> extends Function<T, Fiber<R>> {
 	}
 
@@ -52,37 +51,8 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 		return done(value);
 	}
 
-	@Override
-	@SneakyThrows
-	default A get() {
-		if (EngineGuard.driving() && !isDone()) {
-			throw new IllegalStateException(
-					"Fiber.get on a non-Done fiber inside a running engine — nested "
-							+ "grounding forbidden; compose fibers or run a fresh "
-							+ "scheduler explicitly (the workforce protocol)");
-		}
-		try (var e = toEngine()) {
-			return e.get();
-		}
-	}
-
 	default boolean isDone() {
 		return false;
-	}
-
-	/**
-	 * The SANCTIONED nesting door: ground this fiber on a fresh engine,
-	 * deliberately, even inside a running engine. Legitimate only for PURE
-	 * fibers (the unifier's walks, display renders) — an effectful fiber
-	 * ground here shares no scheduler state with the outer run but its
-	 * effects' timing is its own problem. Where the plain {@code get}
-	 * throws inside an engine, this is the visible, chosen alternative.
-	 */
-	@SneakyThrows
-	default A ground() {
-		try (var e = toEngine()) {
-			return e.get();
-		}
 	}
 
 	/**
@@ -90,20 +60,17 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 	 * call site KNOWS its fiber must already be complete (the eager
 	 * budget's guarantee for shallow chains), this turns a broken
 	 * assumption into an exception naming the site instead of a silent
-	 * nested engine.
+	 * nested engine. A site that wants a value from a non-Done fiber
+	 * constructs its scheduler of choice deliberately.
 	 */
 	default A getDone(String context) {
 		if (!isDone()) {
 			throw new IllegalStateException(context
 					+ ": fiber not Done — the eager-flatMap contract is broken"
 					+ " (chain exceeded the eager budget, or a lazy node crept in);"
-					+ " nested grounding forbidden");
+					+ " construct a scheduler deliberately to ground it");
 		}
-		return get();
-	}
-
-	default Scheduler<A> toEngine() {
-		return new BreadthFirstScheduler<>(this);
+		return ((Done<A>) this).get();
 	}
 
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {
@@ -244,21 +211,20 @@ public interface Fiber<A> extends Monad<Fiber<?>, A>, Supplier<A> {
 
 		A value;
 
-		@Override
 		public A get() {
 			return value;
 		}
 
 		@Override
 		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
-			if (!EngineGuard.eagerBudgetLeft(EAGER_BUDGET)) {
+			if (!EagerBudget.left(EAGER_BUDGET)) {
 				return FlatMap.of(f, this);
 			}
-			EngineGuard.eagerPush();
+			EagerBudget.push();
 			try {
 				return (Fiber<B>) f.apply(value);
 			} finally {
-				EngineGuard.eagerPop();
+				EagerBudget.pop();
 			}
 		}
 

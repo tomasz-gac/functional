@@ -8,6 +8,7 @@ import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.Exceptions;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Array;
@@ -60,10 +61,9 @@ public class ImmutableIndex<K, V> implements Index<K, V> {
 		return Option.of(node);
 	}
 
-	public ImmutableIndex<K, V> sum(ImmutableIndex<K, V> other, BinaryOperator<V> valueMerger) {
-		return ImmutableIndex.of(
-				valueMerger.apply(value, other.value),
-				sum(lookup, other.lookup, valueMerger).get());
+	public Fiber<ImmutableIndex<K, V>> sum(ImmutableIndex<K, V> other, BinaryOperator<V> valueMerger) {
+		return sum(lookup, other.lookup, valueMerger)
+				.map(m -> ImmutableIndex.of(valueMerger.apply(value, other.value), m));
 	}
 
 	private static <K, V> Fiber<HashMap<K, ImmutableIndex<K, V>>> sum(

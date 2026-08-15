@@ -74,7 +74,7 @@ public class FiberTest {
 
 	@Test
 	public void shouldFiberseAtAll() {
-		Assertions.assertThat(lazyFib(33).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(lazyFib(33)).get())
 				.isEqualTo(BigDecimal.valueOf(5702887));
 	}
 
@@ -102,7 +102,7 @@ public class FiberTest {
 
 	@Test
 	public void shouldFiberseDeeplyIt() {
-		BigDecimal actual = lazyFibIt(100000, BigDecimal.ONE, BigDecimal.ZERO).get();
+		BigDecimal actual = new BreadthFirstScheduler<>(lazyFibIt(100000, BigDecimal.ONE, BigDecimal.ZERO)).get();
 		Assertions.assertThat(actual)
 				.isEqualByComparingTo(TOO_BIG_TO_DISPLAY);
 	}
@@ -119,13 +119,13 @@ public class FiberTest {
 
 	@Test
 	public void shouldTerminateAtOne11() {
-		Assertions.assertThat(collatz(11).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(collatz(11)).get())
 				.isEqualTo(1);
 	}
 
 	@Test
 	public void shouldTerminateAtOne11WithEngine() {
-		Scheduler<Long> e = collatz(11).toEngine();
+		Scheduler<Long> e = new BreadthFirstScheduler<>(collatz(11));
 		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
 		Assertions.assertThat(e.run(5)).matches(r -> !r.isPresent());
 		Assertions.assertThat(e.run(5))
@@ -135,19 +135,19 @@ public class FiberTest {
 
 	@Test
 	public void shouldTerminateAtOne15() {
-		Assertions.assertThat(collatz(15).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(collatz(15)).get())
 				.isEqualTo(1);
 	}
 
 	@Test
 	public void shouldTerminateAtOne27() {
-		Assertions.assertThat(collatz(27).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(collatz(27)).get())
 				.isEqualTo(1);
 	}
 
 	@Test
 	public void shouldTerminateAtOne3732423() {
-		Assertions.assertThat(collatz(3732423).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(collatz(3732423)).get())
 				.isEqualTo(1);
 	}
 
@@ -166,7 +166,7 @@ public class FiberTest {
 	@Test
 	public void shouldTerminateAtOne() {
 		IntStream.range(1, 1000000)
-				.forEach(i -> Assertions.assertThat(collatz(i).get())
+				.forEach(i -> Assertions.assertThat(new BreadthFirstScheduler<>(collatz(i)).get())
 						.isEqualTo(1));
 	}
 
@@ -179,24 +179,24 @@ public class FiberTest {
 
 	@Test
 	public void shouldZip() {
-		Tuple3<Integer, String, String> x = done(3)
+		Tuple3<Integer, String, String> x = new BreadthFirstScheduler<>(done(3)
 				.flatMap(v -> done("123")
 						.map(s -> Tuple.of(v, s)))
 				.flatMap(v -> done("123")
 						.map(v::append))
-				.get();
+				).get();
 		System.out.println(x);
 	}
 
 	@Test
 	public void shouldFlatMapListElements() {
-		List<BigDecimal> collect = IntStream.range(0, 10)
+		List<BigDecimal> collect = new BreadthFirstScheduler<>(IntStream.range(0, 10)
 				.mapToObj(i -> lazyFib(i)
 						.map(Stream::of))
 				.reduce(done(Stream.<BigDecimal> empty()),
 						(acc, i) -> Fiber.zip(acc, i).map(args -> args.apply(Stream::concat)),
 						(l, r) -> null)
-				.get()
+				).get()
 				.collect(Collectors.toList());
 
 		System.out.println(collect);
@@ -208,7 +208,7 @@ public class FiberTest {
 		for (int i = 0; i < 1_000_000; ++i) {
 			item = item.map(j -> ++j);
 		}
-		System.out.println(item.get());
+		System.out.println(new BreadthFirstScheduler<>(item).get());
 	}
 
 	Fiber<Integer> dec(int i) {
@@ -221,7 +221,7 @@ public class FiberTest {
 
 	@Test
 	public void shouldDecrement() {
-		Assertions.assertThat(dec(102400000).get())
+		Assertions.assertThat(new BreadthFirstScheduler<>(dec(102400000)).get())
 				.isEqualTo(0);
 	}
 
@@ -238,8 +238,8 @@ public class FiberTest {
 	@Test
 	public void shouldFork() {
 		List<Integer> results = new ArrayList<>();
-		Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
-				.get();
+		new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
+				).get();
 
 		Assertions.assertThat(results)
 				.containsExactly(10, 50, 100);
@@ -247,11 +247,11 @@ public class FiberTest {
 
 	@Test
 	public void shouldFlatMap() {
-		Assertions.assertThat(Fiber.defer(() -> Fiber.done(1))
+		Assertions.assertThat(new BreadthFirstScheduler<>(Fiber.defer(() -> Fiber.done(1))
 						.flatMap(_0 -> {
 							System.out.println(_0);
 							return done(_0);
-						}).get())
+						})).get())
 				.isEqualTo(1);
 	}
 
@@ -259,9 +259,9 @@ public class FiberTest {
 	public void shouldFlatMapAfterFork() {
 		List<Integer> results = new ArrayList<>();
 		Assertions.assertThat(
-						Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
+						new BreadthFirstScheduler<>(Fiber.fork(tapped(Arrays.asList(counter(100), counter(50), counter(10)), results::add))
 								.flatMap(_0 -> done(1))
-								.get())
+								).get())
 				.isEqualTo(1);
 		Assertions.assertThat(results)
 				.containsExactly(10, 50, 100);

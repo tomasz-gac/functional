@@ -5,6 +5,7 @@ import static com.tgac.functional.fibers.Fiber.done;
 
 import com.tgac.functional.category.Monad;
 import com.tgac.functional.fibers.Fiber;
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.collection.Array;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -34,9 +35,9 @@ public class Incomplete<A> implements Step<A> {
 
 	public synchronized Step<A> getOrEvaluate() {
 		if (!rest.isDone()) {
-			rest = done(eval(rest.get()));
+			rest = done(eval(new BreadthFirstScheduler<>(rest).get()));
 		}
-		return rest.get();
+		return rest.getDone("Incomplete.getOrEvaluate");
 	}
 
 	private static <T> Step<T> eval(Step<T> stream) {

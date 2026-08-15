@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor(staticName = "of")
-public class MFiber<A> implements Supplier<Option<A>> {
+public class MFiber<A> {
 	private final Fiber<Option<A>> fiber;
 
 	public static <A> MFiber<A> mdone(A v) {
@@ -35,11 +35,6 @@ public class MFiber<A> implements Supplier<Option<A>> {
 	/** The loud extractor, delegated: requires the underlying fiber Done. */
 	public Option<A> getDone(String context) {
 		return fiber.getDone(context);
-	}
-
-	/** The sanctioned nesting door, delegated: pure fibers only. */
-	public Option<A> ground() {
-		return fiber.ground();
 	}
 
 	public <B> MFiber<B> flatMap(Function<A, MFiber<B>> f) {
@@ -90,11 +85,6 @@ public class MFiber<A> implements Supplier<Option<A>> {
 
 	public <B> MFiber<B> map(Function<A, B> f) {
 		return MFiber.of(fiber.map(o -> o.map(f)));
-	}
-
-	@Override
-	public Option<A> get() {
-		return fiber.get();
 	}
 
 	public Fiber<A> getOrElse(Supplier<A> s) {

@@ -3,6 +3,7 @@ package com.tgac.functional.fibers;
 // ABOUTME: RED until the depth-budgeted patch: eager flatMap on Done runs the
 // ABOUTME: continuation on the caller's stack at construction — deep chains overflow.
 
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ public class EagerFlatMapStackSafetyTest {
 	public void deepDoneRecursionMustNotOverflowAtConstruction() {
 		// RED today: countdown(DEEP) overflows the stack BEFORE any scheduler
 		// runs — the failure is at construction, not at execution
-		assertThat(countdown(DEEP).get()).isEqualTo(0L);
+		assertThat(new BreadthFirstScheduler<>(countdown(DEEP)).get()).isEqualTo(0L);
 	}
 
 	@Test
@@ -54,7 +55,7 @@ public class EagerFlatMapStackSafetyTest {
 	public void deferBrokenRecursionSurvives() {
 		// GREEN control: the current escape hatch — Deferred is not Done,
 		// so the chain trampolines through the scheduler
-		assertThat(countdownDeferred(DEEP).get()).isEqualTo(0L);
+		assertThat(new BreadthFirstScheduler<>(countdownDeferred(DEEP)).get()).isEqualTo(0L);
 	}
 
 	@Test
@@ -66,6 +67,6 @@ public class EagerFlatMapStackSafetyTest {
 		for (long i = 0; i < DEEP; i++) {
 			acc = acc.flatMap(v -> Fiber.done(v + 1));
 		}
-		assertThat(acc.get()).isEqualTo(DEEP);
+		assertThat(new BreadthFirstScheduler<>(acc).get()).isEqualTo(DEEP);
 	}
 }

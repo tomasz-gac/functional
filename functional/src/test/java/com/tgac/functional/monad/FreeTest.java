@@ -1,5 +1,6 @@
 package com.tgac.functional.monad;
 
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.fibers.Fiber.defer;
 import static com.tgac.functional.fibers.Fiber.done;
 import static com.tgac.functional.monad.Free.liftF;
@@ -252,8 +253,8 @@ class FreeTest {
 				.flatMap(x -> Calculator.add(Calculator.value(x), Calculator.value(1.)))
 				.flatMap(x -> Calculator.div(Calculator.value(x), Calculator.value(2.)))
 				.cast();
-		System.out.println(Calculator.run(freeObjectMonad).get());
-		System.out.println(Calculator.describe(freeObjectMonad).get());
+		System.out.println(new BreadthFirstScheduler<>(Calculator.run(freeObjectMonad)).get());
+		System.out.println(new BreadthFirstScheduler<>(Calculator.describe(freeObjectMonad)).get());
 	}
 
 }

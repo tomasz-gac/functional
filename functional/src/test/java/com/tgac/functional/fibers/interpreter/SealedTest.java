@@ -3,6 +3,7 @@ package com.tgac.functional.fibers.interpreter;
 // ABOUTME: The control await: drained(scope) completes with Nothing when the
 // ABOUTME: workforce seals; claim is once-only; readers keep the sealed arm.
 
+import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import static com.tgac.functional.category.Nothing.nothing;
 import static com.tgac.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +38,7 @@ public class SealedTest {
 					return done(nothing());
 				});
 
-		program.get();
+		new BreadthFirstScheduler<>(program).get();
 
 		assertThat(order).containsExactly("child-1", "child-2", "exhausted");
 	}
@@ -46,9 +47,9 @@ public class SealedTest {
 	public void sealedOnASealedScopeCompletesImmediately() {
 		Scope sub = Scope.scope();
 		// sealed honestly: an empty claimed workforce finishes at once
-		Fiber.claim(sub, done(nothing())).get();
+		new BreadthFirstScheduler<>(Fiber.claim(sub, done(nothing()))).get();
 
-		assertThat(Fiber.sealed(sub).get()).isEqualTo(nothing());
+		assertThat(new BreadthFirstScheduler<>(Fiber.sealed(sub)).get()).isEqualTo(nothing());
 	}
 
 	@Test
@@ -58,14 +59,14 @@ public class SealedTest {
 
 		// the claim CAS runs at the step: the first spawn wins, a racing or
 		// re-stepped claim no-ops
-		Fiber.claim(sub, Fiber.defer(() -> {
+		new BreadthFirstScheduler<>(Fiber.claim(sub, Fiber.defer(() -> {
 			ran.add("first");
 			return done(nothing());
-		})).get();
-		Fiber.claim(sub, Fiber.defer(() -> {
+		}))).get();
+		new BreadthFirstScheduler<>(Fiber.claim(sub, Fiber.defer(() -> {
 			ran.add("second");
 			return done(nothing());
-		})).get();
+		}))).get();
 
 		assertThat(ran).containsExactly("first");
 	}
@@ -74,7 +75,7 @@ public class SealedTest {
 	public void aSealedScopeWaitNeedsNoParkingSupport() {
 		Scope sub = Scope.scope();
 		// sealed honestly: an empty claimed workforce finishes at once
-		Fiber.claim(sub, done(nothing())).get();
+		new BreadthFirstScheduler<>(Fiber.claim(sub, done(nothing()))).get();
 
 		// the seal is irrevocable - the green light is already on, so the
 		// wait must complete inline on a driver whose park doors throw
@@ -108,7 +109,7 @@ public class SealedTest {
 		// fire: park the mistake loudly at the park, not at drive end
 		Scope sub = Scope.scope();
 
-		assertThatThrownBy(() -> Fiber.sealed(sub).get())
+		assertThatThrownBy(() -> new BreadthFirstScheduler<>(Fiber.sealed(sub)).get())
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("unclaimed");
 	}
@@ -117,7 +118,7 @@ public class SealedTest {
 	public void aRefusalNamesTheNamedScope() {
 		Scope sub = Scope.scope("head-probe");
 
-		assertThatThrownBy(() -> Fiber.sealed(sub).get())
+		assertThatThrownBy(() -> new BreadthFirstScheduler<>(Fiber.sealed(sub)).get())
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("head-probe");
 	}
@@ -137,7 +138,7 @@ public class SealedTest {
 		// which refusal fires depends on whether a waiter reaches its park
 		// before the other claim lands (unclaimed check) or after (strand
 		// refusal at drive end) - EITHER is correct, silence is not
-		assertThatThrownBy(program::get)
+		assertThatThrownBy(() -> new BreadthFirstScheduler<>(program).get())
 				.isInstanceOf(IllegalStateException.class);
 		assertThat(a.isSealed()).isFalse();
 		assertThat(b.isSealed()).isFalse();
@@ -150,7 +151,7 @@ public class SealedTest {
 
 		// the plain claim's loser no-ops silently; the OrElse loser runs its
 		// alternative inline, in its own frame
-		Fiber.claim(sub, Fiber.defer(() -> {
+		new BreadthFirstScheduler<>(Fiber.claim(sub, Fiber.defer(() -> {
 					ran.add("winner");
 					return done(nothing());
 				}))
@@ -161,7 +162,7 @@ public class SealedTest {
 					ran.add("loser");
 					return done(nothing());
 				})))
-				.get();
+				).get();
 
 		assertThat(ran).containsExactly("winner", "loser");
 	}
@@ -185,7 +186,7 @@ public class SealedTest {
 								}))))))))
 				.flatMap(__ -> Fiber.sealed(sub));
 
-		program.get();
+		new BreadthFirstScheduler<>(program).get();
 
 		assertThat(seen).containsExactlyInAnyOrder(1, 2);
 	}
@@ -210,13 +211,13 @@ public class SealedTest {
 					});
 		});
 
-		Fiber.claim(outer, tree)
+		new BreadthFirstScheduler<>(Fiber.claim(outer, tree)
 				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");
 					return done(nothing());
 				})
-				.get();
+				).get();
 
 		assertThat(order).containsExactly("inner-work", "inner-drained", "outer-drained");
 	}
@@ -246,13 +247,13 @@ public class SealedTest {
 							});
 				})));
 
-		Fiber.claim(outer, tree)
+		new BreadthFirstScheduler<>(Fiber.claim(outer, tree)
 				.flatMap(__ -> Fiber.sealed(outer))
 				.flatMap(__ -> {
 					order.add("outer-drained");
 					return done(nothing());
 				})
-				.get();
+				).get();
 
 		assertThat(order).containsExactly("sibling", "inner-work", "inner-drained", "outer-drained");
 	}
