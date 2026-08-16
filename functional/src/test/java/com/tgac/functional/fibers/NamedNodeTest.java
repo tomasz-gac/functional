@@ -6,6 +6,7 @@ package com.tgac.functional.fibers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tgac.functional.category.Nothing;
+import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.ScopeProfiler;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import java.util.Arrays;
@@ -48,6 +49,18 @@ public class NamedNodeTest {
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
 		});
 		assertThat(profiler.counts().get("region")).isGreaterThan(20L);
+	}
+
+	@Test
+	public void aNamedExtentInsideAWorkforceBillsTheComposite() {
+		ScopeProfiler profiler = new ScopeProfiler();
+		Scope work = Scope.scope("work");
+		Fiber<Nothing> program = Fiber.named(origin -> "region",
+				Fiber.claim(work, countdown(20))
+						.flatMap(_0 -> Fiber.sealed(work)));
+		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
+		});
+		assertThat(profiler.counts().get("region;work")).isGreaterThan(10L);
 	}
 
 	private static Fiber<Nothing> countdown(int n) {

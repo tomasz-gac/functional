@@ -18,8 +18,10 @@ import java.util.concurrent.atomic.LongAdder;
  * derives its label from its {@link Scope#origin()} — the first construction
  * frame outside the substrate and the caller-supplied skip prefixes — so
  * every workforce self-labels with the client code that minted it. Root
- * frames (no scope) bill under {@code root}. Labels are derived once per
- * scope; the per-step cost is two map operations.
+ * frames (no scope) bill under {@code root}; a named extent running inside
+ * a workforce bills under the composite {@code name;workforce} — a two-deep
+ * collapsed stack. Labels are derived once per scope; the per-step cost is
+ * two map operations.
  */
 public final class ScopeProfiler implements StepListener {
 
@@ -41,10 +43,24 @@ public final class ScopeProfiler implements StepListener {
 
 	@Override
 	public void onStep(Fiber<?> node, Scope scope, String name) {
-		String label = name != null ? name
-				: scope == null ? ROOT
-						: labels.computeIfAbsent(scope, this::label);
+		String label;
+		if (name != null && scope != null) {
+			// both planes: a named extent running inside a workforce — the
+			// composite is a two-deep collapsed stack, ';' the flame-graph
+			// convention
+			label = name + ";" + scopeLabel(scope);
+		} else if (name != null) {
+			label = name;
+		} else if (scope != null) {
+			label = scopeLabel(scope);
+		} else {
+			label = ROOT;
+		}
 		steps.computeIfAbsent(label, key -> new LongAdder()).increment();
+	}
+
+	private String scopeLabel(Scope scope) {
+		return labels.computeIfAbsent(scope, this::label);
 	}
 
 	/** Steps per label, a snapshot. */
