@@ -25,7 +25,7 @@ public final class PrintingStepListener implements StepListener {
 	}
 
 	@Override
-	public void onStep(Fiber<?> node, Scope scope) {
+	public void onStep(Fiber<?> node, Scope scope, String name) {
 		out.accept("step     " + node.getClass().getSimpleName());
 	}
 

@@ -23,9 +23,11 @@ public interface StepListener {
 
 	/**
 	 * Fired for every reduction, before the node is dispatched. {@code scope}
-	 * is the stepped frame's owning workforce — null at a root frame.
+	 * is the stepped frame's owning workforce — null at a root frame;
+	 * {@code name} the goal-plane name the frame is inside — null outside
+	 * every named extent.
 	 */
-	default void onStep(Fiber<?> node, Scope scope) {
+	default void onStep(Fiber<?> node, Scope scope, String name) {
 	}
 
 	/** A frame reduced to its final value. */

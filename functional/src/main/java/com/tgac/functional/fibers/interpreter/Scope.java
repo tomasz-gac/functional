@@ -53,11 +53,12 @@ public final class Scope {
 	private final String name;
 
 	/**
-	 * Where this workforce was minted, captured at construction — the
-	 * profiler derives client-code labels from it. Materialization
-	 * (getStackTrace) is deferred to whoever reads it.
+	 * Where this workforce was minted, captured at construction when
+	 * {@link OriginCapture} is enabled — the profiler derives client-code
+	 * labels from it; null otherwise. Materialization (getStackTrace) is
+	 * deferred to whoever reads it.
 	 */
-	private final Throwable origin = new Throwable("scope origin");
+	private final Throwable origin = OriginCapture.enabled() ? new Throwable("scope origin") : null;
 
 	Scope(String name) {
 		this.name = name;

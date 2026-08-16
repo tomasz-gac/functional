@@ -32,7 +32,7 @@ public class StepListenerTest {
 		final java.util.List<Object> completed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 		@Override
-		public void onStep(Fiber<?> node, Scope scope) {
+		public void onStep(Fiber<?> node, Scope scope, String name) {
 			steps.incrementAndGet();
 		}
 

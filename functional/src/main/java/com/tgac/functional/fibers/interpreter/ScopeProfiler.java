@@ -40,8 +40,10 @@ public final class ScopeProfiler implements StepListener {
 	}
 
 	@Override
-	public void onStep(Fiber<?> node, Scope scope) {
-		String label = scope == null ? ROOT : labels.computeIfAbsent(scope, this::label);
+	public void onStep(Fiber<?> node, Scope scope, String name) {
+		String label = name != null ? name
+				: scope == null ? ROOT
+						: labels.computeIfAbsent(scope, this::label);
 		steps.computeIfAbsent(label, key -> new LongAdder()).increment();
 	}
 
@@ -66,6 +68,9 @@ public final class ScopeProfiler implements StepListener {
 	private String label(Scope scope) {
 		if (scope.name() != null) {
 			return scope.name();
+		}
+		if (scope.origin() == null) {
+			return scope.toString();
 		}
 		for (StackTraceElement frame : scope.origin().getStackTrace()) {
 			if (!skipped(frame.getClassName())) {

@@ -15,7 +15,13 @@ public class ScopeProfilerTest {
 
 	@Test
 	public void originCapturesTheConstructionSite() {
-		Scope scope = Scope.scope();
+		OriginCapture.enable(true);
+		Scope scope;
+		try {
+			scope = Scope.scope();
+		} finally {
+			OriginCapture.enable(false);
+		}
 		boolean found = false;
 		for (StackTraceElement frame : scope.origin().getStackTrace()) {
 			if (frame.getClassName().contains("ScopeProfilerTest")) {
@@ -41,7 +47,13 @@ public class ScopeProfilerTest {
 	@Test
 	public void anAnonymousScopeDerivesItsClientFrame() {
 		ScopeProfiler profiler = new ScopeProfiler();
-		Scope anonymous = Scope.scope();
+		OriginCapture.enable(true);
+		Scope anonymous;
+		try {
+			anonymous = Scope.scope();
+		} finally {
+			OriginCapture.enable(false);
+		}
 		Fiber<Nothing> program = Fiber.claim(anonymous, countdown(50))
 				.flatMap(_0 -> Fiber.sealed(anonymous));
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {

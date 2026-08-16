@@ -36,6 +36,8 @@ public final class Frame {
 
 	Fiber<?> computation;
 	Scope scope;
+	/** The goal-plane name of the work this frame is inside — observation only. */
+	String name;
 	final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
 	public Frame(Fiber<?> computation) {
@@ -113,10 +115,13 @@ public final class Frame {
 	@SuppressWarnings({"unchecked"})
 	public <E> boolean step(E entry, Effects<E> effects, StepListener listener) {
 		Fiber<?> computation = this.computation;
-		listener.onStep(computation, scope);
+		listener.onStep(computation, scope, name);
 
 		if (computation instanceof Fiber.Deferred) {
 			return stepDeferred((Fiber.Deferred<Object>) computation);
+		}
+		if (computation instanceof Fiber.Named) {
+			return stepNamed((Fiber.Named<Object>) computation);
 		}
 		if (computation instanceof Fiber.FlatMap) {
 			return stepFlatMap((Fiber.FlatMap<Object, Object>) computation);
@@ -147,6 +152,18 @@ public final class Frame {
 
 	private boolean stepDeferred(Fiber.Deferred<Object> deferred) {
 		computation = deferred.getRec().get();
+		return true;
+	}
+
+	/** Swap the name for the body's extent; the restore rides the continuation deque. */
+	private boolean stepNamed(Fiber.Named<Object> named) {
+		String previous = name;
+		name = named.getName().get();
+		ks.addLast(v -> {
+			name = previous;
+			return Fiber.done(v);
+		});
+		computation = named.getBody();
 		return true;
 	}
 
@@ -181,7 +198,9 @@ public final class Frame {
 			Fiber.Detached<?> detached) {
 		computation = Fiber.done(Nothing.nothing());
 		listener.onDetached(detached.getFiber());
-		effects.detached(entry, new Frame(detached.getFiber(), detached.getInto()));
+		Frame child = new Frame(detached.getFiber(), detached.getInto());
+		child.name = name;
+		effects.detached(entry, child);
 		return true;
 	}
 
@@ -271,7 +290,9 @@ public final class Frame {
 			// under this frame's still-open pair - membership from within
 			List<Frame> children = new ArrayList<>(fork.getOptions().size());
 			for (Fiber<Object> option : fork.getOptions()) {
-				children.add(new Frame(option, scope));
+				Frame child = new Frame(option, scope);
+				child.name = name;
+				children.add(child);
 			}
 			effects.forked(entry, children);
 		}

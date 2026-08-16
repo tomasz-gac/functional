@@ -101,6 +101,24 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 		return ((Done<A>) this).get();
 	}
 
+	/**
+	 * Name the DYNAMIC EXTENT of {@code body} for observers: while a frame
+	 * executes the body — forked children included — its steps report under
+	 * {@code name}, and completion restores the enclosing name. Observation
+	 * only: no ledger, no seal, no claim — the inert twin of a workforce
+	 * boundary, for profilers. The supplier is evaluated once per entry, so
+	 * it must be cheap and stable.
+	 */
+	static <A> Fiber<A> named(Supplier<String> name, Fiber<A> body) {
+		return new Named<>(name, body);
+	}
+
+	@Value
+	class Named<A> implements Fiber<A> {
+		Supplier<String> name;
+		Fiber<A> body;
+	}
+
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {
 		return lhs.flatMap(l -> rhs.map(r -> Tuple.of(l, r)));
 	}
