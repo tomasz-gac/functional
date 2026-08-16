@@ -52,8 +52,23 @@ public final class Scope {
 	/** The diagnostic name refusals print; null for an anonymous workforce. */
 	private final String name;
 
+	/**
+	 * Where this workforce was minted, captured at construction — the
+	 * profiler derives client-code labels from it. Materialization
+	 * (getStackTrace) is deferred to whoever reads it.
+	 */
+	private final Throwable origin = new Throwable("scope origin");
+
 	Scope(String name) {
 		this.name = name;
+	}
+
+	public String name() {
+		return name;
+	}
+
+	public Throwable origin() {
+		return origin;
 	}
 
 	/** Mint a workforce. */

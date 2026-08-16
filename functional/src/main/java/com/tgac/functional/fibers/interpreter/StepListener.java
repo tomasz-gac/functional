@@ -21,8 +21,11 @@ public interface StepListener {
 	StepListener NO_OP = new StepListener() {
 	};
 
-	/** Fired for every reduction, before the node is dispatched. */
-	default void onStep(Fiber<?> node) {
+	/**
+	 * Fired for every reduction, before the node is dispatched. {@code scope}
+	 * is the stepped frame's owning workforce — null at a root frame.
+	 */
+	default void onStep(Fiber<?> node, Scope scope) {
 	}
 
 	/** A frame reduced to its final value. */

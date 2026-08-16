@@ -10,6 +10,7 @@ import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import com.tgac.functional.fibers.schedulers.ForkJoinScheduler;
 import com.tgac.functional.fibers.interpreter.MaxInt;
 import com.tgac.functional.fibers.interpreter.Channel;
+import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.interpreter.StepListener;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,7 +32,7 @@ public class StepListenerTest {
 		final java.util.List<Object> completed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 		@Override
-		public void onStep(Fiber<?> node) {
+		public void onStep(Fiber<?> node, Scope scope) {
 			steps.incrementAndGet();
 		}
 

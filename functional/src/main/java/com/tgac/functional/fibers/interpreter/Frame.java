@@ -113,7 +113,7 @@ public final class Frame {
 	@SuppressWarnings({"unchecked"})
 	public <E> boolean step(E entry, Effects<E> effects, StepListener listener) {
 		Fiber<?> computation = this.computation;
-		listener.onStep(computation);
+		listener.onStep(computation, scope);
 
 		if (computation instanceof Fiber.Deferred) {
 			return stepDeferred((Fiber.Deferred<Object>) computation);
