@@ -36,8 +36,15 @@ public final class Frame {
 
 	Fiber<?> computation;
 	Scope scope;
-	/** The goal-plane name of the work this frame is inside — observation only. */
+	/**
+	 * The goal-plane name CHAIN of the work this frame is inside — observation
+	 * only. Root-first, {@code ;}-joined (the collapsed-stack convention),
+	 * pre-joined so the per-step cost is handing out the reference; the join
+	 * is paid once per extent entry.
+	 */
 	String name;
+	/** The chain's last segment — consecutive re-entries of it collapse. */
+	String innermost;
 	final Deque<Function<Object, Fiber<Object>>> ks = new ArrayDeque<>();
 
 	public Frame(Fiber<?> computation) {
@@ -155,14 +162,24 @@ public final class Frame {
 		return true;
 	}
 
-	/** Swap the name for the body's extent; the restore rides the continuation deque. */
+	/**
+	 * Push the extent's segment onto the chain; the restore rides the
+	 * continuation deque. A re-entry of the innermost segment (a recursive
+	 * extent) collapses — no push, no restore — so a loop's chain stays flat.
+	 */
 	private boolean stepNamed(Fiber.Named<Object> named) {
-		String previous = name;
-		name = named.getName().apply(named.getOrigin());
-		ks.addLast(v -> {
-			name = previous;
-			return Fiber.done(v);
-		});
+		String segment = named.getName().apply(named.getOrigin());
+		if (!segment.equals(innermost)) {
+			String previousName = name;
+			String previousInnermost = innermost;
+			name = name == null ? segment : name + ";" + segment;
+			innermost = segment;
+			ks.addLast(v -> {
+				name = previousName;
+				innermost = previousInnermost;
+				return Fiber.done(v);
+			});
+		}
 		computation = named.getBody();
 		return true;
 	}
@@ -200,6 +217,7 @@ public final class Frame {
 		listener.onDetached(detached.getFiber());
 		Frame child = new Frame(detached.getFiber(), detached.getInto());
 		child.name = name;
+		child.innermost = innermost;
 		effects.detached(entry, child);
 		return true;
 	}
@@ -292,6 +310,7 @@ public final class Frame {
 			for (Fiber<Object> option : fork.getOptions()) {
 				Frame child = new Frame(option, scope);
 				child.name = name;
+				child.innermost = innermost;
 				children.add(child);
 			}
 			effects.forked(entry, children);

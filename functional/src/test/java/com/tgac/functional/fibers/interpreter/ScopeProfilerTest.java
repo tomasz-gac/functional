@@ -54,6 +54,23 @@ public class ScopeProfilerTest {
 				.anyMatch(label -> label.contains("ScopeProfilerTest"));
 	}
 
+	@Test
+	public void foldedLinesAreCollapsedStackFormat() {
+		ScopeProfiler profiler = new ScopeProfiler("com.tgac.functional.");
+		Scope work = Scope.scope("work");
+		Fiber<Nothing> program = Fiber.named(origin -> "region",
+				Fiber.claim(work, countdown(30))
+						.flatMap(_0 -> Fiber.sealed(work)));
+		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
+		});
+		Map<String, Long> counts = profiler.counts();
+		assertThat(profiler.folded())
+				.hasSize(counts.size())
+				.allMatch(line -> line.matches(".+ \\d+"));
+		assertThat(profiler.folded())
+				.contains("region;work " + counts.get("region;work"));
+	}
+
 	private static Fiber<Nothing> countdown(int n) {
 		return n == 0 ? Fiber.done(Nothing.nothing())
 				: Fiber.defer(() -> countdown(n - 1));

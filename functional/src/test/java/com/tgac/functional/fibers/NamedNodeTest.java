@@ -28,7 +28,7 @@ public class NamedNodeTest {
 	}
 
 	@Test
-	public void nestedNamesRestoreTheEnclosingOne() {
+	public void nestedNamesBillTheJoinedChainAndRestore() {
 		ScopeProfiler profiler = new ScopeProfiler();
 		Fiber<Nothing> program = Fiber.named(origin -> "outer",
 				countdown(10)
@@ -37,8 +37,41 @@ public class NamedNodeTest {
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
 		});
 		Map<String, Long> counts = profiler.counts();
-		assertThat(counts.get("outer")).isGreaterThan(10L);
-		assertThat(counts.get("inner")).isGreaterThan(5L);
+		// the inner extent bills under the root-first chain, never bare
+		assertThat(counts.get("outer;inner")).isGreaterThan(5L);
+		assertThat(counts).doesNotContainKey("inner");
+		// steps before AND after the inner extent bill to the restored outer
+		assertThat(counts.get("outer")).isGreaterThan(15L);
+	}
+
+	@Test
+	public void selfRepeatingExtentsCollapse() {
+		ScopeProfiler profiler = new ScopeProfiler();
+		new BreadthFirstScheduler<>(reenter("loop", 20)).withListener(profiler).run(v -> {
+		});
+		Map<String, Long> counts = profiler.counts();
+		assertThat(counts.get("loop")).isGreaterThan(20L);
+		assertThat(counts.keySet().stream()
+				.anyMatch(label -> label.contains("loop;loop")))
+				.isFalse();
+	}
+
+	@Test
+	public void forkedChildrenInheritTheChain() {
+		ScopeProfiler profiler = new ScopeProfiler();
+		Fiber<Nothing> program = Fiber.named(origin -> "outer",
+				Fiber.named(origin -> "inner",
+						Fiber.fork(Arrays.asList(countdown(20), countdown(20)))));
+		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
+		});
+		assertThat(profiler.counts().get("outer;inner")).isGreaterThan(20L);
+	}
+
+	/** A recursive extent re-minting the same name at every level. */
+	private static Fiber<Nothing> reenter(String name, int n) {
+		return Fiber.named(origin -> name,
+				n == 0 ? Fiber.done(Nothing.nothing())
+						: Fiber.defer(() -> reenter(name, n - 1)));
 	}
 
 	@Test

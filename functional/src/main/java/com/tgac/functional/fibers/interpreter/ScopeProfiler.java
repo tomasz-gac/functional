@@ -70,6 +70,16 @@ public final class ScopeProfiler implements StepListener {
 		return snapshot;
 	}
 
+	/**
+	 * The counts as collapsed-stack lines ({@code chain count}), the format
+	 * flame-graph renderers read directly.
+	 */
+	public List<String> folded() {
+		List<String> lines = new ArrayList<>();
+		counts().forEach((label, count) -> lines.add(label + " " + count));
+		return lines;
+	}
+
 	/** The counts as printable lines, heaviest first. */
 	public List<String> report() {
 		List<Map.Entry<String, Long>> entries = new ArrayList<>(counts().entrySet());
