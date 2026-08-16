@@ -5,6 +5,7 @@ import com.tgac.functional.category.Monad;
 import com.tgac.functional.category.Nothing;
 import com.tgac.functional.fibers.interpreter.Channel;
 import com.tgac.functional.fibers.interpreter.EngineGuard;
+import com.tgac.functional.fibers.interpreter.OriginCapture;
 import com.tgac.functional.fibers.interpreter.Scope;
 import com.tgac.functional.fibers.schedulers.BreadthFirstScheduler;
 import io.vavr.Tuple;
@@ -104,19 +105,23 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 	/**
 	 * Name the DYNAMIC EXTENT of {@code body} for observers: while a frame
 	 * executes the body — forked children included — its steps report under
-	 * {@code name}, and completion restores the enclosing name. Observation
-	 * only: no ledger, no seal, no claim — the inert twin of a workforce
-	 * boundary, for profilers. The supplier is evaluated once per entry, so
-	 * it must be cheap and stable.
+	 * the derived name, and completion restores the enclosing one.
+	 * Observation only: no ledger, no seal, no claim — the inert twin of a
+	 * workforce boundary, for profilers. The node captures its construction
+	 * site when {@link OriginCapture} is enabled and hands it (null otherwise) to {@code name}, evaluated
+	 * once per entry — so the function must be cheap and stable.
 	 */
-	static <A> Fiber<A> named(Supplier<String> name, Fiber<A> body) {
+	static <A> Fiber<A> named(Function<Throwable, String> name, Fiber<A> body) {
 		return new Named<>(name, body);
 	}
 
 	@Value
 	class Named<A> implements Fiber<A> {
-		Supplier<String> name;
+		Function<Throwable, String> name;
 		Fiber<A> body;
+		@EqualsAndHashCode.Exclude
+		@ToString.Exclude
+		Throwable origin = OriginCapture.enabled() ? new Throwable("named at") : null;
 	}
 
 	static <A, B> Fiber<Tuple2<A, B>> zip(Fiber<A> lhs, Fiber<B> rhs) {

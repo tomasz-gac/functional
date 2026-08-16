@@ -158,7 +158,7 @@ public final class Frame {
 	/** Swap the name for the body's extent; the restore rides the continuation deque. */
 	private boolean stepNamed(Fiber.Named<Object> named) {
 		String previous = name;
-		name = named.getName().get();
+		name = named.getName().apply(named.getOrigin());
 		ks.addLast(v -> {
 			name = previous;
 			return Fiber.done(v);

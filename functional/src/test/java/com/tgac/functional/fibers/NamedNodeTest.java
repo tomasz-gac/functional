@@ -17,7 +17,7 @@ public class NamedNodeTest {
 	@Test
 	public void stepsInsideTheBodyBillUnderTheName() {
 		ScopeProfiler profiler = new ScopeProfiler();
-		Fiber<Nothing> program = Fiber.named(() -> "region", countdown(20))
+		Fiber<Nothing> program = Fiber.named(origin -> "region", countdown(20))
 				.flatMap(_0 -> countdown(20));
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
 		});
@@ -29,9 +29,9 @@ public class NamedNodeTest {
 	@Test
 	public void nestedNamesRestoreTheEnclosingOne() {
 		ScopeProfiler profiler = new ScopeProfiler();
-		Fiber<Nothing> program = Fiber.named(() -> "outer",
+		Fiber<Nothing> program = Fiber.named(origin -> "outer",
 				countdown(10)
-						.flatMap(_0 -> Fiber.named(() -> "inner", countdown(10)))
+						.flatMap(_0 -> Fiber.named(origin -> "inner", countdown(10)))
 						.flatMap(_0 -> countdown(10)));
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
 		});
@@ -43,7 +43,7 @@ public class NamedNodeTest {
 	@Test
 	public void forkedChildrenInheritTheName() {
 		ScopeProfiler profiler = new ScopeProfiler();
-		Fiber<Nothing> program = Fiber.named(() -> "region",
+		Fiber<Nothing> program = Fiber.named(origin -> "region",
 				Fiber.fork(Arrays.asList(countdown(20), countdown(20))));
 		new BreadthFirstScheduler<>(program).withListener(profiler).run(v -> {
 		});
