@@ -1,0 +1,323 @@
+package org.clauseway.functional.algebra;
+
+// ABOUTME: Proves every law kit can FAIL: deliberately unlawful instances must
+// ABOUTME: throw, with the violated law named — the kits' own honesty gate.
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.clauseway.functional.algebra.laws.AbsorbingLaws;
+import org.clauseway.functional.algebra.laws.CommutativeMonoidLaws;
+import org.clauseway.functional.algebra.laws.LatticeLaws;
+import org.clauseway.functional.algebra.laws.LawCoverage;
+import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.algebra.laws.IdempotentSemiringLaws;
+import org.clauseway.functional.algebra.laws.MonoidLaws;
+import org.clauseway.functional.algebra.laws.SemilatticeLaws;
+import org.clauseway.functional.algebra.laws.SemiringLaws;
+import org.clauseway.functional.algebra.laws.StarLaws;
+import org.clauseway.functional.algebra.laws.SuperiorityLaws;
+import java.util.Arrays;
+import java.util.List;
+import lombok.Value;
+import org.junit.jupiter.api.Test;
+
+public class LawViolationsTest {
+
+	private static final List<Long> SAMPLES = Arrays.asList(0L, 1L, 2L, 3L);
+
+	@Test
+	public void monoidLawsRejectSubtraction() {
+		Monoid<Long> subtraction = new Monoid<Long>() {
+			@Override
+			public Long empty() {
+				return 0L;
+			}
+
+			@Override
+			public Long combine(Long a, Long b) {
+				return a - b;
+			}
+		};
+		assertThatThrownBy(() -> MonoidLaws.check(subtraction, SAMPLES))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("associativity");
+	}
+
+	@Test
+	public void commutativeLawsRejectStringConcat() {
+		Monoid<String> concat = new Monoid<String>() {
+			@Override
+			public String empty() {
+				return "";
+			}
+
+			@Override
+			public String combine(String a, String b) {
+				return a + b;
+			}
+		};
+		assertThatThrownBy(() -> CommutativeMonoidLaws.check(concat, Arrays.asList("a", "b")))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("commutativity");
+	}
+
+	@Test
+	public void semiringLawsRejectBrokenAnnihilation() {
+		Semiring<Long> broken = new Semiring<Long>() {
+			@Override
+			public Long zero() {
+				return 0L;
+			}
+
+			@Override
+			public Long one() {
+				return 0L;
+			}
+
+			@Override
+			public Long plus(Long a, Long b) {
+				return a + b;
+			}
+
+			@Override
+			public Long times(Long a, Long b) {
+				return a + b;
+			}
+		};
+		assertThatThrownBy(() -> SemiringLaws.check(broken, SAMPLES))
+				.isInstanceOf(AssertionError.class);
+	}
+
+	@Test
+	public void idempotentSemiringLawsRejectAClaimedIdempotenceLie() {
+		IdempotentSemiring<Long> liar = new IdempotentSemiring<Long>() {
+			@Override
+			public Long zero() {
+				return Semirings.COUNTING.zero();
+			}
+
+			@Override
+			public Long one() {
+				return Semirings.COUNTING.one();
+			}
+
+			@Override
+			public Long plus(Long a, Long b) {
+				return Semirings.COUNTING.plus(a, b);
+			}
+
+			@Override
+			public Long times(Long a, Long b) {
+				return Semirings.COUNTING.times(a, b);
+			}
+		};
+		assertThatThrownBy(() -> IdempotentSemiringLaws.check(liar, SAMPLES))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("idempotence");
+	}
+
+	@Test
+	public void superiorityLawsRejectNonSelectivePlus() {
+		SuperiorSemiring<Long> counting = new SuperiorSemiring<Long>() {
+			@Override
+			public Long zero() {
+				return 0L;
+			}
+
+			@Override
+			public Long one() {
+				return 1L;
+			}
+
+			@Override
+			public Long plus(Long a, Long b) {
+				return a + b;
+			}
+
+			@Override
+			public Long times(Long a, Long b) {
+				return a * b;
+			}
+		};
+		assertThatThrownBy(() -> SuperiorityLaws.check(counting, Arrays.asList(1L, 2L)))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("selective");
+	}
+
+	@Test
+	public void starLawsRejectABrokenStar() {
+		ClosedSemiring<Boolean> brokenStar = new ClosedSemiring<Boolean>() {
+			@Override
+			public Boolean zero() {
+				return Boolean.FALSE;
+			}
+
+			@Override
+			public Boolean one() {
+				return Boolean.TRUE;
+			}
+
+			@Override
+			public Boolean plus(Boolean a, Boolean b) {
+				return a || b;
+			}
+
+			@Override
+			public Boolean times(Boolean a, Boolean b) {
+				return a && b;
+			}
+
+			@Override
+			public Boolean star(Boolean a) {
+				return Boolean.FALSE;
+			}
+		};
+		assertThatThrownBy(() -> StarLaws.check(brokenStar, Arrays.asList(true, false)))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("star");
+	}
+
+	/** join returns the left argument — not an upper bound. */
+	@Value
+	private static class LeftBiased implements Semilattice<LeftBiased>, PartialOrder<LeftBiased>, Absorbing {
+		int lo;
+		int hi;
+
+		@Override
+		public LeftBiased combine(LeftBiased other) {
+			return meet(other);
+		}
+
+		@Override
+		public boolean leq(LeftBiased other) {
+			return meet(other).equals(this);
+		}
+
+		public LeftBiased meet(LeftBiased other) {
+			int l = Math.max(lo, other.lo), h = Math.min(hi, other.hi);
+			return new LeftBiased(Math.min(l, h + 1), h);
+		}
+
+		public LeftBiased join(LeftBiased other) {
+			return this;
+		}
+
+		@Override
+		public boolean isAbsorbing() {
+			return lo > hi;
+		}
+	}
+
+	@Test
+	public void inflationaryLawsRejectAJoinThatIsNotAnUpperBound() {
+		assertThatThrownBy(() -> LatticeLaws.checkInflationary(
+				Arrays.asList(new LeftBiased(0, 3), new LeftBiased(5, 9)), LeftBiased::join))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("upper bound");
+	}
+
+	private static final class NeverExercised implements Semilattice<NeverExercised> {
+		@Override
+		public NeverExercised combine(NeverExercised other) {
+			return this;
+		}
+	}
+
+	@LawsFor(NeverExercised.class)
+	private static final class EmptyClaim {
+	}
+
+	@Test
+	public void claimingWithoutExercisingFails() {
+		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(EmptyClaim.class))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("never exercised");
+	}
+
+	/** A kit run that FAILED must leave no receipt — violations are not exercises. */
+	private static final ClosedSemiring<Boolean> BROKEN_STAR = new ClosedSemiring<Boolean>() {
+		@Override
+		public Boolean zero() {
+			return Boolean.FALSE;
+		}
+
+		@Override
+		public Boolean one() {
+			return Boolean.TRUE;
+		}
+
+		@Override
+		public Boolean plus(Boolean a, Boolean b) {
+			return a || b;
+		}
+
+		@Override
+		public Boolean times(Boolean a, Boolean b) {
+			return a && b;
+		}
+
+		@Override
+		public Boolean star(Boolean a) {
+			return Boolean.FALSE;
+		}
+	};
+
+	@LawsFor(LawViolationsTest.class)
+	private static final class ClaimsTheBrokenStar {
+	}
+
+	@Test
+	public void aFailedKitRunLeavesNoReceipt() {
+		assertThatThrownBy(() -> StarLaws.check(BROKEN_STAR, Arrays.asList(true, false)))
+				.isInstanceOf(AssertionError.class);
+		// the broken witness is enclosed in this class, so the claim covers it;
+		// with no receipt left, the hook must report never-exercised — not
+		// "no matching kit" against a poisoned record
+		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(ClaimsTheBrokenStar.class))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("never exercised");
+	}
+
+	/** Lawful but only partially exercised — its own claiming test's problem, nobody else's. */
+	private static final class PartialFixture implements CommutativeMonoid<Long> {
+		@Override
+		public Long empty() {
+			return 0L;
+		}
+
+		@Override
+		public Long combine(Long a, Long b) {
+			return a + b;
+		}
+	}
+
+	private static final class SelfContained implements Semilattice<SelfContained> {
+		@Override
+		public SelfContained combine(SelfContained other) {
+			return this;
+		}
+	}
+
+	@LawsFor(SelfContained.class)
+	private static final class ClaimsOnlyItsOwn {
+	}
+
+	@Test
+	public void foreignPartialReceiptsDoNotFailAnotherTestsHook() {
+		// exercise the foreign fixture with ONLY the monoid kit: its
+		// CommutativeMonoid algebra stays unmatched — a fact for ITS
+		// claiming test, invisible to a hook that never claimed it
+		MonoidLaws.check(new PartialFixture(), Arrays.asList(0L, 1L, 2L));
+		SelfContained one = new SelfContained();
+		SemilatticeLaws.check(Arrays.asList(one, one));
+		LawCoverage.verifyClaimsExercised(ClaimsOnlyItsOwn.class);
+	}
+
+	@Test
+	public void absorbingLawsDemandAnAbsorbingSample() {
+		assertThatThrownBy(() -> AbsorbingLaws.check(
+				Arrays.asList(Lattices.Mask.of(0b1L), Lattices.Mask.of(0b11L))))
+				.isInstanceOf(AssertionError.class)
+				.hasMessageContaining("must include an absorbing");
+	}
+}

@@ -1,0 +1,18 @@
+package org.clauseway.functional.fibers;
+
+// ABOUTME: The typed production capability a produce hands its workforce:
+// ABOUTME: emit(delta) folds into the cell, checked against the ambient scope.
+
+import org.clauseway.functional.category.Nothing;
+
+/**
+ * The ONE way to produce (emit.md): minted only by
+ * {@link Fiber#produce}, typed against the cell, executed by the
+ * interpreter in the emitting frame's own workforce — an emit from a
+ * foreign workforce refuses loudly. Abort by not emitting; produce many
+ * by emitting repeatedly.
+ */
+public interface Emitter<V> {
+
+	Fiber<Nothing> emit(V delta);
+}
