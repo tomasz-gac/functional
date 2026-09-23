@@ -91,7 +91,7 @@ public class TupleTest {
 
 	@Test
 	public void theCompanionConstructsByArity() {
-		for (int n = 1; n <= 8; n++) {
+		for (int n = 1; n <= 12; n++) {
 			Object[] members = new Object[n];
 			for (int i = 0; i < n; i++) {
 				members[i] = i + 1;
@@ -101,10 +101,24 @@ public class TupleTest {
 			for (int i = 1; i <= n; i++) {
 				assertThat(t.get(i)).isEqualTo(i);
 			}
+			Object[] bumped = new Object[n];
+			for (int i = 0; i < n; i++) {
+				bumped[i] = (Integer) members[i] + 100;
+			}
+			assertThat(t.withMembers(bumped).get(n)).isEqualTo(n + 100);
 		}
 		assertThatThrownBy(Tuples::of).isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9))
-				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	public void dispatchIsDeterministicAtTheTypedBoundary() {
+		// arity decides the class, so key equality never sees mixed shapes
+		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8)).isInstanceOf(Tuple8.class);
+		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9)).isInstanceOf(TupleN.class);
+		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9))
+				.isEqualTo(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9));
+		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9).toString())
+				.isEqualTo("(1, 2, 3, 4, 5, 6, 7, 8, 9)");
 	}
 
 	@Test
