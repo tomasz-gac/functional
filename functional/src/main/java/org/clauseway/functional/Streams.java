@@ -1,7 +1,7 @@
 package org.clauseway.functional;
 
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;

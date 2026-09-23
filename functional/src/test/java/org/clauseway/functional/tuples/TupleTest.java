@@ -90,6 +90,24 @@ public class TupleTest {
 	}
 
 	@Test
+	public void theCompanionConstructsByArity() {
+		for (int n = 1; n <= 8; n++) {
+			Object[] members = new Object[n];
+			for (int i = 0; i < n; i++) {
+				members[i] = i + 1;
+			}
+			Tuple t = Tuples.of(members);
+			assertThat(t.arity()).isEqualTo(n);
+			for (int i = 1; i <= n; i++) {
+				assertThat(t.get(i)).isEqualTo(i);
+			}
+		}
+		assertThatThrownBy(Tuples::of).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	public void theContractRefusesOutOfRange() {
 		assertThatThrownBy(() -> Tuple.of(1, 2).withMembers(new Object[] {1}))
 				.isInstanceOf(IllegalArgumentException.class);

@@ -7,8 +7,8 @@ import static org.clauseway.functional.fibers.Tapped.tapped;
 
 import org.clauseway.functional.category.Nothing;
 import org.clauseway.functional.fibers.schedulers.BreadthFirstScheduler;
-import io.vavr.Tuple;
-import io.vavr.Tuple3;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 import io.vavr.collection.Stream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -179,13 +179,8 @@ public class FiberTest {
 
 	@Test
 	public void shouldZip() {
-		Tuple3<Integer, String, String> x = done(3)
-				.flatMap(v -> done("123")
-						.map(s -> Tuple.of(v, s)))
-				.flatMap(v -> done("123")
-						.map(v::append))
-				.ground();
-		System.out.println(x);
+		Tuple2<Integer, String> x = Fiber.zip(done(3), done("123")).ground();
+		Assertions.assertThat(x).isEqualTo(Tuple.of(3, "123"));
 	}
 
 	@Test

@@ -8,8 +8,8 @@ import static org.clauseway.functional.fibers.Fiber.done;
 
 import org.clauseway.functional.Exceptions;
 import org.clauseway.functional.fibers.Fiber;
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 import io.vavr.collection.Array;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.IndexedSeq;

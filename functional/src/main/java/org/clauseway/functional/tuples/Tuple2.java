@@ -4,6 +4,7 @@ package org.clauseway.functional.tuples;
 // ABOUTME: contract shared by all arities.
 
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode
@@ -27,6 +28,24 @@ public final class Tuple2<T1, T2> implements Tuple {
 
 	public <U> U apply(BiFunction<? super T1, ? super T2, ? extends U> f) {
 		return f.apply(_1, _2);
+	}
+
+	public <U> Tuple2<U, T2> map1(Function<? super T1, ? extends U> f) {
+		return new Tuple2<>(f.apply(_1), _2);
+	}
+
+	public <U> Tuple2<T1, U> map2(Function<? super T2, ? extends U> f) {
+		return new Tuple2<>(_1, f.apply(_2));
+	}
+
+	public <U1, U2> Tuple2<U1, U2> map(BiFunction<? super T1, ? super T2, Tuple2<U1, U2>> f) {
+		return f.apply(_1, _2);
+	}
+
+	public <U1, U2> Tuple2<U1, U2> map(
+			Function<? super T1, ? extends U1> f1,
+			Function<? super T2, ? extends U2> f2) {
+		return new Tuple2<>(f1.apply(_1), f2.apply(_2));
 	}
 
 	@Override

@@ -1,8 +1,8 @@
 package org.clauseway.functional.fibers;
 
 import org.clauseway.functional.Reference;
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 import io.vavr.control.Option;
 import java.util.Objects;
 import java.util.function.Function;

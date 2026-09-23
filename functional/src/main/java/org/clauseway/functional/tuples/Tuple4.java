@@ -3,6 +3,7 @@ package org.clauseway.functional.tuples;
 // ABOUTME: A 4-tuple: vavr-shaped accessors and apply over the structural
 // ABOUTME: contract shared by all arities.
 
+import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode
@@ -38,6 +39,30 @@ public final class Tuple4<T1, T2, T3, T4> implements Tuple {
 
 	public <U> U apply(Function4<? super T1, ? super T2, ? super T3, ? super T4, ? extends U> f) {
 		return f.apply(_1, _2, _3, _4);
+	}
+
+	public <U1, U2, U3, U4> Tuple4<U1, U2, U3, U4> map(
+			Function<? super T1, ? extends U1> f1,
+			Function<? super T2, ? extends U2> f2,
+			Function<? super T3, ? extends U3> f3,
+			Function<? super T4, ? extends U4> f4) {
+		return new Tuple4<>(f1.apply(_1), f2.apply(_2), f3.apply(_3), f4.apply(_4));
+	}
+
+	public <U> Tuple4<U, T2, T3, T4> map1(Function<? super T1, ? extends U> f) {
+		return new Tuple4<>(f.apply(_1), _2, _3, _4);
+	}
+
+	public <U> Tuple4<T1, U, T3, T4> map2(Function<? super T2, ? extends U> f) {
+		return new Tuple4<>(_1, f.apply(_2), _3, _4);
+	}
+
+	public <U> Tuple4<T1, T2, U, T4> map3(Function<? super T3, ? extends U> f) {
+		return new Tuple4<>(_1, _2, f.apply(_3), _4);
+	}
+
+	public <U> Tuple4<T1, T2, T3, U> map4(Function<? super T4, ? extends U> f) {
+		return new Tuple4<>(_1, _2, _3, f.apply(_4));
 	}
 
 	@Override

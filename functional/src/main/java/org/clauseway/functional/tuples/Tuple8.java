@@ -3,6 +3,7 @@ package org.clauseway.functional.tuples;
 // ABOUTME: A 8-tuple: vavr-shaped accessors and apply over the structural
 // ABOUTME: contract shared by all arities.
 
+import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode
@@ -62,6 +63,50 @@ public final class Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> implements Tuple {
 
 	public <U> U apply(Function8<? super T1, ? super T2, ? super T3, ? super T4, ? super T5, ? super T6, ? super T7, ? super T8, ? extends U> f) {
 		return f.apply(_1, _2, _3, _4, _5, _6, _7, _8);
+	}
+
+	public <U1, U2, U3, U4, U5, U6, U7, U8> Tuple8<U1, U2, U3, U4, U5, U6, U7, U8> map(
+			Function<? super T1, ? extends U1> f1,
+			Function<? super T2, ? extends U2> f2,
+			Function<? super T3, ? extends U3> f3,
+			Function<? super T4, ? extends U4> f4,
+			Function<? super T5, ? extends U5> f5,
+			Function<? super T6, ? extends U6> f6,
+			Function<? super T7, ? extends U7> f7,
+			Function<? super T8, ? extends U8> f8) {
+		return new Tuple8<>(f1.apply(_1), f2.apply(_2), f3.apply(_3), f4.apply(_4), f5.apply(_5), f6.apply(_6), f7.apply(_7), f8.apply(_8));
+	}
+
+	public <U> Tuple8<U, T2, T3, T4, T5, T6, T7, T8> map1(Function<? super T1, ? extends U> f) {
+		return new Tuple8<>(f.apply(_1), _2, _3, _4, _5, _6, _7, _8);
+	}
+
+	public <U> Tuple8<T1, U, T3, T4, T5, T6, T7, T8> map2(Function<? super T2, ? extends U> f) {
+		return new Tuple8<>(_1, f.apply(_2), _3, _4, _5, _6, _7, _8);
+	}
+
+	public <U> Tuple8<T1, T2, U, T4, T5, T6, T7, T8> map3(Function<? super T3, ? extends U> f) {
+		return new Tuple8<>(_1, _2, f.apply(_3), _4, _5, _6, _7, _8);
+	}
+
+	public <U> Tuple8<T1, T2, T3, U, T5, T6, T7, T8> map4(Function<? super T4, ? extends U> f) {
+		return new Tuple8<>(_1, _2, _3, f.apply(_4), _5, _6, _7, _8);
+	}
+
+	public <U> Tuple8<T1, T2, T3, T4, U, T6, T7, T8> map5(Function<? super T5, ? extends U> f) {
+		return new Tuple8<>(_1, _2, _3, _4, f.apply(_5), _6, _7, _8);
+	}
+
+	public <U> Tuple8<T1, T2, T3, T4, T5, U, T7, T8> map6(Function<? super T6, ? extends U> f) {
+		return new Tuple8<>(_1, _2, _3, _4, _5, f.apply(_6), _7, _8);
+	}
+
+	public <U> Tuple8<T1, T2, T3, T4, T5, T6, U, T8> map7(Function<? super T7, ? extends U> f) {
+		return new Tuple8<>(_1, _2, _3, _4, _5, _6, f.apply(_7), _8);
+	}
+
+	public <U> Tuple8<T1, T2, T3, T4, T5, T6, T7, U> map8(Function<? super T8, ? extends U> f) {
+		return new Tuple8<>(_1, _2, _3, _4, _5, _6, _7, f.apply(_8));
 	}
 
 	@Override

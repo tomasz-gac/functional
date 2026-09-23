@@ -23,6 +23,10 @@ public final class Tuple1<T1> implements Tuple {
 		return f.apply(_1);
 	}
 
+	public <U> Tuple1<U> map(Function<? super T1, ? extends U> f) {
+		return new Tuple1<>(f.apply(_1));
+	}
+
 	@Override
 	public int arity() {
 		return 1;

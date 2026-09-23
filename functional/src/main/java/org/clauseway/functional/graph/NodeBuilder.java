@@ -1,7 +1,7 @@
 package org.clauseway.functional.graph;
 
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
