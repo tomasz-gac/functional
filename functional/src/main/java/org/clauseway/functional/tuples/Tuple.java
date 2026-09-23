@@ -66,10 +66,10 @@ public interface Tuple {
 	 * The untyped door: a tuple of the members' arity, refusing arity 0.
 	 * Dispatch is deterministic — 1-8 always the typed classes, wider
 	 * always {@link TupleN} — so equal arities never meet as different
-	 * shapes. The typed overloads win for 1-8 literal arguments; this one
-	 * serves arrays and arities beyond 8.
+	 * shapes. The of/ofAll split follows the house convention: {@code of}
+	 * is typed construction, {@code ofAll} builds from a sequence.
 	 */
-	static Tuple of(Object... members) {
+	static Tuple ofAll(Object... members) {
 		switch (members.length) {
 			case 1:
 				return of(members[0]);
