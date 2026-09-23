@@ -61,4 +61,39 @@ public interface Tuple {
 			T1 _1, T2 _2, T3 _3, T4 _4, T5 _5, T6 _6, T7 _7, T8 _8) {
 		return new Tuple8<>(_1, _2, _3, _4, _5, _6, _7, _8);
 	}
+
+	/**
+	 * The untyped door: a tuple of the members' arity, refusing arity 0.
+	 * Dispatch is deterministic — 1-8 always the typed classes, wider
+	 * always {@link TupleN} — so equal arities never meet as different
+	 * shapes. The typed overloads win for 1-8 literal arguments; this one
+	 * serves arrays and arities beyond 8.
+	 */
+	static Tuple of(Object... members) {
+		switch (members.length) {
+			case 1:
+				return of(members[0]);
+			case 2:
+				return of(members[0], members[1]);
+			case 3:
+				return of(members[0], members[1], members[2]);
+			case 4:
+				return of(members[0], members[1], members[2], members[3]);
+			case 5:
+				return of(members[0], members[1], members[2], members[3], members[4]);
+			case 6:
+				return of(members[0], members[1], members[2], members[3], members[4],
+						members[5]);
+			case 7:
+				return of(members[0], members[1], members[2], members[3], members[4],
+						members[5], members[6]);
+			case 8:
+				return of(members[0], members[1], members[2], members[3], members[4],
+						members[5], members[6], members[7]);
+			case 0:
+				throw new IllegalArgumentException("no tuple of arity 0");
+			default:
+				return new TupleN(members);
+		}
+	}
 }

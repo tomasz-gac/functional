@@ -96,7 +96,7 @@ public class TupleTest {
 			for (int i = 0; i < n; i++) {
 				members[i] = i + 1;
 			}
-			Tuple t = Tuples.of(members);
+			Tuple t = Tuple.of(members);
 			assertThat(t.arity()).isEqualTo(n);
 			for (int i = 1; i <= n; i++) {
 				assertThat(t.get(i)).isEqualTo(i);
@@ -107,17 +107,28 @@ public class TupleTest {
 			}
 			assertThat(t.withMembers(bumped).get(n)).isEqualTo(n + 100);
 		}
-		assertThatThrownBy(Tuples::of).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> Tuple.of(new Object[0]))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	public void theUntypedDoorSpreadsAnArrayByArity() {
+		// an Object[] argument is MEMBERS, never a 1-tuple holding the array
+		Object[] cells = {"a", "b", "c"};
+		Tuple t = Tuple.of(cells);
+		assertThat(t.arity()).isEqualTo(3);
+		assertThat(t.get(1)).isEqualTo("a");
+		assertThat((Object) Tuple.of("a")).isInstanceOf(Tuple1.class);
 	}
 
 	@Test
 	public void dispatchIsDeterministicAtTheTypedBoundary() {
 		// arity decides the class, so key equality never sees mixed shapes
-		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8)).isInstanceOf(Tuple8.class);
-		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9)).isInstanceOf(TupleN.class);
-		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9))
-				.isEqualTo(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9));
-		assertThat(Tuples.of(1, 2, 3, 4, 5, 6, 7, 8, 9).toString())
+		assertThat((Object) Tuple.of(1, 2, 3, 4, 5, 6, 7, 8)).isInstanceOf(Tuple8.class);
+		assertThat(Tuple.of(1, 2, 3, 4, 5, 6, 7, 8, 9)).isInstanceOf(TupleN.class);
+		assertThat(Tuple.of(1, 2, 3, 4, 5, 6, 7, 8, 9))
+				.isEqualTo(Tuple.of(1, 2, 3, 4, 5, 6, 7, 8, 9));
+		assertThat(Tuple.of(1, 2, 3, 4, 5, 6, 7, 8, 9).toString())
 				.isEqualTo("(1, 2, 3, 4, 5, 6, 7, 8, 9)");
 	}
 
