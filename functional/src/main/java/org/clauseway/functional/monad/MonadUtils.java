@@ -1,9 +1,5 @@
-package org.clauseway.functional.category;
+package org.clauseway.functional.monad;
 
-import org.clauseway.functional.monad.Either;
-import org.clauseway.functional.monad.Future;
-import org.clauseway.functional.monad.Option;
-import org.clauseway.functional.monad.Stream;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 

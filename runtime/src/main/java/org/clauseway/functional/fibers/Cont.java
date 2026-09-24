@@ -1,9 +1,8 @@
-package org.clauseway.functional.monad;
+package org.clauseway.functional.fibers;
 
 import static org.clauseway.functional.fibers.Fiber.done;
 
 import org.clauseway.functional.category.Monad;
-import org.clauseway.functional.fibers.Fiber;
 import java.io.Serializable;
 import java.util.function.Function;
 import java.util.function.Supplier;

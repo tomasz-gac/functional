@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.fibers.Cont;
 
 public class ContTest {
 	@Test
