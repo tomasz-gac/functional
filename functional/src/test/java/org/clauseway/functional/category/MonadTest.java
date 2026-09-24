@@ -16,6 +16,7 @@ import java.util.stream.IntStream;
 import lombok.experimental.ExtensionMethod;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.monad.MonadUtils;
 
 @ExtensionMethod(MonadUtils.class)
 class MonadTest {
