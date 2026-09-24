@@ -6,7 +6,6 @@ import org.clauseway.functional.algebra.laws.CommutativeMonoidLaws;
 import org.clauseway.functional.algebra.laws.FoldLaws;
 import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.MonoidLaws;
-import io.vavr.collection.List;
 import java.util.Arrays;
 import org.clauseway.functional.laws.LawChecker;
 import org.junit.jupiter.api.AfterAll;
@@ -39,18 +38,11 @@ public class MonoidWitnessLawsTest {
 		CommutativeMonoidLaws.check(Monoids.INT_MAX, SMALL_INTS);
 	}
 
-	@Test
-	public void listConcatIsAMonoidOnly() {
-		MonoidLaws.check(Monoids.<Long> list(),
-				Arrays.asList(List.of(1L), List.of(2L, 3L), List.empty()));
-	}
 
 	@Test
 	public void foldEarlyEqualsFoldLate() {
 		FoldLaws.check(Monoids.LONG_SUM, Arrays.asList(1L, 2L), Arrays.asList(3L, 4L));
 		FoldLaws.check(Monoids.LONG_MIN, Arrays.asList(5L, 2L), Arrays.asList(9L));
 		FoldLaws.check(Monoids.LONG_MAX, Arrays.asList(5L, 2L), Arrays.asList(9L));
-		FoldLaws.check(Monoids.<Long> list(),
-				Arrays.asList(List.of(1L), List.of(2L)), Arrays.asList(List.of(3L)));
 	}
 }

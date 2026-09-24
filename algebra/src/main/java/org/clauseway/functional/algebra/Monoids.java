@@ -3,7 +3,6 @@ package org.clauseway.functional.algebra;
 // ABOUTME: The aggregate folds as monoid witnesses: sum, min, max (commutative)
 // ABOUTME: and list concatenation (associative only — answer order matters).
 
-import io.vavr.collection.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -82,17 +81,4 @@ public final class Monoids {
 		}
 	};
 
-	public static <T> Monoid<List<T>> list() {
-		return new Monoid<List<T>>() {
-			@Override
-			public List<T> empty() {
-				return List.empty();
-			}
-
-			@Override
-			public List<T> combine(List<T> a, List<T> b) {
-				return a.appendAll(b);
-			}
-		};
-	}
 }
