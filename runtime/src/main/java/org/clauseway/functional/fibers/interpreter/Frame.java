@@ -3,7 +3,7 @@ package org.clauseway.functional.fibers.interpreter;
 // ABOUTME: A fiber under evaluation — computation, continuation stack, ambient scope —
 // ABOUTME: owning the single-step interpreter every scheduler drives through step().
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.AwaitResult;
 import org.clauseway.functional.fibers.Fiber;
 import java.util.ArrayDeque;

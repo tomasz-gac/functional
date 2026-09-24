@@ -1,4 +1,4 @@
-package org.clauseway.functional.category;
+package org.clauseway.functional;
 
 import org.clauseway.functional.algebra.Semilattice;
 import lombok.AccessLevel;

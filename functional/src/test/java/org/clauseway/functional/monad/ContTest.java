@@ -89,8 +89,7 @@ public class ContTest {
 								return Cont.just(3);
 							}
 						})
-						.map(i -> i * 2)
-						.cast());
+						.map(i -> i * 2));
 		Assertions.assertThat(cont.run(String::valueOf).ground())
 				.isEqualTo("123");
 	}
@@ -122,9 +121,7 @@ public class ContTest {
 										.flatMap(i -> i == 15 ?
 												exit.with(3) :
 												Cont.just(i + 4))
-										.map(i -> i * 3)
-										.cast())
-						.<Cont<Integer, String>> cast()
+										.map(i -> i * 3))
 						.run(String::valueOf)
 						.ground())
 				.isEqualTo("3");
@@ -138,9 +135,7 @@ public class ContTest {
 										.flatMap(i -> i == 14 ?
 												exit.with(3) :
 												Cont.just(i + 4))
-										.map(i -> i * 3)
-										.cast())
-						.<Cont<Integer, String>> cast()
+										.map(i -> i * 3))
 						.run(String::valueOf)
 						.ground())
 				.isEqualTo("57");

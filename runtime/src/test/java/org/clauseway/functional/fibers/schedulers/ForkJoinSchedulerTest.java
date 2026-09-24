@@ -3,12 +3,12 @@ package org.clauseway.functional.fibers.schedulers;
 // ABOUTME: The pool drive's contract: a failing frame cancels the whole drive
 // ABOUTME: cooperatively; step-counted runs refuse; advance drives by poll window.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.clauseway.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.Fiber;
 import java.util.Arrays;
 import java.util.concurrent.ForkJoinPool;

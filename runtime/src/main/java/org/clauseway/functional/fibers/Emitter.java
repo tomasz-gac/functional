@@ -3,7 +3,7 @@ package org.clauseway.functional.fibers;
 // ABOUTME: The typed production capability a produce hands its workforce:
 // ABOUTME: emit(delta) folds into the cell, checked against the ambient scope.
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 
 /**
  * The ONE way to produce (emit.md): minted only by

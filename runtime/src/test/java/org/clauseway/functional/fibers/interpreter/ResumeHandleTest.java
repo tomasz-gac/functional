@@ -3,7 +3,7 @@ package org.clauseway.functional.fibers.interpreter;
 // ABOUTME: The resume handle completes its frame exactly once: a duplicate
 // ABOUTME: completion refuses loudly instead of re-queuing the frame twice.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

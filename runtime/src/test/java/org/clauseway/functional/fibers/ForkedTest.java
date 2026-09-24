@@ -5,7 +5,7 @@ import static org.clauseway.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.clauseway.functional.fibers.Tapped.tapped;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

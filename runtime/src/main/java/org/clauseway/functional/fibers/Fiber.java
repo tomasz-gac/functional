@@ -1,8 +1,7 @@
 package org.clauseway.functional.fibers;
 
 import org.clauseway.functional.algebra.Semilattice;
-import org.clauseway.functional.category.Monad;
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.interpreter.Channel;
 import org.clauseway.functional.fibers.interpreter.EngineGuard;
 import org.clauseway.functional.fibers.interpreter.OriginCapture;
@@ -26,7 +25,7 @@ import lombok.Value;
 import lombok.experimental.FieldDefaults;
 import lombok.var;
 
-public interface Fiber<A> extends Monad<Fiber<?>, A> {
+public interface Fiber<A> {
 	interface Fn<T, R> extends Function<T, Fiber<R>> {
 	}
 
@@ -38,19 +37,12 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 		return Deferred.of(rec);
 	}
 
-	@Override
-	default <B> Fiber<B> flatMap(Function<? super A, @NonNull ? extends Monad<Fiber<?>, B>> f) {
+	default <B> Fiber<B> flatMap(Function<? super A, @NonNull ? extends Fiber<B>> f) {
 		return FlatMap.of(f, this);
 	}
 
-	@Override
 	default <B> Fiber<B> map(Function<? super A, @NonNull B> f) {
 		return flatMap(v -> done(f.apply(v)));
-	}
-
-	@Override
-	default <B> Fiber<B> pure(B value) {
-		return done(value);
 	}
 
 	default boolean isDone() {
@@ -266,13 +258,13 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 		}
 
 		@Override
-		public <B> Fiber<B> flatMap(Function<? super A, ? extends Monad<Fiber<?>, B>> f) {
+		public <B> Fiber<B> flatMap(Function<? super A, ? extends Fiber<B>> f) {
 			if (!EngineGuard.eagerBudgetLeft()) {
 				return FlatMap.of(f, this);
 			}
 			EngineGuard.eagerPush();
 			try {
-				return (Fiber<B>) f.apply(value);
+				return f.apply(value);
 			} finally {
 				EngineGuard.eagerPop();
 			}
@@ -354,8 +346,8 @@ public interface Fiber<A> extends Monad<Fiber<?>, A> {
 		}
 
 		@SuppressWarnings("unchecked")
-		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Monad<Fiber<?>, D>> f, Fiber<C> r) {
-			return new FlatMap<>(o -> (Fiber<D>) f.apply((C) o), (Fiber<Object>) r);
+		public static <C, D> FlatMap<Object, D> of(Function<? super C, ? extends Fiber<D>> f, Fiber<C> r) {
+			return new FlatMap<>(o -> f.apply((C) o), (Fiber<Object>) r);
 		}
 	}
 }

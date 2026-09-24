@@ -5,7 +5,7 @@ package org.clauseway.functional.fibers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.interpreter.Scope;
 import org.clauseway.functional.fibers.interpreter.ScopeProfiler;
 import org.clauseway.functional.fibers.schedulers.BreadthFirstScheduler;

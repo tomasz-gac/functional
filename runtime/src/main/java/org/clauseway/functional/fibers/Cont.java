@@ -2,7 +2,6 @@ package org.clauseway.functional.fibers;
 
 import static org.clauseway.functional.fibers.Fiber.done;
 
-import org.clauseway.functional.category.Monad;
 import java.io.Serializable;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -11,15 +10,16 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 
-public interface Cont<T, R> extends
-		Monad<Cont<?, R>, T>,
-		Fiber.Fn<Fiber.Fn<T, R>, R> {
+public interface Cont<T, R> extends Fiber.Fn<Fiber.Fn<T, R>, R> {
 
-	@Override
-	default <B> Cont<B, R> flatMap(Function<? super T, ? extends Monad<Cont<?, R>, B>> f) {
+	default <B> Cont<B, R> map(Function<? super T, ? extends B> f) {
+		return flatMap(t -> just(f.apply(t)));
+	}
+
+	default <B> Cont<B, R> flatMap(Function<? super T, ? extends Cont<B, R>> f) {
 		return k ->
 				Fiber.defer(() -> apply(a ->
-						Fiber.defer(() -> f.apply(a).<Cont<B, R>> cast()
+						Fiber.defer(() -> f.apply(a)
 								.apply(k))));
 	}
 
@@ -53,11 +53,6 @@ public interface Cont<T, R> extends
 
 	default Fiber<R> run(Function<T, @NonNull R> cont) {
 		return apply(v -> done(cont.apply(v)));
-	}
-
-	@Override
-	default <B> Cont<B, R> pure(B value) {
-		return just(value);
 	}
 
 	static <T, R> Cont<T, R> suspend(Fiber.Fn<Fiber.Fn<T, R>, R> f) {

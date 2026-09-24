@@ -106,13 +106,6 @@ public class DoneTest {
 	}
 
 	@Test
-	public void shouldWorkWithPureMethod() {
-		Fiber<Integer> fiber = done(10);
-		Integer result = fiber.pure(20).ground();
-		assertThat(result).isEqualTo(20);
-	}
-
-	@Test
 	public void shouldHandleNestedDoneInFlatMap() {
 		Integer result = done(1)
 				.flatMap(a -> done(2)

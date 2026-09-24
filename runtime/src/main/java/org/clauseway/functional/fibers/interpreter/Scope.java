@@ -3,10 +3,10 @@ package org.clauseway.functional.fibers.interpreter;
 // ABOUTME: A sealable scope of work: the ledger, the seal, and the group walk —
 // ABOUTME: termination detection for the workforce producing one Channel.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.clauseway.functional.fibers.Fiber.done;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.Fiber;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

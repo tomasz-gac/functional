@@ -1,9 +1,9 @@
-package org.clauseway.functional.category;
+package org.clauseway.functional;
 
 // ABOUTME: Semilattice laws for Nothing — the one-point lattice, where every
 // ABOUTME: law holds by uniqueness of the element.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 
 import org.clauseway.functional.laws.LawChecker;
 import org.clauseway.functional.laws.LawsFor;

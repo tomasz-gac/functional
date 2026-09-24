@@ -5,7 +5,7 @@ import static org.clauseway.functional.fibers.Fiber.done;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.clauseway.functional.fibers.Tapped.tapped;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.schedulers.BreadthFirstScheduler;
 import org.clauseway.functional.tuples.Tuple;
 import org.clauseway.functional.tuples.Tuple2;

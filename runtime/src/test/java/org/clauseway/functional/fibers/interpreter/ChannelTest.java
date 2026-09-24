@@ -3,7 +3,7 @@ package org.clauseway.functional.fibers.interpreter;
 // ABOUTME: Pins the channel's contract: strict growth swaps and wakes satisfied
 // ABOUTME: waiters exactly once, an absorbed delta changes nothing, seal refuses growth.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

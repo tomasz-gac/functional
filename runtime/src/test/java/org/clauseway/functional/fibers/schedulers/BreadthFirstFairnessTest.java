@@ -3,11 +3,11 @@ package org.clauseway.functional.fibers.schedulers;
 // ABOUTME: Pins the scheduler contracts: honest BFS never demotes a healthy level
 // ABOUTME: and crashes a dead one; the unfair scheduler joins starved siblings.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.clauseway.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.Fiber;
 import java.util.ArrayList;
 import java.util.Arrays;

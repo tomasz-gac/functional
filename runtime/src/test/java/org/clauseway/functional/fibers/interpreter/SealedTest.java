@@ -3,12 +3,12 @@ package org.clauseway.functional.fibers.interpreter;
 // ABOUTME: The control await: drained(scope) completes with Nothing when the
 // ABOUTME: workforce seals; claim is once-only; readers keep the sealed arm.
 
-import static org.clauseway.functional.category.Nothing.nothing;
+import static org.clauseway.functional.Nothing.nothing;
 import static org.clauseway.functional.fibers.Fiber.done;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.clauseway.functional.category.Nothing;
+import org.clauseway.functional.Nothing;
 import org.clauseway.functional.fibers.Fiber;
 import java.util.ArrayList;
 import java.util.Arrays;
