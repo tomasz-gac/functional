@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -63,9 +64,7 @@ public final class LawChecker {
 		for (Class<?> testClass : loadAll(testClasses)) {
 			LawsFor claim = testClass.getAnnotation(LawsFor.class);
 			if (claim != null) {
-				for (Class<?> claimed : claim.value()) {
-					claims.add(claimed);
-				}
+				Collections.addAll(claims, claim.value());
 			}
 		}
 		for (Class<?> testClass : loadAll(testClasses)) {
@@ -111,6 +110,7 @@ public final class LawChecker {
 				for (Class<?> at = exercised; at != null; at = at.getEnclosingClass()) {
 					if (at.equals(claimed)) {
 						touched = true;
+						break;
 					}
 				}
 			}
@@ -127,6 +127,7 @@ public final class LawChecker {
 				for (Class<?> claimed : claim.value()) {
 					if (at.equals(claimed)) {
 						underClaims = true;
+						break;
 					}
 				}
 			}
@@ -140,6 +141,7 @@ public final class LawChecker {
 				for (String kit : accepted) {
 					if (kits.contains(kit)) {
 						matched = true;
+						break;
 					}
 				}
 				if (!matched) {
@@ -207,8 +209,8 @@ public final class LawChecker {
 	/** The code source of a class — target/classes in a reactor build, the jar otherwise. */
 	public static Path codeSource(Class<?> anchor) {
 		try {
-			return Path.class.cast(Paths.get(
-					anchor.getProtectionDomain().getCodeSource().getLocation().toURI()));
+			return Paths.get(
+					anchor.getProtectionDomain().getCodeSource().getLocation().toURI());
 		} catch (java.net.URISyntaxException e) {
 			throw new IllegalStateException("cannot locate code source of " + anchor, e);
 		}
@@ -216,7 +218,7 @@ public final class LawChecker {
 
 	private static List<Class<?>> loadAll(Path root) throws IOException {
 		if (root.toString().endsWith(".jar")) {
-			try (java.nio.file.FileSystem jar = java.nio.file.FileSystems.newFileSystem(root, (ClassLoader) null)) {
+			try (java.nio.file.FileSystem jar = java.nio.file.FileSystems.newFileSystem(root, null)) {
 				return loadAllFrom(jar.getPath("/"));
 			}
 		}

@@ -11,6 +11,7 @@
 
 	<modules>
 		<module>types</module>
+		<module>algebra</module>
 		<module>laws</module>
 		<module>functional</module>
 		<module>algebra-laws</module>
