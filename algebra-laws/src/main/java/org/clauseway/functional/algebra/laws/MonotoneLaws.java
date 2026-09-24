@@ -8,6 +8,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
 
 /**
  * The law of maps between DIFFERENT orders — {@code a ⊑ b ⇒ f(a) ⊑ f(b)} —

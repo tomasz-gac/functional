@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.function.BiPredicate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
+import org.clauseway.functional.laws.LawRegistry;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class IdempotentSemiringLaws {

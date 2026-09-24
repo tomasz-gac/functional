@@ -5,20 +5,21 @@ package org.clauseway.functional.algebra;
 
 import org.clauseway.functional.algebra.laws.AbsorbingLaws;
 import org.clauseway.functional.algebra.laws.LatticeLaws;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.SemilatticeLaws;
 import java.util.Arrays;
 import java.util.List;
-import org.clauseway.functional.algebra.laws.LawCoverage;
+import org.clauseway.functional.laws.LawChecker;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 @LawsFor(Lattices.class)
 public class LatticeWitnessLawsTest {
 
 	@AfterAll
 	static void lawClaimsExercised() {
-		LawCoverage.verifyClaimsExercised(LatticeWitnessLawsTest.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(LatticeWitnessLawsTest.class);
 	}
 
 	@Test

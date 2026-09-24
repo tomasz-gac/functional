@@ -7,6 +7,8 @@ import org.clauseway.functional.algebra.SuperiorSemiring;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
+import org.clauseway.functional.laws.LawRegistry;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SuperiorityLaws {

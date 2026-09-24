@@ -3,20 +3,21 @@ package org.clauseway.functional.algebra;
 // ABOUTME: Laws for the direct-leq partial-order witness: subset inclusion,
 // ABOUTME: sampled with incomparable pairs.
 
-import org.clauseway.functional.algebra.laws.LawCoverage;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawChecker;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.PartialOrderLaws;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 @LawsFor(PartialOrders.class)
 public class PartialOrderWitnessLawsTest {
 
 	@AfterAll
 	static void lawClaimsExercised() {
-		LawCoverage.verifyClaimsExercised(PartialOrderWitnessLawsTest.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(PartialOrderWitnessLawsTest.class);
 	}
 
 	@Test

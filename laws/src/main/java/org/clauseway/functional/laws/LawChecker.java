@@ -1,9 +1,11 @@
-package org.clauseway.functional.algebra.laws;
+package org.clauseway.functional.laws;
 
-// ABOUTME: The reusable coverage gate: discovers algebraic implementors on the main
-// ABOUTME: classpath and verifies each is claimed by a @LawsFor-annotated test.
+// ABOUTME: The reusable coverage gate, parameterized by the domain's marker
+// ABOUTME: annotation: discovers checked implementors and verifies each is claimed.
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,22 +15,50 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public final class LawCoverage {
+/**
+ * The gate over one domain's law discipline. The domain supplies its marker
+ * annotation — any annotation with a {@code String[] value()} naming the kits
+ * that may exercise the interface's implementors — and the checker discovers
+ * every non-abstract implementor of a marked interface on the main classpath,
+ * demanding each is claimed by some {@link LawsFor}-annotated test.
+ */
+public final class LawChecker {
+
+	private final Class<? extends Annotation> checkedBy;
+	private final Method kitNames;
+
+	private LawChecker(Class<? extends Annotation> checkedBy, Method kitNames) {
+		this.checkedBy = checkedBy;
+		this.kitNames = kitNames;
+	}
+
+	/** The checker for a marker annotation; refuses one without a {@code String[] value()}. */
+	public static LawChecker of(Class<? extends Annotation> checkedBy) {
+		try {
+			Method value = checkedBy.getMethod("value");
+			if (!String[].class.equals(value.getReturnType())) {
+				throw new IllegalArgumentException(checkedBy.getName()
+						+ ".value() returns " + value.getReturnType().getName()
+						+ " — the marker must name its accepted kits as String[]");
+			}
+			return new LawChecker(checkedBy, value);
+		} catch (NoSuchMethodException e) {
+			throw new IllegalArgumentException(checkedBy.getName()
+					+ " has no value() — the marker must name its accepted kits as String[]", e);
+		}
+	}
 
 	/**
-	 * Fails unless every non-abstract implementor of the given algebras found
+	 * Fails unless every non-abstract implementor of a marked interface found
 	 * under {@code mainClasses} is claimed by some {@link LawsFor} annotation
 	 * found under {@code testClasses} — either directly or via an enclosing
 	 * class (anonymous witnesses). The claimed tests themselves run as
 	 * ordinary test classes; this verifies only that the mapping is total.
 	 */
 	@SafeVarargs
-	public static void verify(Path mainClasses, Path testClasses,
-			Class<? extends java.lang.annotation.Annotation>... afterHooks) throws IOException {
+	public final void verify(Path mainClasses, Path testClasses,
+			Class<? extends Annotation>... afterHooks) throws IOException {
 		Set<Class<?>> claims = new HashSet<>();
 		for (Class<?> testClass : loadAll(testClasses)) {
 			LawsFor claim = testClass.getAnnotation(LawsFor.class);
@@ -50,7 +80,7 @@ public final class LawCoverage {
 		}
 		List<String> unclaimed = new ArrayList<>();
 		for (Class<?> c : loadAll(mainClasses)) {
-			if (c.isInterface() || Modifier.isAbstract(c.getModifiers()) || checkedAlgebrasOf(c).isEmpty()) {
+			if (c.isInterface() || Modifier.isAbstract(c.getModifiers()) || checkedInterfacesOf(c).isEmpty()) {
 				continue;
 			}
 			if (!isClaimed(c, claims)) {
@@ -58,17 +88,18 @@ public final class LawCoverage {
 			}
 		}
 		if (!unclaimed.isEmpty()) {
-			throw new AssertionError("algebraic implementors without a @LawsFor test: " + unclaimed);
+			throw new AssertionError("law-checked implementors without a @LawsFor test: " + unclaimed);
 		}
 	}
 
 	/**
 	 * Per-test-class guard (wire from @AfterClass/@AfterAll): every class
 	 * claimed by the test's {@link LawsFor} was exercised by at least one kit,
-	 * and every exercised class was exercised by the kits its ALGEBRAS demand —
-	 * a claimed MeetSemilattice touched only by BottomedLaws fails here.
+	 * and every exercised class was exercised by the kits its marked
+	 * interfaces demand — a claimed implementor touched only by a foreign kit
+	 * fails here.
 	 */
-	public static void verifyClaimsExercised(Class<?> testClass) {
+	public void verifyClaimsExercised(Class<?> testClass) {
 		LawsFor claim = testClass.getAnnotation(LawsFor.class);
 		if (claim == null) {
 			throw new AssertionError(testClass.getName() + " has no @LawsFor claim to verify");
@@ -103,8 +134,8 @@ public final class LawCoverage {
 				continue;
 			}
 			Set<String> kits = LawRegistry.kitsFor(exercised);
-			for (Class<?> algebra : checkedAlgebrasOf(exercised)) {
-				String[] accepted = algebra.getAnnotation(org.clauseway.functional.algebra.CheckedBy.class).value();
+			for (Class<?> marked : checkedInterfacesOf(exercised)) {
+				String[] accepted = acceptedKits(marked);
 				boolean matched = false;
 				for (String kit : accepted) {
 					if (kits.contains(kit)) {
@@ -112,7 +143,7 @@ public final class LawCoverage {
 					}
 				}
 				if (!matched) {
-					problems.add(exercised.getName() + " implements " + algebra.getSimpleName()
+					problems.add(exercised.getName() + " implements " + marked.getSimpleName()
 							+ " but no matching kit ran (needs one of "
 							+ java.util.Arrays.toString(accepted) + ", has: " + kits + ")");
 				}
@@ -123,25 +154,33 @@ public final class LawCoverage {
 		}
 	}
 
-
-	/** Every @CheckedBy-annotated interface in c's hierarchy — c's algebras. */
-	private static List<Class<?>> checkedAlgebrasOf(Class<?> c) {
-		List<Class<?>> algebras = new ArrayList<>();
-		collectAlgebras(c, algebras);
-		return algebras;
+	private String[] acceptedKits(Class<?> marked) {
+		try {
+			return (String[]) kitNames.invoke(marked.getAnnotation(checkedBy));
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalStateException("cannot read " + checkedBy.getSimpleName()
+					+ " kits of " + marked.getName(), e);
+		}
 	}
 
-	private static void collectAlgebras(Class<?> c, List<Class<?>> out) {
+	/** Every marked interface in c's hierarchy — c's checked contracts. */
+	private List<Class<?>> checkedInterfacesOf(Class<?> c) {
+		List<Class<?>> marked = new ArrayList<>();
+		collectMarked(c, marked);
+		return marked;
+	}
+
+	private void collectMarked(Class<?> c, List<Class<?>> out) {
 		if (c == null) {
 			return;
 		}
 		for (Class<?> i : c.getInterfaces()) {
-			if (i.getAnnotation(org.clauseway.functional.algebra.CheckedBy.class) != null && !out.contains(i)) {
+			if (i.getAnnotation(checkedBy) != null && !out.contains(i)) {
 				out.add(i);
 			}
-			collectAlgebras(i, out);
+			collectMarked(i, out);
 		}
-		collectAlgebras(c.getSuperclass(), out);
+		collectMarked(c.getSuperclass(), out);
 	}
 
 	private static boolean isClaimed(Class<?> c, Set<Class<?>> claims) {
@@ -154,9 +193,9 @@ public final class LawCoverage {
 	}
 
 	private static boolean hasAfterHook(Class<?> testClass,
-			Class<? extends java.lang.annotation.Annotation>[] afterHooks) {
-		for (java.lang.reflect.Method m : testClass.getDeclaredMethods()) {
-			for (Class<? extends java.lang.annotation.Annotation> hook : afterHooks) {
+			Class<? extends Annotation>[] afterHooks) {
+		for (Method m : testClass.getDeclaredMethods()) {
+			for (Class<? extends Annotation> hook : afterHooks) {
 				if (m.isAnnotationPresent(hook)) {
 					return true;
 				}

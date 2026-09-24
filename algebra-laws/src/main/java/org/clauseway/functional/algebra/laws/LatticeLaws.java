@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.function.BinaryOperator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
+import org.clauseway.functional.laws.LawRegistry;
 
 /**
  * A lattice is NOT a semilattice — it is one value type carrying two

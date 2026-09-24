@@ -10,8 +10,9 @@
 	<packaging>pom</packaging>
 
 	<modules>
-		<module>functional</module>
 		<module>laws</module>
+		<module>functional</module>
+		<module>algebra-laws</module>
 	</modules>
 
 	<properties>

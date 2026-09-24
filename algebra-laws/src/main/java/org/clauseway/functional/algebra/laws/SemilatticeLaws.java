@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.function.BiPredicate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
+import org.clauseway.functional.laws.LawRegistry;
 
 /**
  * There is ONE semilattice algebra; "meet" and "join" are a domain's names

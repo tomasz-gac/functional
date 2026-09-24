@@ -7,6 +7,7 @@ import org.clauseway.functional.algebra.Monoid;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class FoldLaws {

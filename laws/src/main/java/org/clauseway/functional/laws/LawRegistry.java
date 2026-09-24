@@ -1,4 +1,4 @@
-package org.clauseway.functional.algebra.laws;
+package org.clauseway.functional.laws;
 
 // ABOUTME: Records which kit exercised which class, so claim verification can
 // ABOUTME: detect a claimed implementor whose matching laws never ran.
@@ -14,11 +14,11 @@ public final class LawRegistry {
 
 	private static final Map<Class<?>, Set<String>> EXERCISED = new ConcurrentHashMap<>();
 
-	static void record(String kit, Class<?> exercised) {
+	public static void record(String kit, Class<?> exercised) {
 		EXERCISED.computeIfAbsent(exercised, c -> ConcurrentHashMap.newKeySet()).add(kit);
 	}
 
-	static void recordSamples(String kit, Iterable<?> samples) {
+	public static void recordSamples(String kit, Iterable<?> samples) {
 		for (Object sample : samples) {
 			record(kit, sample.getClass());
 		}

@@ -5,19 +5,20 @@ package org.clauseway.functional.category;
 
 import static org.clauseway.functional.category.Nothing.nothing;
 
-import org.clauseway.functional.algebra.laws.LawCoverage;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawChecker;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.SemilatticeLaws;
 import java.util.Collections;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 @LawsFor(Nothing.class)
 public class NothingLawsTest {
 
 	@AfterAll
 	public static void lawClaimsExercised() {
-		LawCoverage.verifyClaimsExercised(NothingLawsTest.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(NothingLawsTest.class);
 	}
 
 	@Test

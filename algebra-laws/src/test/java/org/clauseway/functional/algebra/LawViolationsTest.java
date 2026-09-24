@@ -8,8 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.clauseway.functional.algebra.laws.AbsorbingLaws;
 import org.clauseway.functional.algebra.laws.CommutativeMonoidLaws;
 import org.clauseway.functional.algebra.laws.LatticeLaws;
-import org.clauseway.functional.algebra.laws.LawCoverage;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawChecker;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.IdempotentSemiringLaws;
 import org.clauseway.functional.algebra.laws.MonoidLaws;
 import org.clauseway.functional.algebra.laws.SemilatticeLaws;
@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 public class LawViolationsTest {
 
@@ -229,7 +230,7 @@ public class LawViolationsTest {
 
 	@Test
 	public void claimingWithoutExercisingFails() {
-		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(EmptyClaim.class))
+		assertThatThrownBy(() -> LawChecker.of(CheckedBy.class).verifyClaimsExercised(EmptyClaim.class))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("never exercised");
 	}
@@ -273,7 +274,7 @@ public class LawViolationsTest {
 		// the broken witness is enclosed in this class, so the claim covers it;
 		// with no receipt left, the hook must report never-exercised — not
 		// "no matching kit" against a poisoned record
-		assertThatThrownBy(() -> LawCoverage.verifyClaimsExercised(ClaimsTheBrokenStar.class))
+		assertThatThrownBy(() -> LawChecker.of(CheckedBy.class).verifyClaimsExercised(ClaimsTheBrokenStar.class))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("never exercised");
 	}
@@ -310,7 +311,7 @@ public class LawViolationsTest {
 		MonoidLaws.check(new PartialFixture(), Arrays.asList(0L, 1L, 2L));
 		SelfContained one = new SelfContained();
 		SemilatticeLaws.check(Arrays.asList(one, one));
-		LawCoverage.verifyClaimsExercised(ClaimsOnlyItsOwn.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(ClaimsOnlyItsOwn.class);
 	}
 
 	@Test

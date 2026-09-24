@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.clauseway.functional.laws.Laws;
 
 /**
  * The endo special case of {@link MonotoneLaws} plus the deflationary axiom:

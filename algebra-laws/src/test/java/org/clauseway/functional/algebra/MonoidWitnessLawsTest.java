@@ -4,20 +4,21 @@ package org.clauseway.functional.algebra;
 
 import org.clauseway.functional.algebra.laws.CommutativeMonoidLaws;
 import org.clauseway.functional.algebra.laws.FoldLaws;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.MonoidLaws;
 import io.vavr.collection.List;
 import java.util.Arrays;
-import org.clauseway.functional.algebra.laws.LawCoverage;
+import org.clauseway.functional.laws.LawChecker;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 @LawsFor(Monoids.class)
 public class MonoidWitnessLawsTest {
 
 	@AfterAll
 	static void lawClaimsExercised() {
-		LawCoverage.verifyClaimsExercised(MonoidWitnessLawsTest.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(MonoidWitnessLawsTest.class);
 	}
 
 	private static final java.util.List<Long> SMALL = Arrays.asList(0L, 1L, 2L, 3L, 7L);

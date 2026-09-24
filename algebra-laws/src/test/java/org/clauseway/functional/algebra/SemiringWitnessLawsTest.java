@@ -6,23 +6,24 @@ package org.clauseway.functional.algebra;
 import org.clauseway.functional.algebra.laws.BoundedSemiringLaws;
 import org.clauseway.functional.algebra.laws.CommutativeMonoidLaws;
 import org.clauseway.functional.algebra.laws.IdempotentSemiringLaws;
-import org.clauseway.functional.algebra.laws.LawsFor;
+import org.clauseway.functional.laws.LawsFor;
 import org.clauseway.functional.algebra.laws.MonoidLaws;
 import org.clauseway.functional.algebra.laws.SemiringLaws;
 import org.clauseway.functional.algebra.laws.StarLaws;
 import org.clauseway.functional.algebra.laws.SuperiorityLaws;
 import java.util.Arrays;
 import java.util.List;
-import org.clauseway.functional.algebra.laws.LawCoverage;
+import org.clauseway.functional.laws.LawChecker;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.clauseway.functional.algebra.CheckedBy;
 
 @LawsFor({Semirings.class, Semiring.class})
 public class SemiringWitnessLawsTest {
 
 	@AfterAll
 	static void lawClaimsExercised() {
-		LawCoverage.verifyClaimsExercised(SemiringWitnessLawsTest.class);
+		LawChecker.of(CheckedBy.class).verifyClaimsExercised(SemiringWitnessLawsTest.class);
 	}
 
 	private static final List<Long> SMALL = Arrays.asList(0L, 1L, 2L, 3L, 7L);
