@@ -43,21 +43,20 @@ public class FiberTest {
 				.isEqualByComparingTo(BigDecimal.valueOf(5702887));
 	}
 
-	BigDecimal printingFib(int n) {
-		System.out.println(n);
+	BigDecimal naiveFib(int n) {
 		if (n == 0) {
 			return BigDecimal.ONE;
 		} else if (n == 1) {
 			return BigDecimal.ONE;
 		} else {
-			return printingFib(n - 1).add(printingFib(n - 2));
+			return naiveFib(n - 1).add(naiveFib(n - 2));
 		}
 	}
 
 	@Test
 	public void shouldBlowStack() {
 		assertThrows(StackOverflowError.class,
-				() -> printingFib(60000));
+				() -> naiveFib(60000));
 	}
 
 	Fiber<BigDecimal> lazyFib(int n) {
@@ -194,7 +193,9 @@ public class FiberTest {
 				.ground()
 				.collect(Collectors.toList());
 
-		System.out.println(collect);
+		Assertions.assertThat(collect)
+				.extracting(BigDecimal::intValue)
+				.containsExactly(1, 1, 2, 3, 5, 8, 13, 21, 34, 55);
 	}
 
 	@Test
@@ -203,7 +204,7 @@ public class FiberTest {
 		for (int i = 0; i < 1_000_000; ++i) {
 			item = item.map(j -> ++j);
 		}
-		System.out.println(item.ground());
+		Assertions.assertThat(item.ground()).isEqualTo(1_000_000);
 	}
 
 	Fiber<Integer> dec(int i) {
@@ -243,10 +244,7 @@ public class FiberTest {
 	@Test
 	public void shouldFlatMap() {
 		Assertions.assertThat(Fiber.defer(() -> Fiber.done(1))
-						.flatMap(_0 -> {
-							System.out.println(_0);
-							return done(_0);
-						}).ground())
+						.flatMap(_0 -> done(_0)).ground())
 				.isEqualTo(1);
 	}
 
@@ -270,16 +268,12 @@ public class FiberTest {
 		Fiber<String> n1 = Fiber.fork(tapped(Arrays.asList(counter(60), counter(40), counter(10)), results::add))
 				.flatMap(_0 -> done("2"));
 		List<String> ns = new CopyOnWriteArrayList<>();
-		//		Engine<Nothing> e = new ExecutorServiceEngine<>(Fiber.forEach(Arrays.asList(n, n1), ns::add),
-		//				new ThreadPoolExecutor(4, 5, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
 		Scheduler<Nothing> e = new BreadthFirstScheduler(Fiber.fork(tapped(Arrays.asList(n, n1), ns::add)));
-		System.out.println(e.get());
-		System.out.println(results);
-		System.out.println(ns);
-		//		Assertions.assertThat(results)
-		//						.containsExactly(1, 2, 3, 4, 5, 6);
-		//		Assertions.assertThat(ns)
-		//						.containsExactly("1", "2");
+		e.get();
+		Assertions.assertThat(results)
+				.containsExactlyInAnyOrder(10, 20, 30, 40, 50, 60);
+		Assertions.assertThat(ns)
+				.containsExactlyInAnyOrder("1", "2");
 	}
 
 	private static final BigDecimal TOO_BIG_TO_DISPLAY = new BigDecimal(

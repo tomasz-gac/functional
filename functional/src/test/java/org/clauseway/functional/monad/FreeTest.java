@@ -10,6 +10,7 @@ import org.clauseway.functional.fibers.Fiber;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.Assertions;
 
 class FreeTest {
 
@@ -252,8 +253,9 @@ class FreeTest {
 				.flatMap(x -> Calculator.add(Calculator.value(x), Calculator.value(1.)))
 				.flatMap(x -> Calculator.div(Calculator.value(x), Calculator.value(2.)))
 				.cast();
-		System.out.println(Calculator.run(freeObjectMonad).ground());
-		System.out.println(Calculator.describe(freeObjectMonad).ground());
+		Assertions.assertThat(Calculator.run(freeObjectMonad).ground()).isEqualTo(5.5);
+		Assertions.assertThat(Calculator.describe(freeObjectMonad).ground())
+				.isEqualTo("(10.0 + 1.0)");
 	}
 
 }

@@ -43,7 +43,6 @@ class MonadTest {
 						.join()
 						.collect(Collectors.toList());
 
-		System.out.println(collect);
 		Assertions.assertThat(collect)
 				.containsExactly(
 						0,
@@ -97,7 +96,6 @@ class MonadTest {
 				.toJavaStream()
 				.collect(Collectors.toList());
 
-		System.out.println(evenOrNumber);
 		Assertions.assertThat(evenOrNumber)
 				.containsExactly(
 						"0",
