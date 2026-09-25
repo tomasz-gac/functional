@@ -1,6 +1,6 @@
 package org.clauseway.functional;
 
-import io.vavr.control.Option;
+import java.util.Optional;
 import java.util.function.Function;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -10,23 +10,23 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Types {
-	public static <T> Option<T> cast(Object v, Class<T> cls) {
+	public static <T> Optional<T> cast(Object v, Class<T> cls) {
 		return cls.isInstance(v) ?
-				Option.of(cls.cast(v)) :
-				Option.none();
+				Optional.of(cls.cast(v)) :
+				Optional.empty();
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T> Option<T> castAs(Object v, Class<?> cls) {
+	public static <T> Optional<T> castAs(Object v, Class<?> cls) {
 		return cast(v, cls)
 				.map(u -> (T) u);
 	}
 
-	public static <T> Function<Object, Option<T>> castAs(Class<?> cls) {
+	public static <T> Function<Object, Optional<T>> castAs(Class<?> cls) {
 		return v -> Types.castAs(v, cls);
 	}
 
-	public static <T> Function<Object, Option<T>> cast(Class<T> cls) {
+	public static <T> Function<Object, Optional<T>> cast(Class<T> cls) {
 		return v -> cast(v, cls);
 	}
 

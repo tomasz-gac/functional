@@ -3,10 +3,10 @@ package org.clauseway.functional.fibers;
 // ABOUTME: A worklist drained as a fiber: one item per deferred step, each step may
 // ABOUTME: add work and advance state, a stop short-circuits. Fairness via the scheduler.
 
+import io.vavr.Tuple2;
 import org.clauseway.functional.algebra.Absorbing;
 import org.clauseway.functional.algebra.MonotoneDrain;
 import org.clauseway.functional.algebra.Semilattice;
-import io.vavr.Tuple2;
 import io.vavr.collection.Queue;
 import java.util.Collections;
 import java.util.function.BiFunction;

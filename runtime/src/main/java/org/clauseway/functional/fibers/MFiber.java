@@ -1,27 +1,27 @@
 package org.clauseway.functional.fibers;
 
-import org.clauseway.functional.Reference;
-import org.clauseway.functional.tuples.Tuple;
-import org.clauseway.functional.tuples.Tuple2;
-import io.vavr.control.Option;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.clauseway.functional.Reference;
+import org.clauseway.functional.tuples.Tuple;
+import org.clauseway.functional.tuples.Tuple2;
 
 @Getter
 @RequiredArgsConstructor(staticName = "of")
 public class MFiber<A> {
-	private final Fiber<Option<A>> fiber;
+	private final Fiber<Optional<A>> fiber;
 
 	public static <A> MFiber<A> mdone(A v) {
-		return MFiber.of(Fiber.done(Option.of(v)));
+		return MFiber.of(Fiber.done(Optional.of(v)));
 	}
 
 	public static <A> MFiber<A> none() {
-		return MFiber.of(Fiber.done(Option.none()));
+		return MFiber.of(Fiber.done(Optional.empty()));
 	}
 
 	public static <A> MFiber<A> mdefer(Supplier<MFiber<A>> supplier) {
@@ -29,18 +29,17 @@ public class MFiber<A> {
 	}
 
 	public static <A> MFiber<A> ofFiber(Fiber<A> r) {
-		return MFiber.of(r.map(Option::of));
+		return MFiber.of(r.map(Optional::of));
 	}
 
 	/** The loud extractor, delegated: requires the underlying fiber Done. */
-	public Option<A> getDone(String context) {
+	public Optional<A> getDone(String context) {
 		return fiber.getDone(context);
 	}
 
 	/** The sanctioned nesting door, delegated: pure fibers only. */
 	@Deprecated
-	@SuppressWarnings("deprecation")
-	public Option<A> ground() {
+	public Optional<A> ground() {
 		return fiber.ground();
 	}
 
@@ -48,33 +47,33 @@ public class MFiber<A> {
 		return MFiber.of(fiber
 				.flatMap(o -> o.map(f)
 						.map(r -> r.fiber)
-						.getOrElse(() -> Fiber.done(Option.none()))));
+						.orElseGet(() -> Fiber.done(Optional.empty()))));
 	}
 
 	public MFiber<A> filter(Predicate<A> test) {
 		return this.flatMap(v ->
-				Option.of(v)
+				Optional.of(v)
 						.filter(test)
 						.map(MFiber::mdone)
-						.getOrElse(MFiber::none));
+						.orElseGet(MFiber::none));
 	}
 
 	public MFiber<A> orElse(Supplier<MFiber<A>> other) {
 		return MFiber.of(fiber
 				.flatMap(a -> a.map(MFiber::mdone)
-						.getOrElse(other)
+						.orElseGet(other)
 						.fiber));
 	}
 
 	public Fiber<A> resumeWith(Supplier<A> other) {
-		return fiber.map(a -> a.getOrElse(other));
+		return fiber.map(a -> a.orElseGet(other));
 	}
 
 	public <B> MFiber<B> ifElse(
 			Function<A, MFiber<B>> then,
 			Supplier<MFiber<B>> orElse) {
 		return MFiber.of(getFiber()
-				.flatMap(a -> a.isDefined() ?
+				.flatMap(a -> a.isPresent() ?
 						then.apply(a.get()).getFiber() :
 						orElse.get().getFiber()));
 	}
@@ -95,11 +94,11 @@ public class MFiber<A> {
 	}
 
 	public Fiber<A> getOrElse(Supplier<A> s) {
-		return fiber.map(o -> o.getOrElse(s));
+		return fiber.map(o -> o.orElseGet(s));
 	}
 
 	public Fiber<A> getOrElse(A v) {
-		return fiber.map(o -> o.getOrElse(v));
+		return fiber.map(o -> o.orElse(v));
 	}
 
 	public static <A, B> MFiber<Tuple2<A, B>> zip(MFiber<A> lhs, MFiber<B> rhs) {
